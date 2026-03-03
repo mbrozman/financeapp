@@ -160,6 +160,19 @@ class InvestmentResource extends Resource
                         number_format((float)$state, 2, ',', ' ') . ' ' . ($record->currency?->symbol ?? '')
                     ),
 
+                    Tables\Columns\TextColumn::make('total_gain_base')
+                ->label('Zisk/Strata')
+                ->alignEnd()
+                ->weight('bold')
+                // Dynamicky priradíme farbu
+                ->color(fn ($state) => (float)$state >= 0 ? 'success' : 'danger')
+                // Dynamicky priradíme symbol meny ($ alebo €)
+                ->formatStateUsing(function ($state, $record) {
+                    $symbol = $record->currency?->symbol ?? '$';
+                    $prefix = (float)$state >= 0 ? '+' : '';
+                    return $prefix . number_format((float)$state, 2, ',', ' ') . ' ' . $symbol;
+                }),
+
                 // HODNOTA (DYNAMICKÁ PODĽA STAVU)
                 Tables\Columns\TextColumn::make('current_market_value_base')
                     ->label(fn($livewire) => $livewire->activeTab === 'archived' ? 'Predané za' : 'Hodnota')
@@ -173,20 +186,14 @@ class InvestmentResource extends Resource
                         number_format((float)$state, 2, ',', ' ') . ' ' . ($record->currency?->symbol ?? '')
                     ),
 
-                // VÝNOS V % (Počítaný v domovskej mene)
-                Tables\Columns\TextColumn::make('gain_pct')
-                    ->label('Výnos (%)')
-                    ->alignEnd()
-                    ->state(function ($record) {
-                        $invested = (float)$record->total_invested_base;
-                        if ($invested <= 0) return 0;
-                        $current = $record->is_archived ? (float)$record->total_sales_base : (float)$record->current_market_value_base;
-                        return (($current - $invested) / $invested) * 100;
-                    })
-                    ->formatStateUsing(fn($state) => ($state >= 0 ? '+' : '') . number_format($state, 2, ',', ' ') . ' %')
-                    ->weight('black')
-                    ->color(fn($state) => (float)$state >= 0 ? 'success' : 'danger'),
+                Tables\Columns\TextColumn::make('total_gain_percent')
+                ->label('Výnos (%)')
+                ->alignEnd()
+                ->badge() // Dáme to do pekného štítku
+                ->color(fn ($state) => (float)$state >= 0 ? 'success' : 'danger')
+                ->formatStateUsing(fn ($state) => ((float)$state >= 0 ? '+' : '') . number_format((float)$state, 2) . ' %'),
             ])
+            
             ->recordUrl(fn($record) => static::getUrl('view', ['record' => $record]))
             ->defaultSort(column: 'ticker')
             ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent);

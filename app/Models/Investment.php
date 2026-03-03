@@ -102,21 +102,36 @@ class Investment extends Model
     }
 
     /**
- * AKTUÁLNA HODNOTA EUR (Dnešná realita)
- * Berie aktuálnu cenu a dnešný kurz z DB
- */
-protected function currentMarketValueEur(): Attribute
-{
-    return Attribute::make(
-        get: function () {
-            if ($this->is_archived) return (float)$this->total_sales_eur;
-            
-            $valueBase = (float)$this->total_quantity * (float)$this->current_price;
-            return CurrencyService::convertToEur($valueBase, $this->currency_id);
-        }
-    );
-}
+     * AKTUÁLNA HODNOTA EUR (Dnešná realita)
+     * Berie aktuálnu cenu a dnešný kurz z DB
+     */
+    protected function currentMarketValueEur(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                if ($this->is_archived) return (float)$this->total_sales_eur;
 
+                $valueBase = (float)$this->total_quantity * (float)$this->current_price;
+                return CurrencyService::convertToEur($valueBase, $this->currency_id);
+            }
+        );
+    }
+
+    /**
+     * Celkový zisk v EUR (Zohľadňuje aktívny zisk aj realizovaný zisk)
+     */
+    protected function totalGainEur(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                $invested = (float)$this->total_invested_eur;
+                $current = $this->is_archived ? (float)$this->total_sales_eur : (float)$this->current_market_value_eur;
+                return $current - $invested;
+            }
+        );
+    }
+
+   
     protected function averageBuyPriceBase(): Attribute
     {
         return Attribute::make(
@@ -127,19 +142,19 @@ protected function currentMarketValueEur(): Attribute
         );
     }
 
-  /**
- * INVESTOVANÉ EUR (Historická realita)
- * Berie nákupy a ich vtedajšie kurzy
- */
-protected function totalInvestedEur(): Attribute
-{
-    return Attribute::make(
-        get: fn () => $this->transactions->where('type', 'buy')->sum(function($tx) {
-            $costBase = ($tx->quantity * $tx->price_per_unit) + $tx->commission;
-            return CurrencyService::convertToEur($costBase, $tx->currency_id, $tx->exchange_rate);
-        })
-    );
-}
+    /**
+     * INVESTOVANÉ EUR (Historická realita)
+     * Berie nákupy a ich vtedajšie kurzy
+     */
+    protected function totalInvestedEur(): Attribute
+    {
+        return Attribute::make(
+            get: fn() => $this->transactions->where('type', 'buy')->sum(function ($tx) {
+                $costBase = ($tx->quantity * $tx->price_per_unit) + $tx->commission;
+                return CurrencyService::convertToEur($costBase, $tx->currency_id, $tx->exchange_rate);
+            })
+        );
+    }
 
     // Tržby z predaja (EUR) - používa HISTORICKÉ kurzy
     protected function totalSalesEur(): Attribute
@@ -155,15 +170,47 @@ protected function totalInvestedEur(): Attribute
         );
     }
 
-  /**
- * ZISK EUR (Čistý rozdiel)
+    /**
+ * Celkový zisk v DOMOVSKEJ MENE (napr. USD)
+ * Zohľadňuje nerealizovaný aj realizovaný zisk
  */
-protected function gainEur(): Attribute
+protected function totalGainBase(): Attribute
 {
     return Attribute::make(
-        get: fn () => (float)$this->current_market_value_eur - (float)$this->total_invested_eur
+        get: function () {
+            $investedBase = (float)$this->total_invested_base;
+            $currentBase = $this->is_archived ? (float)$this->total_sales_base : (float)$this->current_market_value_base;
+            
+            return $currentBase - $investedBase;
+        }
     );
 }
+
+/**
+ * Celkový výnos v % (počítaný z domovskej meny)
+ * Toto je najpresnejší ukazovateľ úspešnosti výberu akcie
+ */
+protected function totalGainPercent(): Attribute
+{
+    return Attribute::make(
+        get: function () {
+            $investedBase = (float)$this->total_invested_base;
+            if ($investedBase <= 0) return 0;
+            
+            return ($this->total_gain_base / $investedBase) * 100;
+        }
+    );
+}
+
+    /**
+     * ZISK EUR (Čistý rozdiel)
+     */
+    protected function gainEur(): Attribute
+    {
+        return Attribute::make(
+            get: fn() => (float)$this->current_market_value_eur - (float)$this->total_invested_eur
+        );
+    }
 
     protected function taxFreeQuantity(): Attribute
     {

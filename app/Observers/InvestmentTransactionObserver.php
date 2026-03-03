@@ -9,48 +9,60 @@ use App\Services\CurrencyService;
 
 class InvestmentTransactionObserver
 {
-    /**
-     * Spustí sa po VYTVORENÍ alebo UPRAVENÍ transakcie
-     */
     public function saved(InvestmentTransaction $tx): void
-    {
-        $this->syncEverything($tx, 'process');
-    }
-
-    /**
-     * Spustí sa po VYMAZANÍ transakcie
-     * (TOTO JE TÁ OCHRANA, KTORÁ CHÝBALA)
-     */
-    public function deleted(InvestmentTransaction $tx): void
-    {
-        $this->syncEverything($tx, 'reverse');
-    }
-
-    /**
-     * Jednotná metóda na synchronizáciu peňazí a stavu
-     */
-    protected function syncEverything(InvestmentTransaction $tx, string $mode): void
     {
         $investment = $tx->investment;
         $brokerAccount = $investment->account;
 
-        // 1. Vypočítame sumu v EUR, ktorú transakcia predstavovala
+        $oldType = $tx->getOriginal('type');
+        $isNew = !$oldType; // pri vytvorení getOriginal('type') je null
+
+        if (!$isNew) {
+            // Vypočítame starú sumu a VRÁTIME jej efekt na balance
+            $oldAmountBase = ($tx->getOriginal('quantity') * $tx->getOriginal('price_per_unit'))
+                + ($oldType === 'buy' ? $tx->getOriginal('commission') : -$tx->getOriginal('commission'));
+
+            $oldAmountEur = CurrencyService::convertToEur(
+                $oldAmountBase,
+                $tx->getOriginal('currency_id'),
+                $tx->getOriginal('exchange_rate')
+            );
+
+            // Reverzujeme starý efekt
+            if ($oldType === 'buy') $brokerAccount->increment('balance', $oldAmountEur);
+            if ($oldType === 'sell') $brokerAccount->decrement('balance', $oldAmountEur);
+        }
+
+        // Aplikujeme nový efekt
+        $newAmountBase = ($tx->quantity * $tx->price_per_unit)
+            + ($tx->type === 'buy' ? $tx->commission : -$tx->commission);
+
+        $newAmountEur = CurrencyService::convertToEur($newAmountBase, $tx->currency_id, $tx->exchange_rate);
+
+        if ($tx->type === 'buy') $brokerAccount->decrement('balance', $newAmountEur);
+        if ($tx->type === 'sell') $brokerAccount->increment('balance', $newAmountEur);
+
+        $this->syncInvestmentStatus($investment);
+    }
+
+    public function deleted(InvestmentTransaction $tx): void
+    {
+        $investment = $tx->investment;
+        $brokerAccount = $investment->account;
+
         $amountBase = ($tx->quantity * $tx->price_per_unit) + ($tx->type === 'buy' ? $tx->commission : -$tx->commission);
         $amountEur = CurrencyService::convertToEur($amountBase, $tx->currency_id, $tx->exchange_rate);
 
-        // 2. AKTUALIZÁCIA HOTOVOSTI U BROKERA
-        if ($mode === 'process') {
-            // Bežný proces: nákup peniaze berie, predaj dáva
-            if ($tx->type === 'buy') $brokerAccount->decrement('balance', $amountEur);
-            if ($tx->type === 'sell') $brokerAccount->increment('balance', $amountEur);
-        } else {
-            // REVERZNÝ PROCES (pri mazaní): Ak mažem nákup, peniaze vraciam na účet
-            if ($tx->type === 'buy') $brokerAccount->increment('balance', $amountEur);
-            if ($tx->type === 'sell') $brokerAccount->decrement('balance', $amountEur);
-        }
+        // PRI ZMAZANÍ: Vraciame stav účtu späť
+        if ($tx->type === 'buy') $brokerAccount->increment('balance', $amountEur);
+        if ($tx->type === 'sell') $brokerAccount->decrement('balance', $amountEur);
 
-        // 3. PREPOČET ARCHIVÁCIE
-        // Spočítame reálny zostatok kusov priamo v DB po zmene
+        $this->syncInvestmentStatus($investment);
+    }
+
+    protected function syncInvestmentStatus(Investment $investment): void
+    {
+        // Spočítame kusy priamo v DB, aby sme mali 100% istotu
         $totalQty = InvestmentTransaction::where('investment_id', $investment->id)
             ->sum(DB::raw("CASE WHEN type = 'buy' THEN quantity ELSE -quantity END"));
 
