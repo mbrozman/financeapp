@@ -83,9 +83,8 @@ class Investment extends Model
         return Attribute::make(
         get: function () {
             // Použijeme priamy dopyt do DB, aby sme obišli prípadnú cache v pamäti
-            return (float) \App\Models\InvestmentTransaction::where('investment_id', $this->id)
-                ->selectRaw("SUM(CASE WHEN type = 'buy' THEN quantity ELSE -quantity END) as total")
-                ->value('total') ?? 0;
+             $total = $this->transactions()->selectRaw("SUM(CASE WHEN type = 'buy' THEN quantity ELSE -quantity END) as total")->value('total');
+            return (float) ($total ?? 0);
         }
     );
     }
@@ -100,13 +99,12 @@ class Investment extends Model
     protected function totalInvestedBase(): Attribute
     {
         return Attribute::make(
-            get: function () {
-                return (float) \App\Models\InvestmentTransaction::where('investment_id', $this->id)
-                    ->where('type', 'buy')
-                    ->get()
-                    ->sum(fn($tx) => ($tx->quantity * $tx->price_per_unit) + $tx->commission);
-            }
-        );
+        get: function () {
+            // Ak kolekcia nie je načítaná, urobíme rýchly sum dotaz
+            $sum = $this->transactions()->where('type', 'buy')->get()->sum(fn ($tx) => ($tx->quantity * $tx->price_per_unit) + $tx->commission);
+            return (float) $sum;
+        }
+    );
     }
 
     /**

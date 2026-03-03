@@ -23,7 +23,9 @@ class InvestmentProfitStats extends BaseWidget
     $this->record->loadMissing(['transactions', 'currency']);
 
     $record = $this->record;
-
+     if ($record->transactions->isEmpty()) {
+        $record->load(['transactions', 'currency']);
+    }
     $investedBase = (float)$record->total_invested_base;
     $currentValueBase = $record->is_archived ? (float)$record->total_sales_base : (float)$record->current_market_value_base;
     

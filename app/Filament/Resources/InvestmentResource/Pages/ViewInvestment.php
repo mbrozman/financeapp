@@ -101,7 +101,7 @@ class ViewInvestment extends ViewRecord
         $record->load(['transactions', 'currency']);
         
         return [
-            'record' => $record,
+            'record' => $this->getRecord()->load(['transactions', 'currency']),
         ];
     }
 }
