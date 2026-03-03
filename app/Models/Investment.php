@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Services\CurrencyService;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class Investment extends Model
 {
@@ -80,17 +81,13 @@ class Investment extends Model
     protected function totalQuantity(): Attribute
     {
         return Attribute::make(
-            get: function () {
-                if ($this->transactions->isEmpty()) {
-                    return 0;
-                }
-
-                $buys  = $this->transactions->where('type', 'buy')->sum('quantity');
-                $sells = $this->transactions->where('type', 'sell')->sum('quantity');
-
-                return (float) ($buys - $sells);
-            }
-        );
+        get: function () {
+            // Použijeme priamy dopyt do DB, aby sme obišli prípadnú cache v pamäti
+            return (float) \App\Models\InvestmentTransaction::where('investment_id', $this->id)
+                ->selectRaw("SUM(CASE WHEN type = 'buy' THEN quantity ELSE -quantity END) as total")
+                ->value('total') ?? 0;
+        }
+    );
     }
 
     // -------------------------------------------------------------------------
@@ -104,9 +101,10 @@ class Investment extends Model
     {
         return Attribute::make(
             get: function () {
-                return $this->transactions
+                return (float) \App\Models\InvestmentTransaction::where('investment_id', $this->id)
                     ->where('type', 'buy')
-                    ->sum(fn ($tx) => ($tx->quantity * $tx->price_per_unit) + $tx->commission);
+                    ->get()
+                    ->sum(fn($tx) => ($tx->quantity * $tx->price_per_unit) + $tx->commission);
             }
         );
     }
@@ -120,7 +118,7 @@ class Investment extends Model
             get: function () {
                 return $this->transactions
                     ->where('type', 'sell')
-                    ->sum(fn ($tx) => ($tx->quantity * $tx->price_per_unit) - $tx->commission);
+                    ->sum(fn($tx) => ($tx->quantity * $tx->price_per_unit) - $tx->commission);
             }
         );
     }
@@ -131,8 +129,9 @@ class Investment extends Model
     protected function currentMarketValueBase(): Attribute
     {
         return Attribute::make(
-            get: fn () => (float) $this->total_quantity * (float) $this->current_price
-        );
+        // Vynútime pretypovanie ceny aj množstva na float, aby nula nebola "string"
+        get: fn () => (float)$this->total_quantity * (float)($this->current_price ?? 0)
+    );
     }
 
     /**
@@ -174,29 +173,29 @@ class Investment extends Model
     }
 
     /**
- * Priemerná nákupná cena v mene aktíva (USD/EUR...)
- * Používa sa v grafe ako vodorovná čiara (Break-even).
- */
-protected function averageBuyPriceBase(): Attribute
-{
-    return Attribute::make(
-        get: function () {
-            // Použijeme sum() priamo na kolekcii transakcií v pamäti
-            $buyTransactions = $this->transactions->where('type', 'buy');
-            
-            if ($buyTransactions->isEmpty()) return 0;
+     * Priemerná nákupná cena v mene aktíva (USD/EUR...)
+     * Používa sa v grafe ako vodorovná čiara (Break-even).
+     */
+    protected function averageBuyPriceBase(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                // Použijeme sum() priamo na kolekcii transakcií v pamäti
+                $buyTransactions = $this->transactions->where('type', 'buy');
 
-            $totalQuantity = $buyTransactions->sum('quantity');
-            
-            if ($totalQuantity <= 0) return 0;
+                if ($buyTransactions->isEmpty()) return 0;
 
-            // Vypočítame priemer: (Suma cien + Poplatky) / Kusy
-            $totalCostBase = $buyTransactions->sum(fn ($tx) => ($tx->quantity * $tx->price_per_unit) + $tx->commission);
+                $totalQuantity = $buyTransactions->sum('quantity');
 
-            return (float) ($totalCostBase / $totalQuantity);
-        }
-    );
-}
+                if ($totalQuantity <= 0) return 0;
+
+                // Vypočítame priemer: (Suma cien + Poplatky) / Kusy
+                $totalCostBase = $buyTransactions->sum(fn($tx) => ($tx->quantity * $tx->price_per_unit) + $tx->commission);
+
+                return (float) ($totalCostBase / $totalQuantity);
+            }
+        );
+    }
     // -------------------------------------------------------------------------
     // VÝPOČTY V EUR
     // -------------------------------------------------------------------------
@@ -207,7 +206,7 @@ protected function averageBuyPriceBase(): Attribute
     protected function totalInvestedEur(): Attribute
     {
         return Attribute::make(
-            get: fn () => $this->transactions
+            get: fn() => $this->transactions
                 ->where('type', 'buy')
                 ->sum(function ($tx) {
                     $costBase = ($tx->quantity * $tx->price_per_unit) + $tx->commission;

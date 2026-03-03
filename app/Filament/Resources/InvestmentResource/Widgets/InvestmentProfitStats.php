@@ -18,33 +18,49 @@ class InvestmentProfitStats extends BaseWidget
     }
 
     protected function getStats(): array
-    {
-        if (!$this->record) return [];
+{
+    if (!$this->record) return [];
+    $this->record->loadMissing(['transactions', 'currency']);
 
-        // TENTO RIADOK JE KĽÚČOVÝ: Vynútime načítanie transakcií z DB do pamäte
-        $this->record->load(['transactions', 'currency']);
+    $record = $this->record;
 
-        $record = $this->record;
-        $symbol = $record->currency?->symbol ?? '$';
+    $investedBase = (float)$record->total_invested_base;
+    $currentValueBase = $record->is_archived ? (float)$record->total_sales_base : (float)$record->current_market_value_base;
+    
+    $symbol = $record->currency?->symbol ?? '$';
 
-        // Výpočty v Base mene
-        $investedBase = (float)$record->total_invested_base;
-        $currentValueBase = (float)$record->current_market_value_base;
+    // 1. ZÍSKAME HODNOTY (Ošetrené pretypovaním)
+    $investedBase = (float)$record->total_invested_base;
+    $currentValueBase = $record->is_archived 
+        ? (float)$record->total_sales_base 
+        : (float)$record->current_market_value_base;
 
-        // Ak je akcia v archive, prepneme na tržby
-        if ($record->is_archived) {
-            $currentValueBase = (float)$record->total_sales_base;
-        }
+    // 2. VÝPOČET ZISKU
+    $gainBase = $currentValueBase - $investedBase;
 
-        $gainBase = $currentValueBase - $investedBase;
-        $gainPercent = ($investedBase > 0) ? ($gainBase / $investedBase) * 100 : 0;
+    // 3. OCHRANA PROTI DELENIU NULOU (To bol dôvod prázdnych widgetov!)
+    // Ak je investedBase 0 alebo menej (napr. pri chybných dátach), percento bude 0
+    $gainPercent = ($investedBase > 0) ? ($gainBase / $investedBase) * 100 : 0;
 
-        return [
-            Stat::make("Výsledok ({$symbol})", number_format($gainBase, 2, ',', ' ') . " {$symbol}")
-                ->color($gainBase >= 0 ? 'success' : 'danger'),
+    $isProfit = $gainBase >= 0;
+    $color = $isProfit ? 'success' : 'danger';
+    $icon = $isProfit ? 'heroicon-m-arrow-trending-up' : 'heroicon-m-arrow-trending-down';
 
-            Stat::make("Výkonnosť pozície", number_format($gainPercent, 2, ',', ' ') . ' %')
-                ->color($gainBase >= 0 ? 'success' : 'danger'),
-        ];
-    }
+    return [
+        Stat::make("Výsledok ({$symbol})", number_format($gainBase, 2, ',', ' ') . " {$symbol}")
+            ->description($record->is_archived ? 'Konečný realizovaný zisk' : 'Aktuálny nerealizovaný stav')
+            ->descriptionIcon($icon)
+            ->color($color)
+            ->extraAttributes([
+                'class' => 'border-l-4 ' . ($isProfit ? 'border-green-500' : 'border-red-500'),
+            ]),
+
+        Stat::make("Výkonnosť pozície", number_format($gainPercent, 2, ',', ' ') . ' %')
+            ->description('Percentuálne zhodnotenie')
+            ->color($color)
+            ->extraAttributes([
+                'class' => 'border-l-4 ' . ($isProfit ? 'border-green-500' : 'border-red-500'),
+            ]),
+    ];
+}
 }

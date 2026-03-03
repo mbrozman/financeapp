@@ -79,7 +79,7 @@ class CreateInvestment extends CreateRecord
                 ]);
 
                 // DÔLEŽITÉ: Stiahneme históriu a refreshneme hneď
-                app(\App\Services\StockApiService::class)->downloadHistory($record, 30);
+                app(\App\Services\StockApiService::class)->downloadHistory($record, 365);
                 $record->refresh();
             }
 
