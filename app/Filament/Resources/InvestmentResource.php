@@ -94,33 +94,27 @@ class InvestmentResource extends Resource
                         Forms\Components\Hidden::make('current_price')->default(0),
                     ])->columns(2),
 
-                // SEKCIA 2: PRVÝ NÁKUP (Pomocné polia - NIE SÚ V DB INVESTMENTS)
                 Forms\Components\Section::make('Prvý nákup')
-                    ->description('Tieto údaje vytvoria prvý záznam v histórii nákupov.')
                     ->visible(fn($livewire) => $livewire instanceof Pages\CreateInvestment)
                     ->schema([
                         Forms\Components\TextInput::make('initial_quantity')
                             ->label('Počet kusov')
                             ->numeric()
-                            ->required()
-                            ->dehydrated(false),
+                            ->default(0),
 
                         Forms\Components\TextInput::make('initial_price')
-                            ->label('Cena za 1 ks')
+                            ->label('Nákupná cena za 1 ks')
                             ->numeric()
-                            ->required()
-                            ->dehydrated(false),
+                            ->default(0),
 
                         Forms\Components\TextInput::make('initial_commission')
                             ->label('Poplatok')
                             ->numeric()
-                            ->default(0)
-                            ->dehydrated(false),
+                            ->default(0),
 
                         Forms\Components\DatePicker::make('transaction_date')
                             ->label('Dátum nákupu')
-                            ->default(now())
-                            ->dehydrated(false),
+                            ->default(now()),
                     ])->columns(4),
             ]);
     }
