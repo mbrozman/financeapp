@@ -22,47 +22,27 @@ class InvestmentProfitStats extends BaseWidget
         if (!$this->record) return [];
 
         $record = $this->record;
-        
-        // 1. ZÍSKAME SYMBOL (USD/EUR...)
         $symbol = $record->currency?->symbol ?? '$';
 
-        // 2. LOGIKA VÝPOČTOV V DOMOVSKEJ MENE (Base)
-        $investedBase = (float)$record->total_invested_base;
-        
-        if ($record->is_archived) {
-            $currentValueBase = (float)$record->total_sales_base;
-            $labelPrefix = 'Realizovaný';
-            $desc = 'Konečný výsledok v mene aktíva';
-        } else {
-            $currentValueBase = (float)$record->current_market_value_base;
-            $labelPrefix = 'Nerealizovaný';
-            $desc = 'Aktuálny stav v mene aktíva';
-        }
+        // POUŽÍVAME UŽ LEN ATRIBÚTY Z MODELU
+        $gainBase = $record->is_archived
+            ? (float)$record->total_sales_base - (float)$record->total_invested_base
+            : (float)$record->current_market_value_base - (float)$record->total_invested_base;
 
-        $gainBase = $currentValueBase - $investedBase;
+        $investedBase = (float)$record->total_invested_base;
         $gainPercent = $investedBase > 0 ? ($gainBase / $investedBase) * 100 : 0;
-        
+
         $isProfit = $gainBase >= 0;
         $color = $isProfit ? 'success' : 'danger';
-        $icon = $isProfit ? 'heroicon-m-arrow-trending-up' : 'heroicon-m-arrow-trending-down';
 
         return [
-            // KARTA 1: ZISK V DOMOVSKEJ MENE
-            Stat::make("{$labelPrefix} výsledok ({$symbol})", number_format($gainBase, 2, ',', ' ') . " {$symbol}")
-                ->description($desc)
-                ->descriptionIcon($icon)
-                ->color($color)
-                ->extraAttributes([
-                    'class' => 'border-l-4 ' . ($isProfit ? 'border-green-500' : 'border-red-500'),
-                ]),
+            Stat::make("Výsledok ({$symbol})", number_format($gainBase, 2, ',', ' ') . " {$symbol}")
+                ->description($record->is_archived ? 'Realizovaný konečný zisk' : 'Aktuálny nerealizovaný stav')
+                ->color($color),
 
-            // KARTA 2: VÝNOS V % (Počítaný z Base meny)
-            Stat::make("{$labelPrefix} výkonnosť (%)", number_format($gainPercent, 2, ',', ' ') . ' %')
-                ->description('Percentuálna zmena hodnoty')
-                ->color($color)
-                ->extraAttributes([
-                    'class' => 'border-l-4 ' . ($isProfit ? 'border-green-500' : 'border-red-500'),
-                ]),
+            Stat::make("Výkonnosť pozície", number_format($gainPercent, 2, ',', ' ') . ' %')
+                ->description('Percentuálne zhodnotenie kapitálu')
+                ->color($color),
         ];
     }
 }

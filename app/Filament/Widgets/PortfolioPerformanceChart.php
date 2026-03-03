@@ -38,15 +38,12 @@ class PortfolioPerformanceChart extends ChartWidget
         $labels = [];
 
         // 1. ZÍSKAME REÁLNY KURZ Z NAŠEJ SLUŽBY
-        try {
-            $usdRate = CurrencyService::getRate('USD');
-        } catch (\Exception $e) {
-            $usdRate = 1.08; // Posledná záchrana pre graf, ak by si nemal menu v DB
-        }
+        $usdRate = CurrencyService::getLiveRate('USD');
 
-        $investments = Investment::where('user_id', Auth::id())
+        $investments = Investment::with(['transactions']) // PRIDANÉ with
+            ->where('user_id', Auth::id())
             ->where('ticker', '!=', 'SPY')
-            ->where('is_archived', false) // Len aktívne pozície pre sledovanie trendu
+            ->where('is_archived', false)
             ->get();
 
         $benchmarkRecord = Investment::where('ticker', 'SPY')->first();
@@ -56,7 +53,7 @@ class PortfolioPerformanceChart extends ChartWidget
 
         foreach ($period as $date) {
             $dateString = $date->format('Y-m-d');
-            
+
             // UX: Optimalizácia popiskov na osi X
             if ($daysToLookBack > 90) {
                 $labels[] = $date->dayOfWeek === 1 ? $date->format('d.M') : '';
@@ -114,7 +111,7 @@ class PortfolioPerformanceChart extends ChartWidget
                     'label' => 'Trh (S&P 500)',
                     'data' => $benchmarkValues,
                     'borderColor' => '#94a3b8',
-                    'borderDash' => [5, 5], 
+                    'borderDash' => [5, 5],
                     'borderWidth' => 2,
                     'pointRadius' => 0,
                     'tension' => 0.3,

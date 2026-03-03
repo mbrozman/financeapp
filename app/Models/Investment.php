@@ -101,16 +101,21 @@ class Investment extends Model
         );
     }
 
-    // Aktuálna hodnota (EUR) - používa AKTUÁLNY kurz z tabuľky mien
-    protected function currentMarketValueEur(): Attribute
-    {
-        return Attribute::make(
-            get: fn() => CurrencyService::convertToEur(
-                (float)$this->current_market_value_base,
-                $this->currency_id
-            )
-        );
-    }
+    /**
+ * AKTUÁLNA HODNOTA EUR (Dnešná realita)
+ * Berie aktuálnu cenu a dnešný kurz z DB
+ */
+protected function currentMarketValueEur(): Attribute
+{
+    return Attribute::make(
+        get: function () {
+            if ($this->is_archived) return (float)$this->total_sales_eur;
+            
+            $valueBase = (float)$this->total_quantity * (float)$this->current_price;
+            return CurrencyService::convertToEur($valueBase, $this->currency_id);
+        }
+    );
+}
 
     protected function averageBuyPriceBase(): Attribute
     {
@@ -122,16 +127,19 @@ class Investment extends Model
         );
     }
 
-    // Celková investícia (EUR) - používa HISTORICKÉ kurzy z transakcií
-    protected function totalInvestedEur(): Attribute
-    {
-        return Attribute::make(
-            get: fn() => $this->transactions->where('type', 'buy')->sum(function ($tx) {
-                $costBase = ($tx->quantity * $tx->price_per_unit) + $tx->commission;
-                return CurrencyService::convertToEur($costBase, $tx->currency_id, $tx->exchange_rate);
-            })
-        );
-    }
+  /**
+ * INVESTOVANÉ EUR (Historická realita)
+ * Berie nákupy a ich vtedajšie kurzy
+ */
+protected function totalInvestedEur(): Attribute
+{
+    return Attribute::make(
+        get: fn () => $this->transactions->where('type', 'buy')->sum(function($tx) {
+            $costBase = ($tx->quantity * $tx->price_per_unit) + $tx->commission;
+            return CurrencyService::convertToEur($costBase, $tx->currency_id, $tx->exchange_rate);
+        })
+    );
+}
 
     // Tržby z predaja (EUR) - používa HISTORICKÉ kurzy
     protected function totalSalesEur(): Attribute
@@ -147,20 +155,15 @@ class Investment extends Model
         );
     }
 
-    protected function gainEur(): Attribute
-    {
-        return Attribute::make(
-            get: function () {
-                $investedEur = (float)$this->total_invested_eur;
-
-                // Získame dnešnú hodnotu v EUR cez našu službu
-                $currentBase = $this->is_archived ? (float)$this->total_sales_base : (float)$this->current_market_value_base;
-                $currentEur = CurrencyService::convertToEur($currentBase, $this->currency?->code ?? 'USD');
-
-                return $currentEur - $investedEur;
-            }
-        );
-    }
+  /**
+ * ZISK EUR (Čistý rozdiel)
+ */
+protected function gainEur(): Attribute
+{
+    return Attribute::make(
+        get: fn () => (float)$this->current_market_value_eur - (float)$this->total_invested_eur
+    );
+}
 
     protected function taxFreeQuantity(): Attribute
     {
