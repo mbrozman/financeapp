@@ -22,7 +22,8 @@ class CreateInvestment extends CreateRecord
     protected function beforeCreate(): void
     {
         $ticker = $this->data['ticker'];
-        $broker = $this->data['broker'] ?? null;
+        // Ak by náhodou broker v dátach chýbal (lebo je Hidden), skúsime ho získať z account_id
+        $broker = $this->data['broker'] ?? \App\Models\Account::find($this->data['account_id'])?->name;
 
         $existing = Investment::where('user_id', auth()->id())
             ->where('ticker', $ticker)
@@ -30,18 +31,13 @@ class CreateInvestment extends CreateRecord
             ->first();
 
         if ($existing) {
-            // Pošleme notifikáciu
             Notification::make()
                 ->title('Pozícia už existuje')
-                ->body("Ticker {$ticker} u brokera {$broker} už máte v portfóliu. Presmerovali sme vás na detail.")
+                ->body("Investíciu {$ticker} u brokera {$broker} už máte v portfóliu.")
                 ->warning()
                 ->send();
 
-            // Okamžité presmerovanie
-            $url = InvestmentResource::getUrl('view', ['record' => $existing]);
-            $this->redirect($url);
-
-            // ZASTAVÍME VŠETKO (tým pádom sa handleRecordCreation ani nespustí)
+            $this->redirect(InvestmentResource::getUrl('view', ['record' => $existing]));
             $this->halt();
         }
     }
@@ -52,13 +48,15 @@ class CreateInvestment extends CreateRecord
     protected function handleRecordCreation(array $data): Model
     {
         return DB::transaction(function () use ($data) {
-            // Očistíme dáta pre model Investment
+            // Vyčistíme dáta pre Investíciu
             $investmentData = collect($data)->except([
-                'initial_quantity', 
-                'initial_price', 
-                'initial_commission', 
+                'initial_quantity',
+                'initial_price',
+                'initial_commission',
                 'transaction_date'
             ])->toArray();
+
+            $investmentData['last_price_update'] = now();
 
             $record = new Investment();
             $record->fill($investmentData);
@@ -66,10 +64,9 @@ class CreateInvestment extends CreateRecord
             $record->save();
 
             if (isset($data['initial_quantity']) && (float) $data['initial_quantity'] > 0) {
-                
-                $currentRate = CurrencyService::getLiveRate($record->currency?->code ?? 'USD');
+                $currentRate = \App\Services\CurrencyService::getLiveRate($record->currency?->code);
 
-                InvestmentTransaction::create([
+                \App\Models\InvestmentTransaction::create([
                     'user_id' => auth()->id(),
                     'investment_id' => $record->id,
                     'currency_id' => $record->currency_id,
@@ -81,16 +78,14 @@ class CreateInvestment extends CreateRecord
                     'transaction_date' => $data['transaction_date'] ?? now(),
                 ]);
 
-                // Kľúčové pre zobrazenie dát hneď po presmerovaní
+                // DÔLEŽITÉ: Stiahneme históriu a refreshneme hneď
+                app(\App\Services\StockApiService::class)->downloadHistory($record, 30);
                 $record->refresh();
-                
-                app(StockApiService::class)->downloadHistory($record, 30);
             }
 
             return $record;
         });
     }
-
     protected function getRedirectUrl(): string
     {
         return $this->getResource()::getUrl('view', ['record' => $this->record]);

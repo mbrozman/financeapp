@@ -42,23 +42,16 @@ class InvestmentResource extends Resource
     {
         return $form
             ->schema([
-                // SEKCIA 1: ZÁKLADNÉ ÚDAJE
                 Forms\Components\Section::make('Založenie pozície')
                     ->schema([
                         Forms\Components\Select::make('ticker')
                             ->label('Ticker (Symbol)')
                             ->searchable()
-                            // FIX: Používame app() namiesto new pre správny dependency injection
-                            ->getSearchResultsUsing(fn(string $search) => app(StockApiService::class)->searchSymbols($search))
-                            ->getOptionLabelUsing(fn($value) => $value)
+                            ->getSearchResultsUsing(fn(string $search) => (new \App\Services\StockApiService())->searchSymbols($search))
                             ->required()
                             ->live()
                             ->afterStateUpdated(function ($state, Forms\Set $set) {
-                                if (!$state) return;
-
-                                // FIX: Používame app() namiesto new pre správny dependency injection
-                                $data = app(StockApiService::class)->getLiveQuote($state);
-
+                                $data = (new \App\Services\StockApiService())->getLiveQuote($state);
                                 if ($data) {
                                     $set('name', $data['name']);
                                     $set('current_price', $data['price']);
@@ -68,27 +61,34 @@ class InvestmentResource extends Resource
 
                         Forms\Components\TextInput::make('name')
                             ->label('Názov aktíva')
-                            ->placeholder('napr. Apple Inc.')
                             ->required(),
 
                         Forms\Components\Select::make('investment_category_id')
                             ->label('Typ aktíva')
                             ->relationship('category', 'name')
-                            ->required()
-                            ->preload(),
+                            ->required(),
 
                         Forms\Components\Select::make('currency_id')
                             ->label('Domovská mena')
                             ->relationship('currency', 'code')
                             ->required(),
 
+                        // VÝBER BROKERA - TOTO JE JEDINÉ, ČO BUDEŠ VIDIEŤ
                         Forms\Components\Select::make('account_id')
-                            ->label('Broker (Hotovosť)')
+                            ->label('Broker / Investičný účet')
                             ->relationship('account', 'name', fn($query) => $query->where('type', 'investment'))
-                            ->required(),
+                            ->required()
+                            ->live() // Dôležité pre poistku duplicity
+                            ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                $account = \App\Models\Account::find($state);
+                                if ($account) {
+                                    // Automaticky zapíšeme meno účtu do skrytého poľa broker
+                                    $set('broker', $account->name);
+                                }
+                            }),
 
-                        Forms\Components\TextInput::make('broker')
-                            ->label('Identifikátor (napr. XTB #1)')
+                        // SKRYTÝ BROKER (kvôli databázovej poistke)
+                        Forms\Components\Hidden::make('broker')
                             ->required(),
 
                         Forms\Components\Hidden::make('current_price')->default(0),
@@ -97,24 +97,10 @@ class InvestmentResource extends Resource
                 Forms\Components\Section::make('Prvý nákup')
                     ->visible(fn($livewire) => $livewire instanceof Pages\CreateInvestment)
                     ->schema([
-                        Forms\Components\TextInput::make('initial_quantity')
-                            ->label('Počet kusov')
-                            ->numeric()
-                            ->default(0),
-
-                        Forms\Components\TextInput::make('initial_price')
-                            ->label('Nákupná cena za 1 ks')
-                            ->numeric()
-                            ->default(0),
-
-                        Forms\Components\TextInput::make('initial_commission')
-                            ->label('Poplatok')
-                            ->numeric()
-                            ->default(0),
-
-                        Forms\Components\DatePicker::make('transaction_date')
-                            ->label('Dátum nákupu')
-                            ->default(now()),
+                        Forms\Components\TextInput::make('initial_quantity')->label('Kusy')->numeric()->required(),
+                        Forms\Components\TextInput::make('initial_price')->label('Cena/ks')->numeric()->required(),
+                        Forms\Components\TextInput::make('initial_commission')->label('Poplatok')->numeric()->default(0),
+                        Forms\Components\DatePicker::make('transaction_date')->label('Dátum')->default(now()),
                     ])->columns(4),
             ]);
     }
@@ -282,6 +268,6 @@ class InvestmentResource extends Resource
     // FIX: Ochrana pred zmazaním investície s existujúcimi transakciami
     public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
     {
-        return $record->transactions()->count() === 0;
+        return $record->user_id === auth()->id();
     }
 }

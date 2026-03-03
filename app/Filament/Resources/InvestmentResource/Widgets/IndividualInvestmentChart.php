@@ -20,52 +20,40 @@ class IndividualInvestmentChart extends ChartWidget
     {
         if (!$this->record) return ['datasets' => [], 'labels' => []];
 
-        // 1. Získame históriu cien
+        // 1. Získame históriu cien pre čiaru trhu
         $history = \App\Models\InvestmentPriceHistory::where('investment_id', $this->record->id)
             ->orderBy('recorded_at', 'asc')
             ->get();
-        if ($history->isEmpty()) {
-            return [
-                'datasets' => [
-                    [
-                        'label' => 'Dáta sa pripravujú...',
-                        'data' => [0, 0, 0], // Ukážeme prázdnu čiaru
-                        'borderColor' => '#94a3b8',
-                    ],
-                ],
-                'labels' => ['Sťahujem', 'dáta', 'z burzy...'],
-            ];
-        }
+
         $prices = $history->pluck('price')->toArray();
         $labels = $history->pluck('recorded_at')->map(fn($date) => $date->format('d.M'))->toArray();
 
-        // 2. Získame nákupnú cenu v USD
-        $avgPriceUsd = (float)$this->record->average_buy_price_usd;
+        // 2. ZÍSKAME NÁKUPNÚ CENU (TUTO BOLA MOŽNO CHYBA V NÁZVE)
+        // Voláme atribút, ktorý sme práve definovali v modeli
+        $avgPriceBase = (float) $this->record->average_buy_price_base;
 
-        // 3. Vytvoríme pole, ktoré má v každom bode rovnakú nákupnú cenu
-        $averageLineData = array_fill(0, count($prices), $avgPriceUsd);
+        // 3. Vytvoríme vodorovnú čiaru
+        $averageLineData = count($prices) > 0
+            ? array_fill(0, count($prices), $avgPriceBase)
+            : [];
 
         return [
             'datasets' => [
-                // DATASET 1: TRHOVÁ CENA (Zelená/Červená)
                 [
-                    'label' => "Trhová cena (USD)",
+                    'label' => "Trhová cena",
                     'data' => $prices,
+                    'borderColor' => '#10b981',
                     'fill' => false,
-                    'tension' => 0.4,
-                    'borderColor' => '#10b981', // Zelená
-                    'pointRadius' => 0, // Čistá čiara bez bodiek
+                    'pointRadius' => 0,
                 ],
-                // DATASET 2: MOJA NÁKUPNÁ CENA (Modrá prerušovaná čiara)
                 [
-                    'label' => "Priemerná nákupná cena: " . number_format($avgPriceUsd, 2) . " $",
+                    'label' => "Nákupný priemer: " . number_format($avgPriceBase, 2) . " " . ($this->record->currency?->symbol ?? '$'),
                     'data' => $averageLineData,
+                    'borderColor' => '#3b82f6',
+                    'borderDash' => [5, 5], // Prerušovaná čiara
+                    'pointRadius' => 0,
                     'fill' => false,
-                    'borderColor' => '#3b82f6', // Krásna modrá
-                    'borderDash' => [5, 5],    // PRERUŠOVANÁ ČIARA (5px čiara, 5px medzera)
-                    'borderWidth' => 2,
-                    'pointRadius' => 0,        // Skryjeme body
-                    'stepped' => true,         // Urobí ju dokonale plochú
+                    'stepped' => true,
                 ],
             ],
             'labels' => $labels,

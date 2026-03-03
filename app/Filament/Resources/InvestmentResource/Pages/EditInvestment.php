@@ -13,14 +13,18 @@ class EditInvestment extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            
-            Actions\DeleteAction::make(),
-            
+            // Tlačidlo pre návrat do detailu
+            Actions\ViewAction::make(),
+
+            // Tlačidlo pre odstránenie s vynútenou viditeľnosťou
+            Actions\DeleteAction::make()
+                ->label('Odstrániť investíciu')
+                ->visible(true), // TOTO VYNÚTI ZOBRAZENIE
         ];
     }
 
-    public function getTitle(): string
-{
-    return "Úprava pozície: {$this->record->ticker}";
-}
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('view', ['record' => $this->record]);
+    }
 }

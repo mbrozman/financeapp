@@ -21,28 +21,30 @@ class InvestmentProfitStats extends BaseWidget
     {
         if (!$this->record) return [];
 
+        // TENTO RIADOK JE KĽÚČOVÝ: Vynútime načítanie transakcií z DB do pamäte
+        $this->record->load(['transactions', 'currency']);
+
         $record = $this->record;
         $symbol = $record->currency?->symbol ?? '$';
 
-        // POUŽÍVAME UŽ LEN ATRIBÚTY Z MODELU
-        $gainBase = $record->is_archived
-            ? (float)$record->total_sales_base - (float)$record->total_invested_base
-            : (float)$record->current_market_value_base - (float)$record->total_invested_base;
-
+        // Výpočty v Base mene
         $investedBase = (float)$record->total_invested_base;
-        $gainPercent = $investedBase > 0 ? ($gainBase / $investedBase) * 100 : 0;
+        $currentValueBase = (float)$record->current_market_value_base;
 
-        $isProfit = $gainBase >= 0;
-        $color = $isProfit ? 'success' : 'danger';
+        // Ak je akcia v archive, prepneme na tržby
+        if ($record->is_archived) {
+            $currentValueBase = (float)$record->total_sales_base;
+        }
+
+        $gainBase = $currentValueBase - $investedBase;
+        $gainPercent = ($investedBase > 0) ? ($gainBase / $investedBase) * 100 : 0;
 
         return [
             Stat::make("Výsledok ({$symbol})", number_format($gainBase, 2, ',', ' ') . " {$symbol}")
-                ->description($record->is_archived ? 'Realizovaný konečný zisk' : 'Aktuálny nerealizovaný stav')
-                ->color($color),
+                ->color($gainBase >= 0 ? 'success' : 'danger'),
 
             Stat::make("Výkonnosť pozície", number_format($gainPercent, 2, ',', ' ') . ' %')
-                ->description('Percentuálne zhodnotenie kapitálu')
-                ->color($color),
+                ->color($gainBase >= 0 ? 'success' : 'danger'),
         ];
     }
 }
