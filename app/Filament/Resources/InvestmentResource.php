@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\InvestmentResource\Pages;
 use App\Filament\Resources\InvestmentResource\RelationManagers\TransactionsRelationManager;
 use App\Models\Investment;
+use App\Services\StockApiService;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -23,14 +24,17 @@ class InvestmentResource extends Resource
     {
         return 'Investície';
     }
+
     public static function getPluralLabel(): string
     {
         return 'Investície';
     }
+
     public static function getModelLabel(): string
     {
         return 'Investícia';
     }
+
     protected static ?string $navigationGroup = 'Investície';
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar';
 
@@ -38,33 +42,32 @@ class InvestmentResource extends Resource
     {
         return $form
             ->schema([
-                // SEKCIA 1: ZÁKLADNÉ ÚDAJE (Ukladajú sa do tabuľky investments)
+                // SEKCIA 1: ZÁKLADNÉ ÚDAJE
                 Forms\Components\Section::make('Založenie pozície')
                     ->schema([
                         Forms\Components\Select::make('ticker')
                             ->label('Ticker (Symbol)')
                             ->searchable()
-                            ->getSearchResultsUsing(fn(string $search) => (new \App\Services\StockApiService())->searchSymbols($search))
+                            // FIX: Používame app() namiesto new pre správny dependency injection
+                            ->getSearchResultsUsing(fn(string $search) => app(StockApiService::class)->searchSymbols($search))
                             ->getOptionLabelUsing(fn($value) => $value)
                             ->required()
                             ->live()
                             ->afterStateUpdated(function ($state, Forms\Set $set) {
                                 if (!$state) return;
 
-                                $data = (new \App\Services\StockApiService())->getLiveQuote($state);
+                                // FIX: Používame app() namiesto new pre správny dependency injection
+                                $data = app(StockApiService::class)->getLiveQuote($state);
 
                                 if ($data) {
-                                    // 1. AUTOMATICKY VYPLNÍME NÁZOV Z API
                                     $set('name', $data['name']);
-
-                                    // 2. VYPLNÍME CENY
                                     $set('current_price', $data['price']);
                                     $set('initial_price', $data['price']);
                                 }
                             }),
 
                         Forms\Components\TextInput::make('name')
-                            ->label('Názov aktíva') // NOVÉ COPY
+                            ->label('Názov aktíva')
                             ->placeholder('napr. Apple Inc.')
                             ->required(),
 
@@ -94,15 +97,12 @@ class InvestmentResource extends Resource
                 // SEKCIA 2: PRVÝ NÁKUP (Pomocné polia - NIE SÚ V DB INVESTMENTS)
                 Forms\Components\Section::make('Prvý nákup')
                     ->description('Tieto údaje vytvoria prvý záznam v histórii nákupov.')
-                    // Zobrazí sa len pri vytváraní novej akcie
                     ->visible(fn($livewire) => $livewire instanceof Pages\CreateInvestment)
                     ->schema([
                         Forms\Components\TextInput::make('initial_quantity')
                             ->label('Počet kusov')
                             ->numeric()
                             ->required()
-                            // TENTO RIADOK JE KĽÚČOVÝ:
-                            // Hovorí Filamentu: "Zober túto hodnotu, ale NEHĽADAJ pre ňu stĺpec v DB tabuľke investments"
                             ->dehydrated(false),
 
                         Forms\Components\TextInput::make('initial_price')
@@ -151,7 +151,6 @@ class InvestmentResource extends Resource
                     ->numeric(2)
                     ->hidden(fn($livewire) => $livewire->activeTab === 'archived'),
 
-                // INVESTOVANÉ (V DOMOVSKEJ MENE)
                 Tables\Columns\TextColumn::make('total_invested_base')
                     ->label('Investované')
                     ->alignEnd()
@@ -160,26 +159,22 @@ class InvestmentResource extends Resource
                         number_format((float)$state, 2, ',', ' ') . ' ' . ($record->currency?->symbol ?? '')
                     ),
 
-                    Tables\Columns\TextColumn::make('total_gain_base')
-                ->label('Zisk/Strata')
-                ->alignEnd()
-                ->weight('bold')
-                // Dynamicky priradíme farbu
-                ->color(fn ($state) => (float)$state >= 0 ? 'success' : 'danger')
-                // Dynamicky priradíme symbol meny ($ alebo €)
-                ->formatStateUsing(function ($state, $record) {
-                    $symbol = $record->currency?->symbol ?? '$';
-                    $prefix = (float)$state >= 0 ? '+' : '';
-                    return $prefix . number_format((float)$state, 2, ',', ' ') . ' ' . $symbol;
-                }),
+                Tables\Columns\TextColumn::make('total_gain_base')
+                    ->label('Zisk/Strata')
+                    ->alignEnd()
+                    ->weight('bold')
+                    ->color(fn($state) => (float)($state ?? 0) >= 0 ? 'success' : 'danger')
+                    ->formatStateUsing(function ($state, $record) {
+                        $symbol = $record->currency?->symbol ?? '$';
+                        $prefix = (float)$state >= 0 ? '+' : '';
+                        return $prefix . number_format((float)$state, 2, ',', ' ') . ' ' . $symbol;
+                    }),
 
-                // HODNOTA (DYNAMICKÁ PODĽA STAVU)
                 Tables\Columns\TextColumn::make('current_market_value_base')
                     ->label(fn($livewire) => $livewire->activeTab === 'archived' ? 'Predané za' : 'Hodnota')
                     ->alignEnd()
                     ->weight('black')
                     ->color(fn($record) => $record->is_archived ? 'gray' : 'info')
-                    // Trik: Ak je archivovaná, prepneme hodnotu na SalesBase
                     ->state(fn($record) => $record->is_archived ? $record->total_sales_base : $record->current_market_value_base)
                     ->formatStateUsing(
                         fn($state, $record) =>
@@ -187,15 +182,15 @@ class InvestmentResource extends Resource
                     ),
 
                 Tables\Columns\TextColumn::make('total_gain_percent')
-                ->label('Výnos (%)')
-                ->alignEnd()
-                ->badge() // Dáme to do pekného štítku
-                ->color(fn ($state) => (float)$state >= 0 ? 'success' : 'danger')
-                ->formatStateUsing(fn ($state) => ((float)$state >= 0 ? '+' : '') . number_format((float)$state, 2) . ' %'),
+                    ->label('Výnos (%)')
+                    ->alignEnd()
+                    ->badge()
+                    ->color(fn($state) => (float)($state ?? 0) >= 0 ? 'success' : 'danger')
+                    ->formatStateUsing(fn($state) => ((float)$state >= 0 ? '+' : '') . number_format((float)$state, 2) . ' %'),
             ])
-            
             ->recordUrl(fn($record) => static::getUrl('view', ['record' => $record]))
-            ->defaultSort(column: 'ticker')
+            // FIX: Explicitný smer sortovania
+            ->defaultSort('ticker', 'asc')
             ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent);
     }
 
@@ -205,7 +200,6 @@ class InvestmentResource extends Resource
             ->schema([
                 Infolists\Components\Section::make('Prehľad pozície')
                     ->schema([
-                        // 1. IDENTIFIKÁCIA
                         Infolists\Components\TextEntry::make('ticker')
                             ->label('Ticker')
                             ->badge(),
@@ -225,7 +219,6 @@ class InvestmentResource extends Resource
                         Infolists\Components\TextEntry::make('broker')
                             ->label('Broker'),
 
-                        // 2. FINANCIE (Všetky premenné premenované z $r na $record)
                         Infolists\Components\TextEntry::make('market_value')
                             ->label(fn($record) => $record->is_archived ? 'Predajná cena (Tržby)' : 'Trhová hodnota')
                             ->state(fn($record) => $record->is_archived ? $record->total_sales_base : $record->current_market_value_base)
@@ -258,9 +251,10 @@ class InvestmentResource extends Resource
                             ->color('success')
                             ->visible(fn($record) => !$record->is_archived),
 
+                        // FIX: Odstránené ->since(), nahradené ->formatStateUsing() s null-safe logikou
                         Infolists\Components\TextEntry::make('last_price_update')
                             ->label('Čerstvosť dát')
-                            ->since() // Automaticky zobrazí "pred X minútami"
+                            ->formatStateUsing(fn($state) => $state ? $state->diffForHumans() : 'Nikdy')
                             ->badge()
                             ->color(fn($state) => $state && $state->gt(now()->subHour()) ? 'success' : 'warning')
                             ->icon(fn($state) => $state && $state->gt(now()->subHour()) ? 'heroicon-m-check-circle' : 'heroicon-m-exclamation-circle'),
@@ -291,8 +285,9 @@ class InvestmentResource extends Resource
             ->where('broker', '!=', 'System');
     }
 
+    // FIX: Ochrana pred zmazaním investície s existujúcimi transakciami
     public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
     {
-        return true;
+        return $record->transactions()->count() === 0;
     }
 }
