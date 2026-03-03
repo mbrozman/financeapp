@@ -40,7 +40,7 @@ class InvestmentTransaction extends Model
 {
     return $this->belongsTo(Currency::class);
 }
-
+/*
     protected static function booted(): void
 {
     static::saved(function (InvestmentTransaction $tx) {
@@ -77,5 +77,5 @@ class InvestmentTransaction extends Model
             'is_archived' => (($totalBuys - $totalSells) <= 0.000001)
         ]);
     });
-}
+}*/
 }

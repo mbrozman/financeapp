@@ -3,46 +3,59 @@
 namespace App\Observers;
 
 use App\Models\InvestmentTransaction;
+use App\Models\Investment;
+use Illuminate\Support\Facades\DB;
+use App\Services\CurrencyService;
 
 class InvestmentTransactionObserver
 {
     /**
-     * Handle the InvestmentTransaction "created" event.
+     * Spustí sa po VYTVORENÍ alebo UPRAVENÍ transakcie
      */
-    public function created(InvestmentTransaction $investmentTransaction): void
+    public function saved(InvestmentTransaction $tx): void
     {
-        //
+        $this->syncEverything($tx, 'process');
     }
 
     /**
-     * Handle the InvestmentTransaction "updated" event.
+     * Spustí sa po VYMAZANÍ transakcie
+     * (TOTO JE TÁ OCHRANA, KTORÁ CHÝBALA)
      */
-    public function updated(InvestmentTransaction $investmentTransaction): void
+    public function deleted(InvestmentTransaction $tx): void
     {
-        //
+        $this->syncEverything($tx, 'reverse');
     }
 
     /**
-     * Handle the InvestmentTransaction "deleted" event.
+     * Jednotná metóda na synchronizáciu peňazí a stavu
      */
-    public function deleted(InvestmentTransaction $investmentTransaction): void
+    protected function syncEverything(InvestmentTransaction $tx, string $mode): void
     {
-        //
-    }
+        $investment = $tx->investment;
+        $brokerAccount = $investment->account;
 
-    /**
-     * Handle the InvestmentTransaction "restored" event.
-     */
-    public function restored(InvestmentTransaction $investmentTransaction): void
-    {
-        //
-    }
+        // 1. Vypočítame sumu v EUR, ktorú transakcia predstavovala
+        $amountBase = ($tx->quantity * $tx->price_per_unit) + ($tx->type === 'buy' ? $tx->commission : -$tx->commission);
+        $amountEur = CurrencyService::convertToEur($amountBase, $tx->currency_id, $tx->exchange_rate);
 
-    /**
-     * Handle the InvestmentTransaction "force deleted" event.
-     */
-    public function forceDeleted(InvestmentTransaction $investmentTransaction): void
-    {
-        //
+        // 2. AKTUALIZÁCIA HOTOVOSTI U BROKERA
+        if ($mode === 'process') {
+            // Bežný proces: nákup peniaze berie, predaj dáva
+            if ($tx->type === 'buy') $brokerAccount->decrement('balance', $amountEur);
+            if ($tx->type === 'sell') $brokerAccount->increment('balance', $amountEur);
+        } else {
+            // REVERZNÝ PROCES (pri mazaní): Ak mažem nákup, peniaze vraciam na účet
+            if ($tx->type === 'buy') $brokerAccount->increment('balance', $amountEur);
+            if ($tx->type === 'sell') $brokerAccount->decrement('balance', $amountEur);
+        }
+
+        // 3. PREPOČET ARCHIVÁCIE
+        // Spočítame reálny zostatok kusov priamo v DB po zmene
+        $totalQty = InvestmentTransaction::where('investment_id', $investment->id)
+            ->sum(DB::raw("CASE WHEN type = 'buy' THEN quantity ELSE -quantity END"));
+
+        $investment->updateQuietly([
+            'is_archived' => $totalQty <= 0.00000001
+        ]);
     }
 }

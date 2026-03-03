@@ -20,6 +20,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        Model::preventLazyLoading(! app()->isProduction());
+        \App\Models\InvestmentTransaction::observe(\App\Observers\InvestmentTransactionObserver::class);
     }
 }
