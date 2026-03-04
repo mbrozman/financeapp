@@ -5,25 +5,28 @@ namespace App\Filament\Resources\InvestmentResource\Pages;
 use App\Filament\Resources\InvestmentResource;
 use App\Models\Investment;
 use App\Models\InvestmentTransaction;
+use App\Models\Account;
 use App\Services\StockApiService;
 use App\Services\CurrencyService;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Filament\Notifications\Notification;
+use Brick\Math\BigDecimal; // PRIDANÉ
 
 class CreateInvestment extends CreateRecord
 {
     protected static string $resource = InvestmentResource::class;
 
     /**
-     * 1. KROK: KONTROLA DUPLICITY (Ešte pred vytvorením)
+     * 1. KROK: KONTROLA DUPLICITY
      */
     protected function beforeCreate(): void
     {
         $ticker = $this->data['ticker'];
-        // Ak by náhodou broker v dátach chýbal (lebo je Hidden), skúsime ho získať z account_id
-        $broker = $this->data['broker'] ?? \App\Models\Account::find($this->data['account_id'])?->name;
+        
+        // Získame názov brokera z ID účtu, ak vo formulári chýba (keďže je Hidden)
+        $broker = $this->data['broker'] ?? Account::find($this->data['account_id'])?->name;
 
         $existing = Investment::where('user_id', auth()->id())
             ->where('ticker', $ticker)
@@ -43,12 +46,12 @@ class CreateInvestment extends CreateRecord
     }
 
     /**
-     * 2. KROK: BEZPEČNÉ VYTVORENIE (Ak prešlo cez kontrolu vyššie)
+     * 2. KROK: BEZPEČNÉ VYTVORENIE (Atomická operácia)
      */
     protected function handleRecordCreation(array $data): Model
     {
         return DB::transaction(function () use ($data) {
-            // Vyčistíme dáta pre Investíciu
+            // Očistíme dáta pre model Investment (neukladáme tam polia z nákupu)
             $investmentData = collect($data)->except([
                 'initial_quantity',
                 'initial_price',
@@ -63,29 +66,34 @@ class CreateInvestment extends CreateRecord
             $record->user_id = auth()->id();
             $record->save();
 
-            if (isset($data['initial_quantity']) && (float) $data['initial_quantity'] > 0) {
-                $currentRate = \App\Services\CurrencyService::getLiveRate($record->currency?->code);
+            // POUŽIJEME BIGDECIMAL NA KONTROLU MNOŽSTVA 
+            $initialQty = BigDecimal::of($data['initial_quantity'] ?? 0);
 
-                \App\Models\InvestmentTransaction::create([
+            if ($initialQty->isGreaterThan(0)) {
+                $currentRate = CurrencyService::getLiveRate($record->currency?->code);
+
+                InvestmentTransaction::create([
                     'user_id' => auth()->id(),
                     'investment_id' => $record->id,
                     'currency_id' => $record->currency_id,
                     'type' => 'buy',
-                    'quantity' => $data['initial_quantity'],
+                    // Posielame dáta ako stringy, o presnosť sa postará DB a BigDecimal v modeli
+                    'quantity' => (string) $initialQty,
                     'price_per_unit' => $data['initial_price'],
                     'commission' => $data['initial_commission'] ?? 0,
                     'exchange_rate' => $currentRate,
                     'transaction_date' => $data['transaction_date'] ?? now(),
                 ]);
 
-                // DÔLEŽITÉ: Stiahneme históriu a refreshneme hneď
-                app(\App\Services\StockApiService::class)->downloadHistory($record, 365);
+                // Okamžite stiahneme históriu a osviežime model
+                app(StockApiService::class)->downloadHistory($record, 365);
                 $record->refresh();
             }
 
             return $record;
         });
     }
+
     protected function getRedirectUrl(): string
     {
         return $this->getResource()::getUrl('view', ['record' => $this->record]);

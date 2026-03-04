@@ -6,6 +6,8 @@ use App\Models\InvestmentTransaction;
 use App\Models\Investment;
 use Illuminate\Support\Facades\DB;
 use App\Services\CurrencyService;
+use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 
 class InvestmentTransactionObserver
 {
@@ -15,32 +17,56 @@ class InvestmentTransactionObserver
         $brokerAccount = $investment->account;
 
         $oldType = $tx->getOriginal('type');
-        $isNew = !$oldType; // pri vytvorení getOriginal('type') je null
+        $isNew = !$oldType;
 
+        // 1. REVERZIA STARÉHO STAVU (ak išlo o editáciu)
         if (!$isNew) {
-            // Vypočítame starú sumu a VRÁTIME jej efekt na balance
-            $oldAmountBase = ($tx->getOriginal('quantity') * $tx->getOriginal('price_per_unit'))
-                + ($oldType === 'buy' ? $tx->getOriginal('commission') : -$tx->getOriginal('commission'));
+            $oldQty = BigDecimal::of($tx->getOriginal('quantity') ?? 0);
+            $oldPrice = BigDecimal::of($tx->getOriginal('price_per_unit') ?? 0);
+            $oldComm = BigDecimal::of($tx->getOriginal('commission') ?? 0);
+
+            // Výpočet pôvodnej sumy: (Ks * Cena) +/- Poplatok
+            $oldAmountBase = $oldQty->multipliedBy($oldPrice);
+            $oldAmountBase = ($oldType === 'buy') 
+                ? $oldAmountBase->plus($oldComm) 
+                : $oldAmountBase->minus($oldComm);
 
             $oldAmountEur = CurrencyService::convertToEur(
-                $oldAmountBase,
+                (string) $oldAmountBase,
                 $tx->getOriginal('currency_id'),
                 $tx->getOriginal('exchange_rate')
             );
 
-            // Reverzujeme starý efekt
-            if ($oldType === 'buy') $brokerAccount->increment('balance', $oldAmountEur);
-            if ($oldType === 'sell') $brokerAccount->decrement('balance', $oldAmountEur);
+            // Vrátime peniaze na účet (opačná operácia)
+            if ($oldType === 'buy') {
+                $brokerAccount->increment('balance', (string) $oldAmountEur);
+            } else {
+                $brokerAccount->decrement('balance', (string) $oldAmountEur);
+            }
         }
 
-        // Aplikujeme nový efekt
-        $newAmountBase = ($tx->quantity * $tx->price_per_unit)
-            + ($tx->type === 'buy' ? $tx->commission : -$tx->commission);
+        // 2. APLIKÁCIA NOVÉHO STAVU
+        $newQty = BigDecimal::of($tx->quantity);
+        $newPrice = BigDecimal::of($tx->price_per_unit);
+        $newComm = BigDecimal::of($tx->commission ?? 0);
 
-        $newAmountEur = CurrencyService::convertToEur($newAmountBase, $tx->currency_id, $tx->exchange_rate);
+        $newAmountBase = $newQty->multipliedBy($newPrice);
+        $newAmountBase = ($tx->type === 'buy') 
+            ? $newAmountBase->plus($newComm) 
+            : $newAmountBase->minus($newComm);
 
-        if ($tx->type === 'buy') $brokerAccount->decrement('balance', $newAmountEur);
-        if ($tx->type === 'sell') $brokerAccount->increment('balance', $newAmountEur);
+        $newAmountEur = CurrencyService::convertToEur(
+            (string) $newAmountBase,
+            $tx->currency_id,
+            $tx->exchange_rate
+        );
+
+        // Zapíšeme aktuálnu sumu na účet
+        if ($tx->type === 'buy') {
+            $brokerAccount->decrement('balance', (string) $newAmountEur);
+        } else {
+            $brokerAccount->increment('balance', (string) $newAmountEur);
+        }
 
         $this->syncInvestmentStatus($investment);
     }
@@ -50,24 +76,42 @@ class InvestmentTransactionObserver
         $investment = $tx->investment;
         $brokerAccount = $investment->account;
 
-        $amountBase = ($tx->quantity * $tx->price_per_unit) + ($tx->type === 'buy' ? $tx->commission : -$tx->commission);
-        $amountEur = CurrencyService::convertToEur($amountBase, $tx->currency_id, $tx->exchange_rate);
+        $qty = BigDecimal::of($tx->quantity);
+        $price = BigDecimal::of($tx->price_per_unit);
+        $comm = BigDecimal::of($tx->commission ?? 0);
+
+        $amountBase = $qty->multipliedBy($price);
+        $amountBase = ($tx->type === 'buy') 
+            ? $amountBase->plus($comm) 
+            : $amountBase->minus($comm);
+
+        $amountEur = CurrencyService::convertToEur(
+            (string) $amountBase,
+            $tx->currency_id,
+            $tx->exchange_rate
+        );
 
         // PRI ZMAZANÍ: Vraciame stav účtu späť
-        if ($tx->type === 'buy') $brokerAccount->increment('balance', $amountEur);
-        if ($tx->type === 'sell') $brokerAccount->decrement('balance', $amountEur);
+        if ($tx->type === 'buy') {
+            $brokerAccount->increment('balance', (string) $amountEur);
+        } else {
+            $brokerAccount->decrement('balance', (string) $amountEur);
+        }
 
         $this->syncInvestmentStatus($investment);
     }
 
     protected function syncInvestmentStatus(Investment $investment): void
     {
-        // Spočítame kusy priamo v DB, aby sme mali 100% istotu
-        $totalQty = InvestmentTransaction::where('investment_id', $investment->id)
+        // Spočítame kusy priamo v DB
+        $totalQtyRaw = InvestmentTransaction::where('investment_id', $investment->id)
             ->sum(DB::raw("CASE WHEN type = 'buy' THEN quantity ELSE -quantity END"));
 
+        // Použijeme BigDecimal na porovnanie (kvôli mikroskopickým rozdielom v DB)
+        $totalQty = BigDecimal::of($totalQtyRaw ?? 0);
+
         $investment->updateQuietly([
-            'is_archived' => $totalQty <= 0.00000001
+            'is_archived' => $totalQty->isLessThanOrEqualTo(0.00000001)
         ]);
     }
 }

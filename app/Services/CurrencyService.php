@@ -3,51 +3,57 @@
 namespace App\Services;
 
 use App\Models\Currency;
-use Exception;
+use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 use Illuminate\Support\Facades\Log;
 
 class CurrencyService
 {
     /**
-     * Prepočíta sumu do EUR.
-     * Priorita 1: Historický kurz (ak existuje v transakcii)
-     * Priorita 2: Aktuálny kurz z tabuľky currencies
+     * Univerzálny a presný prepočet do EUR
      */
-    public static function convertToEur(float $amount, ?int $currencyId, ?float $historicalRate = null): float
+    public static function convertToEur(string|float|null $amount, ?int $currencyId, ?float $historicalRate = null): string
     {
-        // 1. Ak je mena už EUR (predpokladáme ID 1), suma sa nemení
-        if ($currencyId === 1) return $amount;
-
-        // 2. Ak máme historický kurz (z transakcie), použijeme ho
-        if ($historicalRate && $historicalRate > 0) {
-            return $amount / $historicalRate;
-        }
-
-        // 3. Ak nemáme historický kurz, vytiahneme aktuálny z DB
-        $currency = Currency::find($currencyId);
+        if (!$amount || $amount == 0) return '0';
         
-        if (!$currency || $currency->exchange_rate <= 0) {
-            Log::error("CurrencyService Error: Chýba kurz pre menu ID: {$currencyId}");
-            // Vrátime sumu nezmenenú, aby sa aplikácia nezrútila, ale zaprotokolujeme chybu
-            return $amount; 
-        }
+        // 1. Ak je mena EUR (ID 1), vrátime sumu ako string
+        if ($currencyId === 1) return (string) $amount;
 
-        return $amount / (float)$currency->exchange_rate;
+        // 2. Inicializujeme sumu cez BigDecimal
+        $amountBD = BigDecimal::of($amount);
+        
+        // 3. Zistíme kurz (historický alebo aktuálny)
+        $rate = ($historicalRate && $historicalRate > 0) 
+            ? $historicalRate 
+            : self::getLiveRateById($currencyId);
+
+        if ($rate <= 0) return (string) $amount;
+
+        // 4. Presné delenie na 4 desatinné miesta
+        return (string) $amountBD->dividedBy($rate, 4, RoundingMode::HALF_UP);
     }
 
     /**
-     * Vráti aktuálny kurz podľa kódu (pre Create nákup)
+     * Pomocná metóda na získanie kurzu podľa ID
+     */
+    public static function getLiveRateById(?int $id): float
+    {
+        if (!$id || $id === 1) return 1.0;
+
+        $currency = Currency::find($id);
+        
+        return ($currency && $currency->exchange_rate > 0) ? (float)$currency->exchange_rate : 1.0;
+    }
+
+    /**
+     * Pôvodná metóda podľa kódu (pre spätnú kompatibilitu)
      */
     public static function getLiveRate(?string $code): float
     {
         if (!$code || $code === 'EUR') return 1.0;
 
         $currency = Currency::where('code', $code)->first();
+        
         return ($currency && $currency->exchange_rate > 0) ? (float)$currency->exchange_rate : 1.0;
     }
-
-    public static function getRate(?string $code): float
-{
-    return self::getLiveRate($code);
-}
 }

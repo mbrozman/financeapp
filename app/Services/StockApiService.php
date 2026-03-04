@@ -6,9 +6,10 @@ use Scheb\YahooFinanceApi\ApiClient;
 use Scheb\YahooFinanceApi\ApiClientFactory;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache; // PRIDANÉ
 use App\Models\Investment;
 use App\Models\InvestmentPriceHistory;
-use Illuminate\Support\Facades\Cache;
+use Brick\Math\BigDecimal; // PRIDANÉ
 
 class StockApiService
 {
@@ -16,7 +17,6 @@ class StockApiService
 
     public function __construct()
     {
-        // Nastavenie klienta s ochranou proti blokovaniu a SSL chybám
         $this->client = ApiClientFactory::createApiClient([
             'verify' => false,
             'timeout' => 10.0,
@@ -27,62 +27,67 @@ class StockApiService
     }
 
     /**
-     * 1. VYHĽADÁVANIE TICKEROV (Tento kód ti chýbal)
+     * 1. VYHĽADÁVANIE TICKEROV
+     * Používame User-Agent, aby nás Yahoo nepovažovalo za bota.
      */
- public function searchSymbols(string $query): array
-{
-    if (empty($query)) return [];
+    public function searchSymbols(string $query): array
+    {
+        if (empty($query)) return [];
 
-    try {
-        $response = \Illuminate\Support\Facades\Http::withHeaders([
-            'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-        ])->get("https://query1.finance.yahoo.com/v1/finance/search", [
-            'q' => $query,
-            'quotesCount' => 10,
-        ]);
+        try {
+            $response = Http::withHeaders([
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+            ])->get("https://query1.finance.yahoo.com/v1/finance/search", [
+                'q' => $query,
+                'quotesCount' => 10,
+            ]);
 
-        $quotes = $response->json('quotes') ?? [];
-        $results = [];
+            if ($response->failed()) return [];
 
-        foreach ($quotes as $quote) {
-            $symbol = $quote['symbol'] ?? '';
-            // TU JE ZMENA: Získame čo najpresnejší názov
-            $name = $quote['longname'] ?? $quote['shortname'] ?? $symbol;
-            
-            if ($symbol) {
-                // Uložíme to tak, aby sme v Selecte videli "AAPL - Apple Inc."
-                // Ale vrátime to tak, aby sme z toho vedeli vytiahnuť ten názov
-                $results[$symbol] = "{$symbol} - {$name}";
+            $quotes = $response->json('quotes') ?? [];
+            $results = [];
+
+            foreach ($quotes as $quote) {
+                $symbol = $quote['symbol'] ?? '';
+                $name = $quote['longname'] ?? $quote['shortname'] ?? $symbol;
+                if ($symbol) {
+                    $results[$symbol] = "{$symbol} - {$name}";
+                }
             }
-        }
 
-        return $results;
-    } catch (\Exception $e) {
-        return [];
+            return $results;
+        } catch (\Exception $e) {
+            Log::error("Yahoo Search Error: " . $e->getMessage());
+            return [];
+        }
     }
-}
 
     /**
-     * 2. ZÍSKANIE ŽIVEJ CENY
+     * 2. ZÍSKANIE ŽIVEJ CENY (S KEŠOVANÍM NA 15 MINÚT)
      */
     public function getLiveQuote(string $ticker): ?array
-{
-    try {
-        $quote = $this->client->getQuote($ticker);
-        
-        if (!$quote) return null;
+    {
+        $cacheKey = "stock_price_{$ticker}";
 
-        return [
-            'price' => (float) $quote->getRegularMarketPrice(),
-            'change_percent' => (float) $quote->getRegularMarketChangePercent(),
-            // PRIDÁVAME NÁZOV (Skúsime dlhý, ak nie je, tak krátky názov)
-            'name' => $quote->getLongName() ?? $quote->getShortName() ?? $ticker,
-        ];
-    } catch (\Exception $e) {
-        \Illuminate\Support\Facades\Log::error("Yahoo Live Quote Error: " . $e->getMessage());
-        return null;
+        // Ak máme cenu v pamäti, vrátime ju. Ak nie, stiahneme a uložíme na 15 min.
+        return Cache::remember($cacheKey, now()->addMinutes(15), function () use ($ticker) {
+            try {
+                $quote = $this->client->getQuote($ticker);
+                
+                if (!$quote) return null;
+
+                // Všetky sumy vraciame ako STRING pre BigDecimal
+                return [
+                    'price' => (string) $quote->getRegularMarketPrice(),
+                    'change_percent' => (string) $quote->getRegularMarketChangePercent(),
+                    'name' => $quote->getLongName() ?? $quote->getShortName() ?? $ticker,
+                ];
+            } catch (\Exception $e) {
+                Log::error("Yahoo Live Quote Error for {$ticker}: " . $e->getMessage());
+                return null;
+            }
+        });
     }
-}
 
     /**
      * 3. SŤAHOVANIE HISTÓRIE PRE GRAF
@@ -100,6 +105,8 @@ class StockApiService
                 $endDate
             );
 
+            if (!$history) return false;
+
             foreach ($history as $data) {
                 InvestmentPriceHistory::updateOrCreate(
                     [
@@ -107,13 +114,14 @@ class StockApiService
                         'recorded_at' => $data->getDate()->format('Y-m-d'),
                     ],
                     [
-                        'price' => $data->getClose(),
+                        // Cena ako string pre zachovanie presnosti v DB
+                        'price' => (string) $data->getClose(),
                     ]
                 );
             }
             return true;
         } catch (\Exception $e) {
-            Log::error("History error: " . $e->getMessage());
+            Log::error("Yahoo History Error for {$investment->ticker}: " . $e->getMessage());
             return false;
         }
     }

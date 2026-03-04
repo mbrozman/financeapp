@@ -14,27 +14,16 @@ use Filament\Tables\Table;
 use Filament\Infolists;
 use Filament\Infolists\Infolist;
 use Illuminate\Database\Eloquent\Builder;
+use Brick\Math\BigDecimal;
 
 class InvestmentResource extends Resource
 {
     protected static ?string $model = Investment::class;
     protected static ?string $recordTitleAttribute = 'name';
 
-    public static function getNavigationLabel(): string
-    {
-        return 'Investície';
-    }
-
-    public static function getPluralLabel(): string
-    {
-        return 'Investície';
-    }
-
-    public static function getModelLabel(): string
-    {
-        return 'Investícia';
-    }
-
+    public static function getNavigationLabel(): string { return 'Investície'; }
+    public static function getPluralLabel(): string { return 'Investície'; }
+    public static function getModelLabel(): string { return 'Investícia'; }
     protected static ?string $navigationGroup = 'Investície';
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar';
 
@@ -42,33 +31,27 @@ class InvestmentResource extends Resource
     {
         return $form
             ->schema([
-                // SEKCIA 1: ZÁKLADNÉ ÚDAJE
                 Forms\Components\Section::make('Založenie pozície')
                     ->schema([
                         Forms\Components\Select::make('ticker')
                             ->label('Ticker (Symbol)')
                             ->searchable()
-                            // FIX: Používame app() namiesto new pre správny dependency injection
                             ->getSearchResultsUsing(fn(string $search) => app(StockApiService::class)->searchSymbols($search))
                             ->getOptionLabelUsing(fn($value) => $value)
                             ->required()
                             ->live()
                             ->afterStateUpdated(function ($state, Forms\Set $set) {
                                 if (!$state) return;
-
-                                // FIX: Používame app() namiesto new pre správny dependency injection
                                 $data = app(StockApiService::class)->getLiveQuote($state);
-
                                 if ($data) {
                                     $set('name', $data['name']);
-                                    $set('current_price', $data['price']);
-                                    $set('initial_price', $data['price']);
+                                    $set('current_price', (string)$data['price']);
+                                    $set('initial_price', (string)$data['price']);
                                 }
                             }),
 
                         Forms\Components\TextInput::make('name')
                             ->label('Názov aktíva')
-                            ->placeholder('napr. Apple Inc.')
                             ->required(),
 
                         Forms\Components\Select::make('investment_category_id')
@@ -83,47 +66,28 @@ class InvestmentResource extends Resource
                             ->required(),
 
                         Forms\Components\Select::make('account_id')
-                            ->label('Broker / Investičný účet')
+                            ->label('Broker / Účet')
                             ->relationship('account', 'name', fn($query) => $query->where('type', 'investment'))
                             ->required()
-                            ->searchable()
-                            ->preload()
-                            ->live() // DÔLEŽITÉ: Formulár musí reagovať na výber
+                            ->live()
                             ->afterStateUpdated(function ($state, Forms\Set $set) {
-                                // Keď vyberieš účet, nájdeme jeho meno v DB a zapíšeme ho do poľa broker
                                 $account = \App\Models\Account::find($state);
                                 if ($account) {
                                     $set('broker', $account->name);
                                 }
                             }),
 
-
-                       Forms\Components\Hidden::make('broker')->required(),
-
-                        Forms\Components\Hidden::make('current_price')->default(0),
+                        Forms\Components\Hidden::make('broker')->required(),
+                        Forms\Components\Hidden::make('current_price')->default('0'),
                     ])->columns(2),
 
                 Forms\Components\Section::make('Prvý nákup')
                     ->visible(fn($livewire) => $livewire instanceof Pages\CreateInvestment)
                     ->schema([
-                        Forms\Components\TextInput::make('initial_quantity')
-                            ->label('Počet kusov')
-                            ->numeric()
-                            ->default(0),
-
-                        Forms\Components\TextInput::make('initial_price')
-                            ->label('Nákupná cena za 1 ks')
-                            ->numeric()
-                            ->default(0),
-
-                        Forms\Components\TextInput::make('initial_commission')
-                            ->label('Poplatok')
-                            ->numeric()
-                            ->default(0),
-
-                        Forms\Components\DatePicker::make('transaction_date')
-                            ->label('Dátum nákupu')
-                            ->default(now()),
+                        Forms\Components\TextInput::make('initial_quantity')->label('Počet kusov')->numeric()->default(0),
+                        Forms\Components\TextInput::make('initial_price')->label('Cena za 1 ks')->numeric()->default(0),
+                        Forms\Components\TextInput::make('initial_commission')->label('Poplatok')->numeric()->default(0),
+                        Forms\Components\DatePicker::make('transaction_date')->label('Dátum nákupu')->default(now()),
                     ])->columns(4),
             ]);
     }
@@ -141,8 +105,7 @@ class InvestmentResource extends Resource
                 Tables\Columns\TextColumn::make('broker')
                     ->label('Broker')
                     ->icon('heroicon-m-building-office-2')
-                    ->color('gray')
-                    ->searchable(),
+                    ->color('gray'),
 
                 Tables\Columns\TextColumn::make('category.name')
                     ->label('Typ')
@@ -151,48 +114,50 @@ class InvestmentResource extends Resource
 
                 Tables\Columns\TextColumn::make('total_quantity')
                     ->label('Ks')
-                    ->numeric(2)
+                    ->numeric(4)
                     ->hidden(fn($livewire) => $livewire->activeTab === 'archived'),
 
                 Tables\Columns\TextColumn::make('total_invested_base')
                     ->label('Investované')
                     ->alignEnd()
-                    ->formatStateUsing(
-                        fn($state, $record) =>
+                    ->formatStateUsing(fn($state, $record) => 
                         number_format((float)$state, 2, ',', ' ') . ' ' . ($record->currency?->symbol ?? '')
                     ),
 
+                // ZISK V MENE POZÍCIE
                 Tables\Columns\TextColumn::make('total_gain_base')
                     ->label('Zisk/Strata')
                     ->alignEnd()
                     ->weight('bold')
-                    ->color(fn($state) => (float)($state ?? 0) >= 0 ? 'success' : 'danger')
+                    // Matematicky bezpečné určenie farby: ak reťazec nezačína mínusom a nie je nula
+                    ->color(fn($state) => str_contains((string)$state, '-') ? 'danger' : ((float)$state > 0 ? 'success' : 'gray'))
                     ->formatStateUsing(function ($state, $record) {
                         $symbol = $record->currency?->symbol ?? '$';
-                        $prefix = (float)$state >= 0 ? '+' : '';
-                        return $prefix . number_format((float)$state, 2, ',', ' ') . ' ' . $symbol;
+                        $val = (float)$state;
+                        $prefix = $val > 0 ? '+' : '';
+                        return $prefix . number_format($val, 2, ',', ' ') . ' ' . $symbol;
                     }),
 
+                // HODNOTA
                 Tables\Columns\TextColumn::make('current_market_value_base')
                     ->label(fn($livewire) => $livewire->activeTab === 'archived' ? 'Predané za' : 'Hodnota')
                     ->alignEnd()
                     ->weight('black')
                     ->color(fn($record) => $record->is_archived ? 'gray' : 'info')
                     ->state(fn($record) => $record->is_archived ? $record->total_sales_base : $record->current_market_value_base)
-                    ->formatStateUsing(
-                        fn($state, $record) =>
+                    ->formatStateUsing(fn($state, $record) => 
                         number_format((float)$state, 2, ',', ' ') . ' ' . ($record->currency?->symbol ?? '')
                     ),
 
+                // VÝNOS %
                 Tables\Columns\TextColumn::make('total_gain_percent')
                     ->label('Výnos (%)')
                     ->alignEnd()
                     ->badge()
-                    ->color(fn($state) => (float)($state ?? 0) >= 0 ? 'success' : 'danger')
-                    ->formatStateUsing(fn($state) => ((float)$state >= 0 ? '+' : '') . number_format((float)$state, 2) . ' %'),
+                    ->color(fn($state) => (float)$state > 0 ? 'success' : ((float)$state < 0 ? 'danger' : 'gray'))
+                    ->formatStateUsing(fn($state) => ((float)$state > 0 ? '+' : '') . number_format((float)$state, 2, ',', ' ') . ' %'),
             ])
             ->recordUrl(fn($record) => static::getUrl('view', ['record' => $record]))
-            // FIX: Explicitný smer sortovania
             ->defaultSort('ticker', 'asc')
             ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent);
     }
@@ -203,31 +168,20 @@ class InvestmentResource extends Resource
             ->schema([
                 Infolists\Components\Section::make('Prehľad pozície')
                     ->schema([
-                        Infolists\Components\TextEntry::make('ticker')
-                            ->label('Ticker')
-                            ->badge(),
-
-                        Infolists\Components\TextEntry::make('name')
-                            ->label('Názov spoločnosti'),
-
+                        Infolists\Components\TextEntry::make('ticker')->label('Ticker')->badge(),
+                        Infolists\Components\TextEntry::make('name')->label('Názov spoločnosti'),
                         Infolists\Components\TextEntry::make('is_archived')
-                            ->label('Stav')
-                            ->badge()
+                            ->label('Stav')->badge()
                             ->formatStateUsing(fn($state) => $state ? 'Ukončené' : 'Aktívne')
                             ->color(fn($state) => $state ? 'gray' : 'success'),
-
-                        Infolists\Components\TextEntry::make('category.name')
-                            ->label('Typ aktíva'),
-
-                        Infolists\Components\TextEntry::make('broker')
-                            ->label('Broker'),
+                        Infolists\Components\TextEntry::make('category.name')->label('Typ aktíva'),
+                        Infolists\Components\TextEntry::make('broker')->label('Broker'),
 
                         Infolists\Components\TextEntry::make('market_value')
-                            ->label(fn($record) => $record->is_archived ? 'Predajná cena (Tržby)' : 'Trhová hodnota')
+                            ->label(fn($record) => $record->is_archived ? 'Realizované tržby' : 'Trhová hodnota')
                             ->state(fn($record) => $record->is_archived ? $record->total_sales_base : $record->current_market_value_base)
                             ->formatStateUsing(fn($state, $record) => number_format((float)$state, 2, ',', ' ') . ' ' . ($record->currency?->symbol ?? ''))
-                            ->weight('black')
-                            ->color('info'),
+                            ->weight('black')->color('info'),
 
                         Infolists\Components\TextEntry::make('total_invested_base')
                             ->label('Celková investícia')
@@ -250,26 +204,21 @@ class InvestmentResource extends Resource
 
                         Infolists\Components\TextEntry::make('tax_free_quantity')
                             ->label('Oslobodené od dane (1r)')
-                            ->formatStateUsing(fn($state) => number_format((float)$state, 2) . ' ks')
+                            ->formatStateUsing(fn($state) => number_format((float)$state, 2, ',', ' ') . ' ks')
                             ->color('success')
                             ->visible(fn($record) => !$record->is_archived),
 
-                        // FIX: Odstránené ->since(), nahradené ->formatStateUsing() s null-safe logikou
                         Infolists\Components\TextEntry::make('last_price_update')
                             ->label('Čerstvosť dát')
                             ->formatStateUsing(fn($state) => $state ? $state->diffForHumans() : 'Nikdy')
                             ->badge()
-                            ->color(fn($state) => $state && $state->gt(now()->subHour()) ? 'success' : 'warning')
-                            ->icon(fn($state) => $state && $state->gt(now()->subHour()) ? 'heroicon-m-check-circle' : 'heroicon-m-exclamation-circle'),
+                            ->color(fn($state) => $state && $state->gt(now()->subHour()) ? 'success' : 'warning'),
 
                     ])->columns(5),
             ]);
     }
 
-    public static function getRelations(): array
-    {
-        return [TransactionsRelationManager::class];
-    }
+    public static function getRelations(): array { return [TransactionsRelationManager::class]; }
 
     public static function getPages(): array
     {
@@ -288,7 +237,6 @@ class InvestmentResource extends Resource
             ->where('broker', '!=', 'System');
     }
 
-    // FIX: Ochrana pred zmazaním investície s existujúcimi transakciami
     public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
     {
         return $record->user_id === auth()->id();
