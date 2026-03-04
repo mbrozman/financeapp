@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Traits\BelongsToUser; // Náš Trait pre bezpečnosť dát
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Enums\AssetType;
 
 class InvestmentCategory extends Model
 {
@@ -14,6 +15,7 @@ class InvestmentCategory extends Model
     protected $fillable = [
         'user_id',
         'name',
+        'type' => AssetType::class,
         'slug',
         'icon',
         'color',

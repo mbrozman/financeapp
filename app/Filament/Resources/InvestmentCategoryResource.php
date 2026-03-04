@@ -36,7 +36,17 @@ class InvestmentCategoryResource extends Resource
                             ->live(onBlur: true)
                             // UX: Automaticky vytvorí slug z názvu
                             ->afterStateUpdated(fn(Set $set, ?string $state) => $set('slug', Str::slug($state))),
+                        // Vizuálny indikátor aktivity
+                        Tables\Columns\ToggleColumn::make('is_active')
+                            ->label('Aktívny'),
 
+                        // Indikátor zmazania (Soft delete)
+                        Tables\Columns\TextColumn::make('deleted_at')
+                            ->label('Stav')
+                            ->dateTime()
+                            ->placeholder('Aktívny záznam')
+                            ->color('danger')
+                            ->toggleable(isToggledHiddenByDefault: true),
                         Forms\Components\TextInput::make('slug')
                             ->required()
                             ->unique(ignoreRecord: true),
@@ -50,6 +60,9 @@ class InvestmentCategoryResource extends Resource
                             ->label('Farba pre grafy')
                             ->default('#3b82f6'),
                     ])->columns(2),
+            ])->filters([
+                // Filter na zobrazenie zmazaných záznamov
+                Tables\Filters\TrashedFilter::make(),
             ]);
     }
 

@@ -27,8 +27,8 @@ class InvestmentTransactionObserver
 
             // Výpočet pôvodnej sumy: (Ks * Cena) +/- Poplatok
             $oldAmountBase = $oldQty->multipliedBy($oldPrice);
-            $oldAmountBase = ($oldType === 'buy') 
-                ? $oldAmountBase->plus($oldComm) 
+            $oldAmountBase = ($oldType === 'buy')
+                ? $oldAmountBase->plus($oldComm)
                 : $oldAmountBase->minus($oldComm);
 
             $oldAmountEur = CurrencyService::convertToEur(
@@ -51,8 +51,8 @@ class InvestmentTransactionObserver
         $newComm = BigDecimal::of($tx->commission ?? 0);
 
         $newAmountBase = $newQty->multipliedBy($newPrice);
-        $newAmountBase = ($tx->type === 'buy') 
-            ? $newAmountBase->plus($newComm) 
+        $newAmountBase = ($tx->type === 'buy')
+            ? $newAmountBase->plus($newComm)
             : $newAmountBase->minus($newComm);
 
         $newAmountEur = CurrencyService::convertToEur(
@@ -81,8 +81,8 @@ class InvestmentTransactionObserver
         $comm = BigDecimal::of($tx->commission ?? 0);
 
         $amountBase = $qty->multipliedBy($price);
-        $amountBase = ($tx->type === 'buy') 
-            ? $amountBase->plus($comm) 
+        $amountBase = ($tx->type === 'buy')
+            ? $amountBase->plus($comm)
             : $amountBase->minus($comm);
 
         $amountEur = CurrencyService::convertToEur(
@@ -100,6 +100,19 @@ class InvestmentTransactionObserver
 
         $this->syncInvestmentStatus($investment);
     }
+
+    public function creating(InvestmentTransaction $tx): void
+    {
+        if ($tx->type === \App\Enums\TransactionType::SELL) {
+            $currentQty = (float) $tx->investment->total_quantity;
+
+            if ((float)$tx->quantity > $currentQty) {
+                // Zastavíme proces a vyhodíme chybu
+                throw new \Exception("Nedostatok kusov na predaj. Máte {$currentQty}, pokúšate sa predať {$tx->quantity}.");
+            }
+        }
+    }
+
 
     protected function syncInvestmentStatus(Investment $investment): void
     {

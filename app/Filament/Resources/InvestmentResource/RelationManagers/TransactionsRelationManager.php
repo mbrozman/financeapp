@@ -12,17 +12,31 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
 use Brick\Math\BigDecimal; // PRIDANÉ
 use Brick\Math\RoundingMode; // PRIDANÉ
+use App\Enums\TransactionType;
+
 
 class TransactionsRelationManager extends RelationManager
 {
     protected static string $relationship = 'transactions';
     protected static ?string $title = 'História nákupov a predajov';
 
-    public function isReadOnly(): bool { return false; }
+    public function isReadOnly(): bool
+    {
+        return false;
+    }
 
-    protected function canCreate(): bool { return true; }
-    protected function canEdit(Model $record): bool { return true; }
-    protected function canDelete(Model $record): bool { return true; }
+    protected function canCreate(): bool
+    {
+        return true;
+    }
+    protected function canEdit(Model $record): bool
+    {
+        return true;
+    }
+    protected function canDelete(Model $record): bool
+    {
+        return true;
+    }
 
     public static function canViewForRecord(Model $ownerRecord, string $pageClass): bool
     {
@@ -41,11 +55,7 @@ class TransactionsRelationManager extends RelationManager
                     ->schema([
                         Forms\Components\Select::make('type')
                             ->label('Typ pohybu')
-                            ->options([
-                                'buy' => 'Nákup',
-                                'sell' => 'Predaj',
-                                'dividend' => 'Dividenda',
-                            ])->required()->native(false),
+                            ->options(TransactionType::class)->required()->native(false),
 
                         Forms\Components\DatePicker::make('transaction_date')
                             ->label('Dátum')->default(now())->required(),
@@ -69,7 +79,7 @@ class TransactionsRelationManager extends RelationManager
                             ->numeric()
                             ->required()
                             // FIX: Používame našu službu bez float pretypovania
-                            ->default(fn () => CurrencyService::getLiveRate($code))
+                            ->default(fn() => CurrencyService::getLiveRate($code))
                             ->helperText("Zadajte, koľko {$code} dostanete za 1 EUR."),
                     ]),
             ]);
@@ -81,14 +91,9 @@ class TransactionsRelationManager extends RelationManager
             ->recordTitleAttribute('transaction_date')
             ->columns([
                 Tables\Columns\TextColumn::make('transaction_date')->label('Dátum')->date('d. m. Y'),
-                
+
                 Tables\Columns\TextColumn::make('type')->label('Typ')->badge()
-                    ->color(fn(string $state): string => match ($state) {
-                        'buy' => 'success',
-                        'sell' => 'danger',
-                        'dividend' => 'info',
-                        default => 'gray',
-                    })
+
                     ->formatStateUsing(fn($state) => match ($state) {
                         'buy' => 'Nákup',
                         'sell' => 'Predaj',
@@ -96,8 +101,27 @@ class TransactionsRelationManager extends RelationManager
                         default => $state,
                     }),
 
-                Tables\Columns\TextColumn::make('quantity')->label('Kusy')->numeric(4),
+                Forms\Components\TextInput::make('quantity')
+                    ->label('Počet kusov')
+                    ->numeric()
+                    ->required()
+                    ->step(0.00000001)
+                    // TÁTO VALIDÁCIA ZABRÁNI PREDAJU NAD RÁMEC VLASTNÍCTVA
+                    ->rules([
+                        fn(Forms\Get $get): \Closure => function (string $attribute, $value, \Closure $fail) use ($get) {
+                            if ($get('type') === \App\Enums\TransactionType::SELL->value) {
+                                $currentQty = (float) $this->getOwnerRecord()->total_quantity;
 
+                                // Ak upravujeme existujúcu transakciu, musíme pripočítať jej pôvodnú hodnotu k zostatku
+                                $originalQty = (float) ($this->getMountedTableActionRecord()?->quantity ?? 0);
+                                $availableQty = $currentQty + $originalQty;
+
+                                if ((float)$value > $availableQty) {
+                                    $fail("Nemôžete predať viac kusov, než vlastníte. Aktuálne k dispozícii: {$availableQty} ks.");
+                                }
+                            }
+                        },
+                    ]),
                 // FIX: CELKOVÁ SUMA CEZ BIGDECIMAL
                 Tables\Columns\TextColumn::make('total_price')
                     ->label('Celková suma')
@@ -106,11 +130,12 @@ class TransactionsRelationManager extends RelationManager
                         // Presný výpočet: Ks * Cena
                         $total = BigDecimal::of($record->quantity)
                             ->multipliedBy($record->price_per_unit);
-                        
+
                         return (string) $total;
                     })
                     // Peniaze formátujeme až pri zobrazení
-                    ->formatStateUsing(fn ($state, $record) => 
+                    ->formatStateUsing(
+                        fn($state, $record) =>
                         number_format((float)$state, 2, ',', ' ') . ' ' . ($record->currency?->symbol ?? '$')
                     )
                     ->weight('bold')
@@ -118,13 +143,15 @@ class TransactionsRelationManager extends RelationManager
 
                 Tables\Columns\TextColumn::make('price_per_unit')
                     ->label('Cena/ks')
-                    ->formatStateUsing(fn ($state, $record) => 
+                    ->formatStateUsing(
+                        fn($state, $record) =>
                         number_format((float)$state, 2, ',', ' ') . ' ' . ($record->currency?->symbol ?? '$')
                     ),
 
                 Tables\Columns\TextColumn::make('commission')
                     ->label('Poplatok')
-                    ->formatStateUsing(fn ($state, $record) => 
+                    ->formatStateUsing(
+                        fn($state, $record) =>
                         number_format((float)$state, 2, ',', ' ') . ' ' . ($record->currency?->symbol ?? '$')
                     ),
             ])
@@ -137,7 +164,7 @@ class TransactionsRelationManager extends RelationManager
                         $data['currency_id'] = $this->getOwnerRecord()->currency_id;
                         return $data;
                     })
-                    ->after(fn () => redirect(request()->header('Referer'))),
+                    ->after(fn() => redirect(request()->header('Referer'))),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

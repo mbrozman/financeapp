@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Filament\Notifications\Notification;
 use Brick\Math\BigDecimal; // PRIDANÉ
+use App\Enums\TransactionType;
 
 class CreateInvestment extends CreateRecord
 {
@@ -36,7 +37,7 @@ class CreateInvestment extends CreateRecord
         if ($existing) {
             Notification::make()
                 ->title('Pozícia už existuje')
-                ->body("Investíciu {$ticker} u brokera {$broker} už máte v portfóliu.")
+                ->body("Investíciu {$ticker} už máte v systéme (možno v archíve). Presmerovali sme vás na jej detail, kde môžete pridať nákup.")
                 ->warning()
                 ->send();
 
@@ -76,7 +77,7 @@ class CreateInvestment extends CreateRecord
                     'user_id' => auth()->id(),
                     'investment_id' => $record->id,
                     'currency_id' => $record->currency_id,
-                    'type' => 'buy',
+                    'type' => TransactionType::BUY,
                     // Posielame dáta ako stringy, o presnosť sa postará DB a BigDecimal v modeli
                     'quantity' => (string) $initialQty,
                     'price_per_unit' => $data['initial_price'],

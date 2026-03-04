@@ -59,11 +59,22 @@ class BrokerResource extends Resource
                 ->label('Broker')
                 ->weight('bold')
                 ->searchable(),
+            Tables\Columns\ToggleColumn::make('is_active')
+                ->label('Aktívny'),
+            Tables\Columns\TextColumn::make('deleted_at')
+                ->label('Stav')
+                ->dateTime()
+                ->placeholder('Aktívny záznam')
+                ->color('danger')
+                ->toggleable(isToggledHiddenByDefault: true),
             Tables\Columns\TextColumn::make('balance')
                 ->label('Hotovosť na účte')
                 ->money(fn ($record) => $record->currency->code),
             Tables\Columns\TextColumn::make('currency.code')
                 ->label('Mena'),
+        ])->filters([
+            // Filter na zobrazenie zmazaných záznamov
+            Tables\Filters\TrashedFilter::make(),
         ]);
     }
 

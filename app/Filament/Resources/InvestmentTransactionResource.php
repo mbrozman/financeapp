@@ -9,6 +9,7 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use App\Enums\TransactionType;
 
 class InvestmentTransactionResource extends Resource
 {
@@ -90,15 +91,14 @@ class InvestmentTransactionResource extends Resource
                 Tables\Columns\TextColumn::make('investment.ticker')->label('Ticker')->badge(),
                 Tables\Columns\TextColumn::make('type')
                     ->label('Typ')
-                    ->badge()
-                    ->color(fn(string $state): string => match ($state) {
-                        'buy' => 'success',
-                        'sell' => 'danger',
-                        'dividend' => 'info',
-                    }),
+                    ->badge(),
+
                 Tables\Columns\TextColumn::make('quantity')->label('Ks')->numeric(4),
                 Tables\Columns\TextColumn::make('price_per_unit')->label('Cena/ks')->sortable(),
-                Tables\Columns\TextColumn::make('currency')->label('Mena'),
+                Tables\Columns\TextColumn::make('currency.code')
+                    ->label('Mena')
+                    ->badge()
+                    ->color('gray')
             ])
             ->defaultSort('transaction_date', 'desc');
     }

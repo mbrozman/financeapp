@@ -21,9 +21,18 @@ class InvestmentResource extends Resource
     protected static ?string $model = Investment::class;
     protected static ?string $recordTitleAttribute = 'name';
 
-    public static function getNavigationLabel(): string { return 'Investície'; }
-    public static function getPluralLabel(): string { return 'Investície'; }
-    public static function getModelLabel(): string { return 'Investícia'; }
+    public static function getNavigationLabel(): string
+    {
+        return 'Investície';
+    }
+    public static function getPluralLabel(): string
+    {
+        return 'Investície';
+    }
+    public static function getModelLabel(): string
+    {
+        return 'Investícia';
+    }
     protected static ?string $navigationGroup = 'Investície';
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar';
 
@@ -56,8 +65,12 @@ class InvestmentResource extends Resource
 
                         Forms\Components\Select::make('investment_category_id')
                             ->label('Typ aktíva')
-                            ->relationship('category', 'name')
-                            ->required()
+                            ->relationship(
+                                'category',
+                                'name',
+                                fn(Builder $query) =>
+                                $query->where('is_active', true)
+                            )->required()
                             ->preload(),
 
                         Forms\Components\Select::make('currency_id')
@@ -67,9 +80,15 @@ class InvestmentResource extends Resource
 
                         Forms\Components\Select::make('account_id')
                             ->label('Broker / Účet')
-                            ->relationship('account', 'name', fn($query) => $query->where('type', 'investment'))
                             ->required()
                             ->live()
+                            ->relationship(
+                                'account',
+                                'name',
+                                fn(Builder $query) =>
+                                $query->where('type', 'investment')
+                                    ->where('is_active', true)
+                            )
                             ->afterStateUpdated(function ($state, Forms\Set $set) {
                                 $account = \App\Models\Account::find($state);
                                 if ($account) {
@@ -120,7 +139,8 @@ class InvestmentResource extends Resource
                 Tables\Columns\TextColumn::make('total_invested_base')
                     ->label('Investované')
                     ->alignEnd()
-                    ->formatStateUsing(fn($state, $record) => 
+                    ->formatStateUsing(
+                        fn($state, $record) =>
                         number_format((float)$state, 2, ',', ' ') . ' ' . ($record->currency?->symbol ?? '')
                     ),
 
@@ -145,7 +165,8 @@ class InvestmentResource extends Resource
                     ->weight('black')
                     ->color(fn($record) => $record->is_archived ? 'gray' : 'info')
                     ->state(fn($record) => $record->is_archived ? $record->total_sales_base : $record->current_market_value_base)
-                    ->formatStateUsing(fn($state, $record) => 
+                    ->formatStateUsing(
+                        fn($state, $record) =>
                         number_format((float)$state, 2, ',', ' ') . ' ' . ($record->currency?->symbol ?? '')
                     ),
 
@@ -209,16 +230,20 @@ class InvestmentResource extends Resource
                             ->visible(fn($record) => !$record->is_archived),
 
                         Infolists\Components\TextEntry::make('last_price_update')
-                            ->label('Čerstvosť dát')
+                            ->label('Posledná aktualizácia')
                             ->formatStateUsing(fn($state) => $state ? $state->diffForHumans() : 'Nikdy')
+                            ->dateTime('d. m. Y H:i:s')
                             ->badge()
-                            ->color(fn($state) => $state && $state->gt(now()->subHour()) ? 'success' : 'warning'),
+                            ->color(fn($state) => ($state && $state->gt(now()->subHours(2))) ? 'success' : 'warning'),
 
                     ])->columns(5),
             ]);
     }
 
-    public static function getRelations(): array { return [TransactionsRelationManager::class]; }
+    public static function getRelations(): array
+    {
+        return [TransactionsRelationManager::class];
+    }
 
     public static function getPages(): array
     {

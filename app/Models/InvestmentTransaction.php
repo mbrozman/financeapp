@@ -6,6 +6,7 @@ use App\Models\Traits\BelongsToUser;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\DB; // TENTO RIADOK TU MUSÍ BYŤ
+use App\Enums\TransactionType;
 
 class InvestmentTransaction extends Model
 {
@@ -27,6 +28,7 @@ class InvestmentTransaction extends Model
     protected $casts = [
         'transaction_date' => 'date',
         'quantity' => 'string',
+        'type' => TransactionType::class,
         'price_per_unit' => 'string',
         'commission' => 'string',
         'exchange_rate' => 'string',

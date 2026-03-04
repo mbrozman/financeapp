@@ -6,6 +6,8 @@ use App\Models\User;
 use App\Models\Investment;
 use App\Models\PortfolioSnapshot;
 use Illuminate\Console\Command;
+use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 
 class TakePortfolioSnapshot extends Command
 {
@@ -13,36 +15,25 @@ class TakePortfolioSnapshot extends Command
     protected $description = 'Uloží dennú snímku hodnoty portfólia pre všetkých užívateľov';
 
     public function handle()
-    {
-        $this->info('Začínam vytvárať snímky portfólií...');
+{
+    User::all()->each(function (User $user) {
+        $investments = Investment::where('user_id', $user->id)->where('is_archived', false)->get();
 
-        // Prejdeme všetkých užívateľov v systéme
-        User::all()->each(function (User $user) {
-            
-            // Sčítame jeho nearchivované investície v EUR
-            // Používame naše hotové atribúty z modelu Investment
-            $investments = Investment::where('user_id', $user->id)
-                ->where('is_archived', false)
-                ->get();
+        $totalInvested = BigDecimal::of(0);
+        $totalMarket = BigDecimal::of(0);
 
-            $totalInvested = $investments->sum('total_invested_eur');
-            $totalMarketValue = $investments->sum('current_market_value_eur');
+        foreach ($investments as $investment) {
+            $totalInvested = $totalInvested->plus($investment->total_invested_eur);
+            $totalMarket = $totalMarket->plus($investment->current_market_value_eur);
+        }
 
-            // Uložíme snímku (ak už za dnes existuje, aktualizujeme ju)
-            PortfolioSnapshot::updateOrCreate(
-                [
-                    'user_id' => $user->id,
-                    'recorded_at' => now()->toDateString(),
-                ],
-                [
-                    'total_invested_eur' => $totalInvested,
-                    'total_market_value_eur' => $totalMarketValue,
-                ]
-            );
-
-            $this->line("Užívateľ {$user->name}: Hotovo ({$totalMarketValue} €)");
-        });
-
-        $this->info('Všetky snímky boli úspešne uložené.');
-    }
+        PortfolioSnapshot::updateOrCreate(
+            ['user_id' => $user->id, 'recorded_at' => now()->toDateString()],
+            [
+                'total_invested_eur' => (string) $totalInvested,
+                'total_market_value_eur' => (string) $totalMarket,
+            ]
+        );
+    });
+}
 }

@@ -7,12 +7,13 @@ use Spatie\Activitylog\LogOptions;
 use App\Models\Traits\BelongsToUser; // Importujeme náš Trait
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes; 
 
 class Account extends Model
 {
     // Aplikujeme Multi-tenancy. Odteraz tento model 
     // VŽDY odfiltruje dáta podľa prihláseného užívateľa.
-    use BelongsToUser, LogsActivity;
+    use BelongsToUser, LogsActivity,SoftDeletes;
 
     protected $fillable = ['currency_id', 'name', 'type', 'balance', 'is_active'];
       protected $casts = [

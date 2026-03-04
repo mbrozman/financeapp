@@ -4,6 +4,8 @@ namespace App\Filament\Widgets;
 
 use App\Models\InvestmentCategory;
 use Filament\Widgets\ChartWidget;
+use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 
 class InvestmentAllocationChart extends ChartWidget
 {
@@ -16,7 +18,7 @@ class InvestmentAllocationChart extends ChartWidget
     {
         // 1. EAGER LOADING
         // Načítame kategórie a k nim prislúchajúce nearchivované investície
-        $categories = InvestmentCategory::with(['investments' => function($query) {
+        $categories = InvestmentCategory::with(['investments' => function ($query) {
             $query->where('is_archived', false)->with(['transactions', 'currency']);
         }])->get();
 
@@ -25,15 +27,16 @@ class InvestmentAllocationChart extends ChartWidget
         $colors = [];
 
         foreach ($categories as $category) {
-            // 2. VÝPOČET HODNOTY KATEGÓRIE
-            // Využijeme už hotový výpočet current_market_value_eur z modelu Investment
-            $categoryValue = $category->investments->sum('current_market_value_eur');
+            $categoryValue = BigDecimal::of(0);
 
-            // Do grafu dáme len tie kategórie, v ktorých niečo reálne vlastníš
-            if ($categoryValue > 0) {
+            foreach ($category->investments as $investment) {
+                $categoryValue = $categoryValue->plus($investment->current_market_value_eur);
+            }
+
+            if ($categoryValue->isGreaterThan(0)) {
                 $labels[] = $category->name;
-                $data[] = round($categoryValue, 2);
-                $colors[] = $category->color ?? '#3b82f6'; // Farba, ktorú si si zvolil v Adminovi
+                $data[] = $categoryValue->toFloat(); // Pre Chart.js
+                $colors[] = $category->color ?? '#3b82f6';
             }
         }
 
