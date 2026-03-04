@@ -15,6 +15,10 @@ class Account extends Model
     use BelongsToUser, LogsActivity;
 
     protected $fillable = ['currency_id', 'name', 'type', 'balance', 'is_active'];
+      protected $casts = [
+        'balance'   => 'string',  
+        'is_active' => 'boolean',
+    ];
  public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()

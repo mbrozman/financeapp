@@ -26,10 +26,10 @@ class InvestmentTransaction extends Model
 
     protected $casts = [
         'transaction_date' => 'date',
-        'quantity' => 'decimal:8',
-        'price_per_unit' => 'decimal:4',
-        'commission' => 'decimal:4',
-        'exchange_rate' => 'decimal:8',
+        'quantity' => 'string',
+        'price_per_unit' => 'string',
+        'commission' => 'string',
+        'exchange_rate' => 'string',
     ];
 
     public function investment(): BelongsTo
@@ -37,10 +37,10 @@ class InvestmentTransaction extends Model
         return $this->belongsTo(Investment::class);
     }
     public function currency(): \Illuminate\Database\Eloquent\Relations\BelongsTo
-{
-    return $this->belongsTo(Currency::class);
-}
-/*
+    {
+        return $this->belongsTo(Currency::class);
+    }
+    /*
     protected static function booted(): void
 {
     static::saved(function (InvestmentTransaction $tx) {
