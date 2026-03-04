@@ -10,6 +10,8 @@ use Filament\Widgets\ChartWidget;
 use Carbon\CarbonPeriod;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 
 class PortfolioPerformanceChart extends ChartWidget
 {
@@ -62,7 +64,8 @@ class PortfolioPerformanceChart extends ChartWidget
             }
 
             // 1. VÝPOČET PORTFÓLIA (v EUR)
-            $dailyTotalEur = 0;
+            $dailyTotalEur = BigDecimal::of(0);
+
             foreach ($investments as $investment) {
                 // Zistíme koľko kusov sme mali v daný deň
                 $qtyAtDate = InvestmentTransaction::where('investment_id', $investment->id)
@@ -76,8 +79,14 @@ class PortfolioPerformanceChart extends ChartWidget
                     ->where('recorded_at', '<=', $dateString)
                     ->orderBy('recorded_at', 'desc')->first();
 
-                if ($priceEntry) {
-                    $dailyTotalEur += ($qtyAtDate * ((float)$priceEntry->price / $usdRate));
+                if ($priceEntry && $qtyAtDate > 0) {
+                    // VÝPOČET HODNOTY V EUR CEZ BIGDECIMAL
+                    $valBase = BigDecimal::of($qtyAtDate)->multipliedBy($priceEntry->price);
+
+                    // Prepočet cez CurrencyService (ktorý už BigDecimal používa)
+                    $valEur = CurrencyService::convertToEur((string)$valBase, $investment->currency_id);
+
+                    $dailyTotalEur = $dailyTotalEur->plus($valEur);
                 }
             }
 
@@ -91,7 +100,9 @@ class PortfolioPerformanceChart extends ChartWidget
             if ($dailyTotalEur > 0 && $firstPortfolioValue === null) $firstPortfolioValue = $dailyTotalEur;
             if ($benchPrice > 0 && $firstBenchmarkPrice === null) $firstBenchmarkPrice = $benchPrice;
 
-            $portfolioValues[] = $firstPortfolioValue ? round(($dailyTotalEur / $firstPortfolioValue) * 100, 2) : 100;
+            $portfolioValues[] = $firstPortfolioValue
+                ? round(($dailyTotalEur->toFloat() / $firstPortfolioValue) * 100, 2)
+                : 100;
             $benchmarkValues[] = $firstBenchmarkPrice ? round(($benchPrice / $firstBenchmarkPrice) * 100, 2) : 100;
         }
 

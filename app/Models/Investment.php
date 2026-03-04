@@ -39,11 +39,26 @@ class Investment extends Model
     // VZŤAHY
     // -------------------------------------------------------------------------
 
-    public function account(): BelongsTo { return $this->belongsTo(Account::class); }
-    public function currency(): BelongsTo { return $this->belongsTo(Currency::class); }
-    public function category(): BelongsTo { return $this->belongsTo(InvestmentCategory::class, 'investment_category_id'); }
-    public function transactions(): HasMany { return $this->hasMany(InvestmentTransaction::class); }
-    public function priceHistories(): HasMany { return $this->hasMany(InvestmentPriceHistory::class); }
+    public function account(): BelongsTo
+    {
+        return $this->belongsTo(Account::class);
+    }
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(Currency::class);
+    }
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(InvestmentCategory::class, 'investment_category_id');
+    }
+    public function transactions(): HasMany
+    {
+        return $this->hasMany(InvestmentTransaction::class);
+    }
+    public function priceHistories(): HasMany
+    {
+        return $this->hasMany(InvestmentPriceHistory::class);
+    }
 
     // -------------------------------------------------------------------------
     // VÝPOČTY MNOŽSTVA (BigDecimal)
@@ -98,19 +113,23 @@ class Investment extends Model
     protected function currentMarketValueBase(): Attribute
     {
         return Attribute::make(
-            get: fn () => (string) BigDecimal::of($this->total_quantity)->multipliedBy($this->current_price ?? 0)
+            get: fn() => (string) BigDecimal::of($this->total_quantity ?? 0)
+                ->multipliedBy($this->current_price ?? 0)
         );
     }
 
     protected function totalGainBase(): Attribute
     {
         return Attribute::make(
-            get: function () {
-                $invested = BigDecimal::of($this->total_invested_base);
-                $current  = $this->is_archived ? BigDecimal::of($this->total_sales_base) : BigDecimal::of($this->current_market_value_base);
-                return (string) $current->minus($invested);
-            }
-        );
+        get: function () {
+            $invested = BigDecimal::of($this->total_invested_base ?? 0);
+            $current  = $this->is_archived 
+                ? BigDecimal::of($this->total_sales_base ?? 0) 
+                : BigDecimal::of($this->current_market_value_base ?? 0);
+
+            return (string) $current->minus($invested);
+        }
+    );
     }
 
     protected function totalGainPercent(): Attribute
@@ -119,7 +138,7 @@ class Investment extends Model
             get: function () {
                 $invested = BigDecimal::of($this->total_invested_base);
                 if ($invested->isZero()) return '0';
-                
+
                 $gain = BigDecimal::of($this->total_gain_base);
                 // Výpočet: (Zisk / Investované) * 100
                 return (string) $gain->dividedBy($invested, 4, RoundingMode::HALF_UP)->multipliedBy(100)->toScale(2, RoundingMode::HALF_UP);
@@ -130,12 +149,17 @@ class Investment extends Model
     protected function averageBuyPriceBase(): Attribute
     {
         return Attribute::make(
-            get: function () {
-                $qty = BigDecimal::of($this->transactions->where('type', 'buy')->sum('quantity'));
-                if ($qty->isZero()) return '0';
-                return (string) BigDecimal::of($this->total_invested_base)->dividedBy($qty, 4, RoundingMode::HALF_UP);
-            }
-        );
+        get: function () {
+            $buyTx = $this->transactions->where('type', 'buy');
+            $qty = BigDecimal::of($buyTx->sum('quantity'));
+            
+            if ($qty->isZero()) return '0';
+
+            // (Suma nákupov + poplatky) / kusy
+            $totalCost = BigDecimal::of($this->total_invested_base);
+            return (string) $totalCost->dividedBy($qty, 4, RoundingMode::HALF_UP);
+        }
+    );
     }
 
     // -------------------------------------------------------------------------
