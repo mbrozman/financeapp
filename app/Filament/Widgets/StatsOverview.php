@@ -78,4 +78,8 @@ class StatsOverview extends BaseWidget
                 ->color($bufferColor),
         ];
     }
+    public static function canView(): bool
+    {
+        return false; // Toto skryje widget z Dashboardu
+    }
 }

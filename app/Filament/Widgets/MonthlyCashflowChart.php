@@ -20,13 +20,13 @@ class MonthlyCashflowChart extends ChartWidget
             DB::raw("SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as total_income"),
             DB::raw("SUM(CASE WHEN type = 'expense' THEN ABS(amount) ELSE 0 END) as total_expense")
         )
-        ->where('transaction_date', '>=', now()->subMonths(6))
-        ->groupBy('month')
-        ->orderBy('month')
-        ->get();
+            ->where('transaction_date', '>=', now()->subMonths(6))
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get();
 
         // 2. Pripravíme polia pre graf
-        $labels = $data->map(fn ($item) => Carbon::parse($item->month)->format('M Y'))->toArray();
+        $labels = $data->map(fn($item) => Carbon::parse($item->month)->format('M Y'))->toArray();
         $incomeValues = $data->pluck('total_income')->toArray();
         $expenseValues = $data->pluck('total_expense')->toArray();
 
@@ -52,5 +52,9 @@ class MonthlyCashflowChart extends ChartWidget
     protected function getType(): string
     {
         return 'bar'; // Môžeš zmeniť na 'line' pre čiarový graf
+    }
+    public static function canView(): bool
+    {
+        return false; // Toto skryje widget z Dashboardu
     }
 }

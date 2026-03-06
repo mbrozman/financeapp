@@ -4,11 +4,9 @@ namespace App\Filament\Widgets;
 
 use App\Models\Investment;
 use App\Models\InvestmentPriceHistory;
-use App\Models\InvestmentTransaction;
-use App\Services\CurrencyService; // PRIDANÉ
+use App\Models\PortfolioSnapshot; // PRIDANÉ
 use Filament\Widgets\ChartWidget;
-use Carbon\CarbonPeriod;
-use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
@@ -22,88 +20,72 @@ class PortfolioPerformanceChart extends ChartWidget
     protected function getFilters(): ?array
     {
         return [
-            '7' => 'Posledný týždeň',
             '30' => 'Posledný mesiac',
             '90' => 'Posledné 3 mesiace',
-            '180' => 'Posledných 6 mesiacov',
             '365' => 'Posledný rok',
         ];
     }
 
     protected function getData(): array
     {
-        $daysToLookBack = (int) ($this->filter ?? 30);
-        $period = CarbonPeriod::create(now()->subDays($daysToLookBack), now());
+        $days = (int) ($this->filter ?? 30);
+        $userId = Auth::id();
+
+        // 1. ZÍSKAME DÁTA ZO SNAPSHOTOV (Moje portfólio)
+        $snapshots = PortfolioSnapshot::where('user_id', $userId)
+            ->where('recorded_at', '>=', now()->subDays($days))
+            ->orderBy('recorded_at', 'asc')
+            ->get();
+
+        // 2. ZÍSKAME DÁTA PRE BENCHMARK (S&P 500)
+        $benchmark = Investment::where('ticker', 'SPY')->first();
+        $benchHistory = $benchmark
+            ? InvestmentPriceHistory::where('investment_id', $benchmark->id)
+            ->where('recorded_at', '>=', now()->subDays($days))
+            ->orderBy('recorded_at', 'asc')
+            ->get()
+            ->keyBy(fn($item) => $item->recorded_at->format('Y-m-d'))
+            : collect();
 
         $portfolioValues = [];
         $benchmarkValues = [];
         $labels = [];
 
-        // 1. ZÍSKAME REÁLNY KURZ Z NAŠEJ SLUŽBY
-        $usdRate = CurrencyService::getLiveRate('USD');
-
-        $investments = Investment::with(['transactions']) // PRIDANÉ with
-            ->where('user_id', Auth::id())
-            ->where('ticker', '!=', 'SPY')
-            ->where('is_archived', false)
-            ->get();
-
-        $benchmarkRecord = Investment::where('ticker', 'SPY')->first();
-
+        // Prvé hodnoty pre výpočet percent (Normalizácia na 100%)
         $firstPortfolioValue = null;
-        $firstBenchmarkPrice = null;
+        $firstBenchPrice = null;
 
-        foreach ($period as $date) {
-            $dateString = $date->format('Y-m-d');
+        foreach ($snapshots as $snapshot) {
+            $dateKey = $snapshot->recorded_at->format('Y-m-d');
 
             // UX: Optimalizácia popiskov na osi X
-            if ($daysToLookBack > 90) {
-                $labels[] = $date->dayOfWeek === 1 ? $date->format('d.M') : '';
+            if ($days > 90) {
+                $labels[] = $snapshot->recorded_at->dayOfWeek === 1 ? $snapshot->recorded_at->format('d.M') : '';
             } else {
-                $labels[] = $date->format('d.M');
+                $labels[] = $snapshot->recorded_at->format('d.M');
             }
 
-            // 1. VÝPOČET PORTFÓLIA (v EUR)
-            $dailyTotalEur = BigDecimal::of(0);
-
-            foreach ($investments as $investment) {
-                // Zistíme koľko kusov sme mali v daný deň
-                $qtyAtDate = InvestmentTransaction::where('investment_id', $investment->id)
-                    ->where('transaction_date', '<=', $dateString)
-                    ->sum(DB::raw("CASE WHEN type = 'buy' THEN quantity ELSE -quantity END"));
-
-                if ($qtyAtDate <= 0) continue;
-
-                // Zistíme historickú cenu v ten deň
-                $priceEntry = InvestmentPriceHistory::where('investment_id', $investment->id)
-                    ->where('recorded_at', '<=', $dateString)
-                    ->orderBy('recorded_at', 'desc')->first();
-
-                if ($priceEntry && $qtyAtDate > 0) {
-                    // VÝPOČET HODNOTY V EUR CEZ BIGDECIMAL
-                    $valBase = BigDecimal::of($qtyAtDate)->multipliedBy($priceEntry->price);
-
-                    // Prepočet cez CurrencyService (ktorý už BigDecimal používa)
-                    $valEur = CurrencyService::convertToEur((string)$valBase, $investment->currency_id);
-
-                    $dailyTotalEur = $dailyTotalEur->plus($valEur);
-                }
+            // --- MOJE PORTFÓLIO ---
+            $currentMarketValue = BigDecimal::of($snapshot->total_market_value_eur);
+            if ($firstPortfolioValue === null && $currentMarketValue->isGreaterThan(0)) {
+                $firstPortfolioValue = $currentMarketValue;
             }
 
-            // 2. VÝPOČET BENCHMARKU (Cena SPY)
-            $benchEntry = InvestmentPriceHistory::where('investment_id', $benchmarkRecord?->id)
-                ->where('recorded_at', '<=', $dateString)
-                ->orderBy('recorded_at', 'desc')->first();
-            $benchPrice = $benchEntry ? (float)$benchEntry->price : 0;
-
-            // 3. NORMALIZÁCIA (Nastavenie prvého dňa na 100%)
-            if ($dailyTotalEur > 0 && $firstPortfolioValue === null) $firstPortfolioValue = $dailyTotalEur;
-            if ($benchPrice > 0 && $firstBenchmarkPrice === null) $firstBenchmarkPrice = $benchPrice;
-
-            $portfolioValues[] = $firstPortfolioValue
-                ? round(($dailyTotalEur->toFloat() / $firstPortfolioValue) * 100, 2)
+            $portfolioValues[] = $firstPortfolioValue && $firstPortfolioValue->isGreaterThan(0)
+                ? $currentMarketValue->dividedBy($firstPortfolioValue, 4, RoundingMode::HALF_UP)->multipliedBy(100)->toFloat()
                 : 100;
-            $benchmarkValues[] = $firstBenchmarkPrice ? round(($benchPrice / $firstBenchmarkPrice) * 100, 2) : 100;
+
+            // --- BENCHMARK (SPY) ---
+            $benchEntry = $benchHistory->get($dateKey);
+            $currentBenchPrice = $benchEntry ? BigDecimal::of($benchEntry->price) : null;
+
+            if ($firstBenchPrice === null && $currentBenchPrice && $currentBenchPrice->isGreaterThan(0)) {
+                $firstBenchPrice = $currentBenchPrice;
+            }
+
+            $benchmarkValues[] = $firstBenchPrice && $currentBenchPrice
+                ? $currentBenchPrice->dividedBy($firstBenchPrice, 4, RoundingMode::HALF_UP)->multipliedBy(100)->toFloat()
+                : 100;
         }
 
         return [
@@ -112,14 +94,14 @@ class PortfolioPerformanceChart extends ChartWidget
                     'label' => 'Moje portfólio (%)',
                     'data' => $portfolioValues,
                     'borderColor' => '#3b82f6',
-                    'backgroundColor' => 'rgba(59, 130, 246, 0.1)', // Jemná modrá výplň
+                    'backgroundColor' => 'rgba(59, 130, 246, 0.1)',
                     'fill' => 'start',
                     'borderWidth' => 3,
                     'tension' => 0.3,
-                    'pointRadius' => $daysToLookBack > 30 ? 0 : 3,
+                    'pointRadius' => $days > 30 ? 0 : 3,
                 ],
                 [
-                    'label' => 'Trh (S&P 500)',
+                    'label' => 'Trh (S&P 500) (%)',
                     'data' => $benchmarkValues,
                     'borderColor' => '#94a3b8',
                     'borderDash' => [5, 5],
@@ -136,5 +118,9 @@ class PortfolioPerformanceChart extends ChartWidget
     protected function getType(): string
     {
         return 'line';
+    }
+    public static function canView(): bool
+    {
+        return false; // Toto skryje widget z Dashboardu
     }
 }

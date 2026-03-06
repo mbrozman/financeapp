@@ -15,25 +15,34 @@ class TakePortfolioSnapshot extends Command
     protected $description = 'Uloží dennú snímku hodnoty portfólia pre všetkých užívateľov';
 
     public function handle()
-{
-    User::all()->each(function (User $user) {
-        $investments = Investment::where('user_id', $user->id)->where('is_archived', false)->get();
+    {
+        $this->info('Snímam čistý majetok užívateľov...');
 
-        $totalInvested = BigDecimal::of(0);
-        $totalMarket = BigDecimal::of(0);
+        \App\Models\User::all()->each(function ($user) {
+            // 1. LIKVIDNÁ HOTOVOSŤ (Banky + Šuflík)
+            $liquidCash = \App\Models\Account::where('user_id', $user->id)
+                ->whereIn('type', ['bank', 'cash'])
+                ->get()
+                ->sum(fn($acc) => (float)$acc->balance / ($acc->currency?->exchange_rate ?: 1));
 
-        foreach ($investments as $investment) {
-            $totalInvested = $totalInvested->plus($investment->total_invested_eur);
-            $totalMarket = $totalMarket->plus($investment->current_market_value_eur);
-        }
+            // 2. INVESTIČNÝ MAJETOK
+            $investments = \App\Models\Investment::where('user_id', $user->id)
+                ->where('is_archived', false)
+                ->get();
+            $marketValue = $investments->sum('current_market_value_eur');
+            $investedTotal = $investments->sum('total_invested_eur');
 
-        PortfolioSnapshot::updateOrCreate(
-            ['user_id' => $user->id, 'recorded_at' => now()->toDateString()],
-            [
-                'total_invested_eur' => (string) $totalInvested,
-                'total_market_value_eur' => (string) $totalMarket,
-            ]
-        );
-    });
-}
+            // 3. ULOŽENIE SNÍMKY
+            \App\Models\PortfolioSnapshot::updateOrCreate( // Ak si premenoval model na NetWorthSnapshot, zmeň názov tu
+                ['user_id' => $user->id, 'recorded_at' => now()->toDateString()],
+                [
+                    'total_invested_eur' => $investedTotal,
+                    'total_liquid_cash_eur' => $liquidCash,
+                    'total_market_value_eur' => $marketValue + $liquidCash, // Toto je ten "Real Net Worth"
+                ]
+            );
+        });
+
+        $this->info('Snímky uložené.');
+    }
 }

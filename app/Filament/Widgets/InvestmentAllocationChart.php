@@ -58,4 +58,8 @@ class InvestmentAllocationChart extends ChartWidget
     {
         return 'doughnut'; // Prstencový graf vyzerá modernejšie ako klasický koláč (pie)
     }
+    public static function canView(): bool
+    {
+        return false; // Toto skryje widget z Dashboardu
+    }
 }

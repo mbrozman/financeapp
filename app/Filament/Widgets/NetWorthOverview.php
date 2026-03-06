@@ -7,74 +7,51 @@ use App\Models\Investment;
 use App\Services\CurrencyService;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
-use Brick\Math\BigDecimal; // PRIDANÉ
-use Brick\Math\RoundingMode; // PRIDANÉ
+use Brick\Math\BigDecimal;
 
 class NetWorthOverview extends BaseWidget
 {
-    protected static ?int $sort = 0; 
+    protected static ?int $sort = 0;
+    protected  ?string $heading = 'Prehľad majetku a likvidity';
 
     protected function getStats(): array
     {
-        // 1. VÝPOČET HOTOVOSTI V BANKÁCH
-        // Inicializujeme BigDecimal ako nulu
-        $bankBalanceBD = BigDecimal::of(0);
-        
-        $accounts = Account::with('currency')->get();
+        // 1. VÝPOČET LIKVIDNEJ HOTOVOSTI (Banka + Hotovosť v šuflíku)
+        $liquidCashBD = BigDecimal::of(0);
+        $bankAccounts = Account::with('currency')->whereIn('type', ['bank', 'cash'])->get();
 
-        foreach ($accounts as $account) {
-            // Použijeme našu centrálnu službu pre presný prepočet do EUR
-            $converted = CurrencyService::convertToEur(
-                (string) $account->balance, 
-                $account->currency_id
-            );
-            $bankBalanceBD = $bankBalanceBD->plus($converted);
+        foreach ($bankAccounts as $account) {
+            $converted = CurrencyService::convertToEur((string)$account->balance, $account->currency_id);
+            $liquidCashBD = $liquidCashBD->plus($converted);
         }
 
-        // 2. VÝPOČET INVESTÍCIÍ
-        $investmentValueBD = BigDecimal::of(0);
-        
-        // Načítame aktívne investície so všetkým potrebným pre výpočty v modeli
-        $investments = Investment::with(['transactions', 'currency'])
-            ->where('is_archived', false)
-            ->get();
+        // 2. VÝPOČET INVESTIČNÉHO MAJETKU (Aktuálna trhová hodnota v EUR)
+        $investmentsValueBD = BigDecimal::of(0);
+        $activeInvestments = Investment::with(['transactions', 'currency'])->where('is_archived', false)->get();
 
-        foreach ($investments as $investment) {
-            // Model Investment nám už vracia string cez BigDecimal, takže len pripočítavame
-            $investmentValueBD = $investmentValueBD->plus($investment->current_market_value_eur);
+        foreach ($activeInvestments as $investment) {
+            $investmentsValueBD = $investmentsValueBD->plus($investment->current_market_value_eur);
         }
 
-        // 3. CELKOVÝ NET WORTH
-        $totalNetWorthBD = $bankBalanceBD->plus($investmentValueBD);
-
-        // 4. VÝPOČET POMEROV (Percentá)
-        // Použijeme float až pri finálnom delení pre percentá, pretože percentá nie sú "peniaze"
-        $totalFloat = $totalNetWorthBD->toFloat();
-        
-        $bankPercent = $totalFloat > 0 
-            ? ($bankBalanceBD->toFloat() / $totalFloat) * 100 
-            : 0;
-            
-        $investPercent = $totalFloat > 0 
-            ? ($investmentValueBD->toFloat() / $totalFloat) * 100 
-            : 0;
+        // 3. CELKOVÝ ČISTÝ MAJETOK (Net Worth)
+        $totalNetWorthBD = $liquidCashBD->plus($investmentsValueBD);
 
         return [
-            // KARTA: TOTAL NET WORTH
-            Stat::make('Čistý majetok (Net Worth)', number_format($totalNetWorthBD->toFloat(), 2, ',', ' ') . ' €')
-                ->description('Banka: ' . number_format($bankBalanceBD->toFloat(), 2, ',', ' ') . ' € | Investície: ' . number_format($investmentValueBD->toFloat(), 2, ',', ' ') . ' €')
+            // KARTA 1: CELKOVÝ MAJETOK
+            Stat::make('Celkový čistý majetok', number_format($totalNetWorthBD->toFloat(), 2, ',', ' ') . ' €')
+                ->description('Kompletné financie ')
                 ->descriptionIcon('heroicon-m-shield-check')
                 ->color('success'),
 
-            // KARTA: CASH POMER
-            Stat::make('Likvidná hotovosť', number_format($bankPercent, 1, ',', ' ') . ' %')
-                ->description('Peniaze dostupné ihneď')
+            // KARTA 2: PENIAZE K DISPOZÍCII (Liquid)
+            Stat::make('Dostupná hotovosť', number_format($liquidCashBD->toFloat(), 2, ',', ' ') . ' €')
+                ->description('Peniaze v bankách a hotovosti')
                 ->icon('heroicon-m-banknotes')
                 ->color('info'),
 
-            // KARTA: INVESTIČNÝ POMER
-            Stat::make('Pomer v investíciách', number_format($investPercent, 1, ',', ' ') . ' %')
-                ->description('Aktívny kapitál na trhoch')
+            // KARTA 3: MAJETOK V INVESTÍCIÁCH
+            Stat::make('Investičné portfólio', number_format($investmentsValueBD->toFloat(), 2, ',', ' ') . ' €')
+                ->description('Aktuálna investovaná hodnota')
                 ->icon('heroicon-m-chart-bar')
                 ->color('warning'),
         ];

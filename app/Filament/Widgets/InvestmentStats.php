@@ -32,9 +32,9 @@ class InvestmentStats extends BaseWidget
 
         // 4. VÝPOČET ZISKU A PERCENT
         $profitEur = $currentValue->minus($totalInvested);
-        
-        $profitPercent = $totalInvested->isGreaterThan(0) 
-            ? $profitEur->dividedBy($totalInvested, 4, RoundingMode::HALF_UP)->multipliedBy(100) 
+
+        $profitPercent = $totalInvested->isGreaterThan(0)
+            ? $profitEur->dividedBy($totalInvested, 4, RoundingMode::HALF_UP)->multipliedBy(100)
             : BigDecimal::zero();
 
         // 5. LOGIKA FARIEB A IKON
@@ -60,5 +60,9 @@ class InvestmentStats extends BaseWidget
                 ->descriptionIcon($icon)
                 ->color($color),
         ];
+    }
+    public static function canView(): bool
+    {
+        return false; // Toto skryje widget z Dashboardu
     }
 }
