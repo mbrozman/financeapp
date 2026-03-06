@@ -11,14 +11,18 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('budget_rules', function (Blueprint $table) {
+        Schema::create('budget_definitions', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->foreignId('category_id')->constrained()->cascadeOnDelete();
             $table->foreignId('financial_plan_item_id')->constrained()->cascadeOnDelete();
-            $table->decimal('limit_amount', 19, 4);
+
+            $table->decimal('amount', 19, 4);
+
+            // Dátum, od ktorého toto pravidlo platí (napr. 2025-03-01)
+            $table->date('valid_from')->index();
+
             $table->timestamps();
-            $table->unique(['user_id', 'category_id']);
         });
     }
 
@@ -27,6 +31,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('budget_rules');
+        Schema::dropIfExists('budget_definitions');
     }
 };

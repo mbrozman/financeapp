@@ -9,14 +9,16 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-    public function up(): void
+   public function up(): void
 {
     Schema::table('budgets', function (Blueprint $table) {
-        // Prepojíme Rozpočet (napr. Strava) so Šuflíkom (napr. Base)
-        $table->foreignId('financial_plan_item_id')->nullable()->constrained()->nullOnDelete();
+        // Pridáme dátum platnosti (napr. 2025-03-01)
+        $table->date('valid_from')->default(now()->startOfMonth())->index();
+        
+        // Stĺpec period (2025-03) môžeme vďaka tomu vymazať, lebo je už zbytočný
+        $table->dropColumn('period'); 
     });
 }
-
     /**
      * Reverse the migrations.
      */

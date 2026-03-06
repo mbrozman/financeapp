@@ -16,9 +16,4 @@ class EditMonthlyIncome extends EditRecord
             Actions\DeleteAction::make(),
         ];
     }
-     protected function getRedirectUrl(): string
-    {
-        // Vráti nás na hlavnú tabuľku (index) tohto modulu
-        return $this->getResource()::getUrl('index');
-    }
 }

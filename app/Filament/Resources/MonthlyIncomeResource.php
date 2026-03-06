@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\MonthlyIncomeResource\Pages;
+use App\Filament\Resources\MonthlyIncomeResource\RelationManagers;
 use App\Models\MonthlyIncome;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -10,31 +11,26 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class MonthlyIncomeResource extends Resource
 {
     protected static ?string $model = MonthlyIncome::class;
 
-    // VIZUÁLNE NASTAVENIA
-    protected static ?string $navigationIcon = 'heroicon-o-banknotes';
-    protected static ?string $navigationGroup = 'Financie';
-    
-    public static function getNavigationLabel(): string { return 'Mesačné príjmy'; }
-    public static function getPluralLabel(): string { return 'Mesačné príjmy'; }
-    public static function getModelLabel(): string { return 'Mesačný príjem'; }
+    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
 
-    public static function form(Form $form): Form
+    public static function form(Forms\Form $form): Forms\Form
     {
         return $form
             ->schema([
-                Forms\Components\Section::make('Príjem pre daný mesiac')
+                Forms\Components\Section::make('Zadanie mesačnej výplaty')
+                    ->description('Túto sumu systém použije na výpočet limitov pre tvoje finančné piliere.')
                     ->schema([
-                        // Výber mesiaca a roku
+                        // 1. VÝBER MESIACA (Ukladá napr. 2025-03)
                         Forms\Components\Select::make('period')
                             ->label('Mesiac')
-                            ->options(function() {
+                            ->options(function () {
                                 $options = [];
-                                // Vygenerujeme zoznam: 3 mesiace dozadu a 6 dopredu
                                 for ($i = -3; $i <= 6; $i++) {
                                     $date = now()->addMonths($i);
                                     $options[$date->format('Y-m')] = $date->translatedFormat('F Y');
@@ -45,62 +41,38 @@ class MonthlyIncomeResource extends Resource
                             ->required()
                             ->native(false),
 
-                        // Suma reálnej výplaty
+                        // 2. SUMA VÝPLATY
                         Forms\Components\TextInput::make('amount')
-                            ->label('Suma výplaty / Príjmu')
+                            ->label('Suma, ktorá ti prišla na účet')
                             ->numeric()
                             ->prefix('€')
                             ->required(),
 
                         Forms\Components\TextInput::make('note')
                             ->label('Poznámka')
-                            ->placeholder('napr. Základný plat + bonus'),
+                            ->placeholder('napr. Výplata + odmeny'),
                     ])->columns(3),
             ]);
     }
 
-    public static function table(Table $table): Table
+    public static function table(Tables\Table $table): Tables\Table
     {
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('period')
                     ->label('Mesiac')
-                    ->formatStateUsing(function ($state) {
-                        // Prevedie "2025-03" na "Marec 2025"
-                        return \Carbon\Carbon::parse($state . '-01')->translatedFormat('F Y');
-                    })
-                    ->sortable(),
-
-                Tables\Columns\TextColumn::make('amount')
-                    ->label('Suma príjmu')
-                    ->money('EUR')
-                    ->sortable()
-                    ->alignEnd(),
-
-                Tables\Columns\TextColumn::make('note')
-                    ->label('Poznámka')
-                    ->limit(50)
-                    ->placeholder('Bez poznámky'),
-
-                Tables\Columns\TextColumn::make('updated_at')
-                    ->label('Naposledy zmenené')
-                    ->dateTime('d.m.Y H:i')
-                    ->toggleable(isToggledHiddenByDefault: true),
-            ])
-            ->defaultSort('period', 'desc') // Najnovšie mesiace navrchu
-            ->filters([
-                //
+                    ->formatStateUsing(fn($state) => \Carbon\Carbon::parse($state . '-01')->translatedFormat('F Y')),
+                Tables\Columns\TextColumn::make('amount')->label('Suma')->money('EUR'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
-            ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
             ]);
     }
+
+    // Zaradenie do menu
+    protected static ?string $navigationGroup = 'Financie';
+    protected static ?string $navigationLabel = 'Mesačné príjmy';
 
     public static function getRelations(): array
     {
