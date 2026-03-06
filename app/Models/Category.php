@@ -11,7 +11,15 @@ class Category extends Model
 {
     use BelongsToUser; // Zabezpečí, že uvidím len svoje kategórie
 
-    protected $fillable = ['parent_id', 'name', 'type', 'icon', 'color'];
+    protected $fillable = [
+        'user_id',
+        'parent_id',
+        'name',
+        'type',
+        'icon',
+        'color',
+        'financial_plan_item_id', // PRIDANÉ
+    ];
 
     // Vzťah: Kategória môže mať nadradenú kategóriu (Parent)
     public function parent(): BelongsTo
@@ -23,5 +31,9 @@ class Category extends Model
     public function children(): HasMany
     {
         return $this->hasMany(Category::class, 'parent_id');
+    }
+    public function planItem()
+    {
+        return $this->belongsTo(FinancialPlanItem::class, 'financial_plan_item_id');
     }
 }

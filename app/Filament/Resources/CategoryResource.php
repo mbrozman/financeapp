@@ -52,6 +52,12 @@ class CategoryResource extends Resource
                             ])
                             ->required()
                             ->native(false),
+                        Forms\Components\Select::make('financial_plan_item_id')
+                            ->label('Priradiť k finančnému pilieru')
+                            ->relationship('planItem', 'name') // Uisti sa, že máš vzťah v modeli
+                            ->placeholder('Vyberte pilier (napr. Base / Investície)')
+                            ->preload()
+                            ->searchable(),
 
                         Forms\Components\Select::make('parent_id')
                             ->label('Nadradená kategória')

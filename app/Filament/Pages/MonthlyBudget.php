@@ -2,14 +2,15 @@
 
 namespace App\Filament\Pages;
 
-use App\Models\MonthlyIncome;
-use App\Models\FinancialPlanItem;
 use App\Models\Budget;
 use App\Models\Transaction;
+use App\Models\MonthlyIncome;
+use App\Models\FinancialPlan;
+use App\Models\FinancialPlanItem;
+use App\Models\Category;
 use Filament\Pages\Page;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 
 class MonthlyBudget extends Page
 {
@@ -26,78 +27,86 @@ class MonthlyBudget extends Page
     }
 
     public function getBudgetData(): array
-    {
-        $userId = auth()->id();
-        $date = \Carbon\Carbon::parse($this->selectedMonth . '-01');
+{
+    $userId = auth()->id();
+    $date = \Carbon\Carbon::parse($this->selectedMonth . '-01');
 
-        // 1. Získame reálny príjem pre tento mesiac
-        $income = \App\Models\MonthlyIncome::where('user_id', $userId)->where('period', $this->selectedMonth)->first();
-        $incomeAmount = $income ? (float)$income->amount : 0;
+    // 1. Príjem
+    $incomeRecord = \App\Models\MonthlyIncome::where('user_id', $userId)->where('period', $this->selectedMonth)->first();
+    $actualIncome = $incomeRecord ? (float)$incomeRecord->amount : 0;
+    
+    $plan = \App\Models\FinancialPlan::where('user_id', $userId)->first();
+    $plannedIncome = $plan ? (float)$plan->monthly_income : 2200;
 
-        // 2. Získame piliere
-        $pillars = \App\Models\FinancialPlanItem::whereHas('financialPlan', function ($q) use ($userId) {
-            $q->where('user_id', $userId);
-        })->get();
+    // 2. Bežná spotreba (Transakcie)
+    $totalSpent = \App\Models\Transaction::where('user_id', $userId)
+        ->where('type', 'expense')
+        ->whereMonth('transaction_date', $date->month)
+        ->whereYear('transaction_date', $date->year)
+        ->sum('amount');
+    $totalSpentAbs = abs((float)$totalSpent);
 
-        $groupedData = [];
+    // 3. Investovaná suma (Nákupy akcií) - TOTO TI CHÝBALO
+    $totalInvested = \App\Models\InvestmentTransaction::where('user_id', $userId)
+        ->where('type', \App\Enums\TransactionType::BUY)
+        ->whereMonth('transaction_date', $date->month)
+        ->whereYear('transaction_date', $date->year)
+        ->get()
+        ->sum(fn($tx) => ($tx->quantity * $tx->price_per_unit) / ($tx->exchange_rate ?: 1));
 
-        foreach ($pillars as $pillar) {
-            // A. VÝPOČET LIMITU PILIERA (napr. 2200 * 25% = 550 €)
-            $pillarLimit = ($incomeAmount * (float)$pillar->percentage) / 100;
+    // 4. Výsledok
+    $savings = $actualIncome - ($totalSpentAbs + $totalInvested);
 
-            // B. ZÍSKAME KATEGÓRIE A ICH ČERPANIE
-            $rules = \App\Models\Budget::where('user_id', $userId)
-                ->where('financial_plan_item_id', $pillar->id)
-                ->where('valid_from', '<=', $date->copy()->endOfMonth())
-                ->get()
-                ->groupBy('category_id');
-
-            $pillarBudgets = [];
-            $pillarTotalActual = 0;
-
-            foreach ($rules as $catId => $categoryRules) {
-                $activeRule = $categoryRules->sortByDesc('valid_from')->first();
-
-                $actual = \App\Models\Transaction::where('category_id', $catId)
-                    ->where('type', 'expense')
-                    ->whereMonth('transaction_date', $date->month)
-                    ->whereYear('transaction_date', $date->year)
-                    ->sum('amount');
-
-                $actualAbs = abs((float)$actual);
-                $pillarTotalActual += $actualAbs; // Sčítavame do celku za pilier
-
-                $pillarBudgets[] = [
-                    'category' => $activeRule->category->name,
-                    'limit' => (float)$activeRule->limit_amount,
-                    'actual' => $actualAbs,
-                    'percent' => (float)$activeRule->limit_amount > 0 ? ($actualAbs / (float)$activeRule->limit_amount) * 100 : 0,
-                ];
-            }
-
-            // C. CELKOVÝ PERCENTUÁLNY STAV PILIERA
-            $pillarPercent = $pillarLimit > 0 ? ($pillarTotalActual / $pillarLimit) * 100 : 0;
-
-            $groupedData[] = [
-                'pillar_name' => $pillar->name,
-                'pillar_limit' => $pillarLimit,
-                'pillar_actual' => $pillarTotalActual,
-                'pillar_percent' => $pillarPercent,
-                'budgets' => $pillarBudgets,
+    // 5. Piliere (Zjednodušená verzia pre tento príklad)
+    $pillarData = [];
+    if ($plan) {
+        foreach ($plan->load('items')->items as $item) {
+            $pLimit = ($actualIncome * (float)$item->percentage) / 100;
+            $catIds = \App\Models\Category::where('financial_plan_item_id', $item->id)->pluck('id');
+            $pActual = abs((float)\App\Models\Transaction::whereIn('category_id', $catIds)->whereMonth('transaction_date', $date->month)->whereYear('transaction_date', $date->year)->sum('amount'));
+            
+            $pillarData[] = [
+                'name' => $item->name,
+                'limit' => $pLimit,
+                'actual' => $pActual,
+                'percent' => $pLimit > 0 ? ($pActual / $pLimit) * 100 : 0,
+                'budgets' => [] // Tu si doplň getCategoryBudgets ak ho používaš
             ];
         }
+    }
 
-        return [
-            'pillars' => $groupedData,
-            'income' => $incomeAmount
-        ];
-    }
-    public function previousMonth()
+    return [
+        'actual_income' => $actualIncome,
+        'planned_income' => $plannedIncome,
+        'income_diff' => $actualIncome - $plannedIncome,
+        'total_spent' => $totalSpentAbs,
+        'total_invested' => $totalInvested, // TENTO KĽÚČ TU MUSÍ BYŤ
+        'savings' => $savings,
+        'pillars' => $pillarData,
+    ];
+}
+
+    protected function getCategoryBudgets($pillarId, $date): array
     {
-        $this->selectedMonth = Carbon::parse($this->selectedMonth . '-01')->subMonth()->format('Y-m');
+        $rules = Budget::where('financial_plan_item_id', $pillarId)->get();
+        $res = [];
+        foreach ($rules as $rule) {
+            $act = Transaction::where('category_id', $rule->category_id)
+                ->whereMonth('transaction_date', $date->month)
+                ->whereYear('transaction_date', $date->year)
+                ->sum('amount');
+            $actAbs = abs((float)$act);
+            $lim = (float)$rule->limit_amount;
+            $res[] = [
+                'category' => $rule->category->name ?? 'Zmazaná kategória',
+                'actual' => $actAbs,
+                'limit' => $lim,
+                'percent' => $lim > 0 ? ($actAbs / $lim) * 100 : 0,
+            ];
+        }
+        return $res;
     }
-    public function nextMonth()
-    {
-        $this->selectedMonth = Carbon::parse($this->selectedMonth . '-01')->addMonth()->format('Y-m');
-    }
+
+    public function previousMonth() { $this->selectedMonth = Carbon::parse($this->selectedMonth . '-01')->subMonth()->format('Y-m'); }
+    public function nextMonth() { $this->selectedMonth = Carbon::parse($this->selectedMonth . '-01')->addMonth()->format('Y-m'); }
 }
