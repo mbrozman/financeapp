@@ -1,7 +1,7 @@
 <x-filament-panels::page>
     @php $data = $this->getBudgetData(); @endphp
 
-    <div class="flex flex-col gap-y-8"> {{-- Vertikálna medzera medzi Headerom, Kartami a Piliermi --}}
+    <div class="flex flex-col gap-y-8"> {{-- Medzera medzi Headerom, Kartami a Piliermi --}}
 
         {{-- 1. NAVIGÁCIA MESIACOV --}}
         <div class="fi-section p-6 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
@@ -14,7 +14,9 @@
                     <h2 class="text-2xl font-black uppercase tracking-tight text-gray-950 dark:text-white">
                         {{ \Carbon\Carbon::parse($selectedMonth . '-01')->translatedFormat('F Y') }}
                     </h2>
-                    <p class="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Mesačný report</p>
+                    <p class="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1 italic">
+                        Príjem: {{ number_format($data['actual_income'] ?? 0, 2, ',', ' ') }} €
+                    </p>
                 </div>
 
                 <x-filament::button wire:click="nextMonth" color="gray" icon="heroicon-m-chevron-right" icon-position="after" outlined>
@@ -27,34 +29,32 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             {{-- Karta Príjem --}}
             <div class="fi-section p-6 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
-                <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Reálny Príjem</p>
+                <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Mesačný Príjem</p>
                 <div class="flex items-baseline gap-2">
-                    <span class="text-3xl font-black text-gray-950 dark:text-white">{{ number_format($data['actual_income'], 2, ',', ' ') }} €</span>
-                    <span class="text-xs font-bold {{ $data['income_diff'] >= 0 ? 'text-green-600' : 'text-red-600' }}">
-                        {{ $data['income_diff'] >= 0 ? '+' : '' }}{{ number_format($data['income_diff'], 2) }}
+                    <span class="text-3xl font-black text-gray-950 dark:text-white">{{ number_format($data['actual_income'] ?? 0, 2, ',', ' ') }} €</span>
+                    <span class="text-xs font-bold {{ ($data['income_diff'] ?? 0) >= 0 ? 'text-green-600' : 'text-red-600' }}">
+                        {{ ($data['income_diff'] ?? 0) >= 0 ? '+' : '' }}{{ number_format($data['income_diff'] ?? 0, 2) }}
                     </span>
                 </div>
-                <p class="text-[10px] text-gray-500 mt-4 font-bold">PLÁN: {{ number_format($data['planned_income'], 0) }} €</p>
+                <p class="text-[10px] text-gray-500 mt-4 font-bold">PLÁN: {{ number_format($data['planned_income'] ?? 0, 0) }} €</p>
             </div>
 
-            {{-- Karta Výdavky --}}
+            {{-- Karta Výdavky (VYMAZANÝ TEXT INVEST:) --}}
             <div class="fi-section p-6 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
                 <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Celkové odtoky</p>
                 <span class="text-3xl font-black text-gray-950 dark:text-white">
-                    {{ number_format($data['total_spent'] + $data['total_invested'], 2, ',', ' ') }} €
+                    {{ number_format(($data['total_spent'] ?? 0) + ($data['total_invested'] ?? 0), 2, ',', ' ') }} €
                 </span>
-                <p class="text-[10px] text-gray-500 mt-4 font-bold">
-                    SPOTREBA: {{ number_format($data['total_spent'], 0) }} € | INVEST: {{ number_format($data['total_invested'], 0) }} €
-                </p>
+                <p class="text-[10px] text-gray-500 mt-4 font-bold uppercase">Suma všetkých mesačných výdavkov</p>
             </div>
 
             {{-- Karta Cash-flow --}}
-            <div class="fi-section p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm border-l-8 {{ $data['savings'] >= 0 ? 'bg-white border-green-500 dark:bg-gray-900' : 'bg-white border-red-500 dark:bg-gray-900' }}">
-                <p class="text-[10px] font-black {{ $data['savings'] >= 0 ? 'text-green-600' : 'text-red-600' }} uppercase tracking-widest mb-2">Mesačný výsledok</p>
-                <span class="text-3xl font-black {{ $data['savings'] >= 0 ? 'text-gray-950 dark:text-white' : 'text-red-700' }}">
-                    {{ number_format($data['savings'], 2, ',', ' ') }} €
+            <div class="fi-section p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm border-l-8 {{ ($data['savings'] ?? 0) >= 0 ? 'bg-white border-green-500 dark:bg-gray-900' : 'bg-white border-red-500 dark:bg-gray-900' }}">
+                <p class="text-[10px] font-black {{ ($data['savings'] ?? 0) >= 0 ? 'text-green-600' : 'text-red-600' }} uppercase tracking-widest mb-2">Mesačný výsledok</p>
+                <span class="text-3xl font-black {{ ($data['savings'] ?? 0) >= 0 ? 'text-gray-950 dark:text-white' : 'text-red-700' }}">
+                    {{ number_format($data['savings'] ?? 0, 2, ',', ' ') }} €
                 </span>
-                <p class="text-[10px] text-gray-400 mt-4 font-bold uppercase">{{ $data['savings'] >= 0 ? 'Prebytok' : 'Deficit' }}</p>
+                <p class="text-[10px] text-gray-400 mt-4 font-bold uppercase">{{ ($data['savings'] ?? 0) >= 0 ? 'Prebytok' : 'Deficit' }}</p>
             </div>
         </div>
 
@@ -71,7 +71,6 @@
                     $pColor = $pPercent >= 101 ? '#dc2626' : ($pPercent >= 100 ? '#f59e0b' : '#22c55e');
                 @endphp
 
-                {{-- TENTO DIV MÁ VYNÚTENÚ MEDZERU CEZ STYLE --}}
                 <div x-data="{ isOpen: false }" 
                      class="fi-section bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden"
                      style="margin-bottom: 32px;"> 

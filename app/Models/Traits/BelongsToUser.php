@@ -2,9 +2,7 @@
 
 namespace App\Models\Traits;
 
-use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Auth;
 
 trait BelongsToUser
@@ -13,7 +11,9 @@ trait BelongsToUser
     {
         static::addGlobalScope('user_id', function (Builder $builder) {
             if (Auth::check()) {
-                $builder->where('user_id', Auth::id());
+                // Trik: qualifyColumn pridá názov tabuľky pred názov stĺpca
+                // Takže namiesto "user_id" vznikne "categories.user_id"
+                $builder->where($builder->getModel()->qualifyColumn('user_id'), Auth::id());
             }
         });
 
@@ -24,8 +24,8 @@ trait BelongsToUser
         });
     }
 
-    public function user(): BelongsTo
+    public function user(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(\App\Models\User::class);
     }
 }

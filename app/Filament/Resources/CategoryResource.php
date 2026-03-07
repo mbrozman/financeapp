@@ -3,74 +3,47 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\CategoryResource\Pages;
-use App\Filament\Resources\CategoryResource\RelationManagers;
 use App\Models\Category;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Filament\Tables\Grouping\Group;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Support\Facades\DB;
 
 class CategoryResource extends Resource
 {
     protected static ?string $model = Category::class;
-
-    public static function getNavigationLabel(): string
-    {
-        return 'Kategórie';
-    }
-    public static function getPluralLabel(): string
-    {
-        return 'Kategórie';
-    }
-    public static function getModelLabel(): string
-    {
-        return 'Kategória';
-    }
-    protected static ?string $navigationGroup = 'Nastavenia';
     protected static ?string $navigationIcon = 'heroicon-o-tag';
-
+    protected static ?string $navigationGroup = 'Nastavenia';
 
     public static function form(Form $form): Form
     {
-        return $form
-            ->schema([
-                Forms\Components\Section::make('Detaily kategórie')
-                    ->schema([
-                        Forms\Components\TextInput::make('name')
-                            ->label('Názov kategórie')
-                            ->required()
-                            ->placeholder('napr. Potraviny'),
+        return $form->schema([
+            Forms\Components\Section::make('Nastavenie kategórie')->schema([
+                Forms\Components\TextInput::make('name')->label('Názov')->required(),
+                
+                Forms\Components\Select::make('parent_id')
+                    ->label('Nadradená kategória')
+                    ->relationship('parent', 'name', fn(Builder $query) => $query->whereNull('parent_id'))
+                    ->placeholder('Hlavná kategória')
+                    ->live(),
 
-                        Forms\Components\Select::make('type')
-                            ->label('Typ pohybu')
-                            ->options([
-                                'income' => 'Príjem',
-                                'expense' => 'Výdavok',
-                            ])
-                            ->required()
-                            ->native(false),
-                        Forms\Components\Select::make('financial_plan_item_id')
-                            ->label('Priradiť k finančnému pilieru')
-                            ->relationship('planItem', 'name') // Uisti sa, že máš vzťah v modeli
-                            ->placeholder('Vyberte pilier (napr. Base / Investície)')
-                            ->preload()
-                            ->searchable(),
+                Forms\Components\Select::make('financial_plan_item_id')
+                    ->label('Finančný pilier')
+                    ->relationship('planItem', 'name')
+                    ->visible(fn (Forms\Get $get) => !$get('parent_id'))
+                    ->required(fn (Forms\Get $get) => !$get('parent_id')),
 
-                        Forms\Components\Select::make('parent_id')
-                            ->label('Nadradená kategória')
-                            ->relationship('parent', 'name') // Vyberáme z už existujúcich kategórií
-                            ->searchable()
-                            ->preload()
-                            ->helperText('Nechajte prázdne, ak ide o hlavnú kategóriu'),
-
-                        Forms\Components\ColorPicker::make('color')
-                            ->label('Farba pre grafy')
-                            ->default('#3b82f6'), // Predvolená modrá
-                    ])->columns(2),
-            ]);
+                Forms\Components\ColorPicker::make('color')
+                    ->label('Farba')
+                    ->visible(fn (Forms\Get $get) => !$get('parent_id')),
+                
+                Forms\Components\Hidden::make('type')->default('expense'),
+            ])->columns(2)
+        ]);
     }
 
     public static function table(Table $table): Table
@@ -79,40 +52,45 @@ class CategoryResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->label('Názov')
-                    ->sortable()
+                    ->formatStateUsing(fn ($state, $record) => $record?->parent_id ? "↳ {$state}" : $state)
+                    ->weight(fn ($record) => $record?->parent_id ? 'normal' : 'bold')
+                    ->color(fn ($record) => $record?->parent_id ? 'gray' : null)
                     ->searchable(),
 
-                Tables\Columns\TextColumn::make('parent.name')
-                    ->label('Nadradená kategória')
+                Tables\Columns\TextColumn::make('planItem.name')
+                    ->label('Pilier')
                     ->badge()
-                    ->color('gray')
-                    ->placeholder('Hlavná kategória'),
+                    ->state(fn ($record) => $record?->parent_id ? null : $record?->planItem?->name),
 
-                Tables\Columns\TextColumn::make('type')
-                    ->label('Typ')
-                    ->badge()
-                    ->color(fn(string $state): string => match ($state) {
-                        'income' => 'success',
-                        'expense' => 'danger',
-                    }),
-
-                Tables\Columns\ColorColumn::make('color')
-                    ->label('Farba'),
+                Tables\Columns\ColorColumn::make('effective_color')->label('Farba'),
             ])
-            ->filters([
-                Tables\Filters\SelectFilter::make('type')
-                    ->options([
-                        'income' => 'Príjmy',
-                        'expense' => 'Výdavky',
-                    ]),
+            ->groups([
+                Group::make('group_name')
+                    ->label('')
+                    ->collapsible()->titlePrefixedWithLabel(false),
+                    
+            ])
+            ->defaultGroup('group_name')
+            ->actions([
+                Tables\Actions\EditAction::make(),
+                Tables\Actions\DeleteAction::make(),
             ]);
     }
 
-    public static function getRelations(): array
+    public static function getEloquentQuery(): Builder
     {
-        return [
-            //
-        ];
+        // 1. Základný dotaz
+        $query = parent::getEloquentQuery();
+
+        // 2. Ručne kvalifikujeme dotaz, aby sme sa vyhli konfliktom mien
+        return $query
+            ->leftJoin('categories as parents', 'categories.parent_id', '=', 'parents.id')
+            ->select(
+                'categories.*', 
+                DB::raw('COALESCE(parents.name, categories.name) as group_name')
+            )
+            ->orderBy('group_name')
+            ->orderByRaw('categories.parent_id IS NOT NULL ASC');
     }
 
     public static function getPages(): array

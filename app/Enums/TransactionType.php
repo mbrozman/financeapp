@@ -14,6 +14,11 @@ enum TransactionType: string implements HasLabel, HasColor
     case DEPOSIT = 'deposit';
     case WITHDRAWAL = 'withdrawal';
 
+    case INCOME = 'income';
+    case EXPENSE = 'expense';
+    case TRANSFER = 'transfer';
+
+
     public function getLabel(): ?string
     {
         return match ($this) {
@@ -21,6 +26,9 @@ enum TransactionType: string implements HasLabel, HasColor
             self::SELL => 'Predaj',
             self::DIVIDEND => 'Dividenda',
             self::FEE => 'Poplatok',
+            self::INCOME => 'Príjem (Výplata/Iné)',
+            self::EXPENSE => 'Výdavok (Spotreba)',
+            self::TRANSFER => 'Interný prevod',
             self::DEPOSIT => 'Vklad hotovosti',
             self::WITHDRAWAL => 'Výber hotovosti',
         };
@@ -29,10 +37,10 @@ enum TransactionType: string implements HasLabel, HasColor
     public function getColor(): string|array|null
     {
         return match ($this) {
-            self::BUY, self::DEPOSIT => 'success',
-            self::SELL, self::WITHDRAWAL => 'danger',
+            self::BUY, self::INCOME, self::DEPOSIT => 'success',
+            self::SELL, self::EXPENSE, self::WITHDRAWAL => 'danger',
             self::DIVIDEND => 'info',
-            self::FEE => 'warning',
+            self::FEE, self::TRANSFER => 'warning',
         };
     }
 }

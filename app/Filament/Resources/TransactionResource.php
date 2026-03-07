@@ -3,33 +3,39 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\TransactionResource\Pages;
-use App\Filament\Resources\TransactionResource\RelationManagers;
 use App\Models\Transaction;
+use App\Models\Category; // PRIDANÉ
+use App\Models\FinancialPlanItem; // PRIDANÉ
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Collection;
 use Filament\Forms\Components\FileUpload;
 use Filament\Tables\Columns\IconColumn;
-
 
 class TransactionResource extends Resource
 {
     protected static ?string $model = Transaction::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationGroup = 'Financie';
+
+    public static function getNavigationLabel(): string { return 'Transakcie'; }
+    public static function getPluralLabel(): string { return 'Transakcie'; }
+    public static function getModelLabel(): string { return 'Transakcia'; }
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                Forms\Components\Section::make('Základné údaje o platbe')
+                Forms\Components\Section::make('Detaily platby')
                     ->schema([
+                        
+                        // 1. SELECT: ÚČET
                         Forms\Components\Select::make('account_id')
                             ->label('Účet')
                             ->relationship('account', 'name')
@@ -37,33 +43,7 @@ class TransactionResource extends Resource
                             ->searchable()
                             ->preload(),
 
-                        Forms\Components\Select::make('category_id')
-                            ->label('Kategória')
-                            ->relationship('category', 'name')
-                            ->searchable()
-                            ->preload(),
-
-                        Forms\Components\TextInput::make('amount')
-                            ->label('Suma')
-                            ->numeric()
-                            ->required()
-                            // Oficiálne metódy: prefixIcon a prefixIconColor
-                            ->prefixIcon(fn($get) => $get('type') === 'expense' ? 'heroicon-m-minus-circle' : 'heroicon-m-plus-circle')
-                            ->prefixIconColor(fn($get) => match ($get('type')) {
-                                'expense' => 'danger',
-                                'income' => 'success',
-                                'transfer' => 'gray',
-                                default => 'gray',
-                            })
-                            ->helperText(fn($get) => $get('type') === 'expense'
-                                ? 'Bude uložené ako výdavok (mínus sa doplní automaticky).'
-                                : 'Bude uložené ako príjem.'),
-
-                        Forms\Components\DatePicker::make('transaction_date')
-                            ->label('Dátum')
-                            ->default(now())
-                            ->required(),
-
+                        // 2. SELECT: TYP POHYBU
                         Forms\Components\Select::make('type')
                             ->label('Typ')
                             ->options([
@@ -75,6 +55,77 @@ class TransactionResource extends Resource
                             ->live()
                             ->native(false),
 
+                        // 3. SELECT: HLAVNÁ KATEGÓRIA (RODIČ)
+                        Forms\Components\Select::make('parent_category_id')
+                            ->label('Hlavná skupina')
+                            ->options(fn() => Category::whereNull('parent_id')->where('type', 'expense')->pluck('name', 'id'))
+                            ->live()
+                            ->dehydrated(false) // Toto pole sa neukladá do tabuľky Transactions
+                            ->searchable()
+                            // MOŽNOSŤ VYTVORIŤ HLAVNÚ KATEGÓRIU PRIAMO TU
+                            ->createOptionForm([
+                                Forms\Components\TextInput::make('name')
+                                    ->label('Názov hlavnej skupiny')
+                                    ->required(),
+                                Forms\Components\Select::make('financial_plan_item_id')
+                                    ->label('Priradiť k pilieru')
+                                    ->options(FinancialPlanItem::all()->pluck('name', 'id'))
+                                    ->required(),
+                            ])
+                            ->createOptionUsing(function (array $data) {
+                                return Category::create([
+                                    'user_id' => auth()->id(),
+                                    'name' => $data['name'],
+                                    'type' => 'expense',
+                                    'financial_plan_item_id' => $data['financial_plan_item_id'],
+                                ])->id;
+                            }),
+
+                        // 4. SELECT: PODKATEGÓRIA (ZÁVISLÝ SELECT)
+                        Forms\Components\Select::make('category_id')
+                            ->label('Podkategória / Detail')
+                            ->placeholder(fn ($get) => $get('parent_category_id') ? 'Vyberte detail...' : 'Najprv vyberte hlavnú skupinu')
+                            ->options(function ($get) {
+                                $parentId = $get('parent_category_id');
+                                if (!$parentId) return [];
+                                return Category::where('parent_id', $parentId)->pluck('name', 'id');
+                            })
+                            ->required()
+                            ->searchable()
+                            // MOŽNOSŤ VYTVORIŤ PODKATEGÓRIU PRIAMO TU
+                            ->createOptionForm([
+                                Forms\Components\TextInput::make('name')
+                                    ->label('Názov podkategórie')
+                                    ->required(),
+                            ])
+                            ->createOptionUsing(function (array $data, $get) {
+                                return Category::create([
+                                    'user_id' => auth()->id(),
+                                    'parent_id' => $get('parent_category_id'),
+                                    'name' => $data['name'],
+                                    'type' => 'expense',
+                                ])->id;
+                            }),
+
+                        // 5. SUMA
+                        Forms\Components\TextInput::make('amount')
+                            ->label('Suma')
+                            ->numeric()
+                            ->required()
+                            ->prefixIcon(fn($get) => $get('type') === 'expense' ? 'heroicon-m-minus-circle' : 'heroicon-m-plus-circle')
+                            ->prefixIconColor(fn($get) => match ($get('type')) {
+                                'expense' => 'danger',
+                                'income' => 'success',
+                                'transfer' => 'gray',
+                                default => 'gray',
+                            }),
+
+                        // 6. DÁTUM
+                        Forms\Components\DatePicker::make('transaction_date')
+                            ->label('Dátum')
+                            ->default(now())
+                            ->required(),
+
                         Forms\Components\TextInput::make('description')
                             ->label('Poznámka')
                             ->maxLength(255)
@@ -82,12 +133,12 @@ class TransactionResource extends Resource
 
                         FileUpload::make('attachment')
                             ->label('Bloček / Faktúra')
-                            ->directory('transaction-attachments') // Súbory sa uložia do storage/app/public/transaction-attachments
-                            ->image() // Povolí náhľady, ak ide o obrázok
-                            ->imageEditor() // Umožní užívateľovi orezať fotku bločku priamo v prehliadači!
-                            ->openable() // Pridá tlačidlo na otvorenie súboru
-                            ->downloadable() // Pridá tlačidlo na stiahnutie
-                            ->maxSize(5120) // Limit 5 MB
+                            ->directory('transaction-attachments')
+                            ->image()
+                            ->imageEditor()
+                            ->openable()
+                            ->downloadable()
+                            ->maxSize(5120)
                             ->columnSpanFull(),
                     ])->columns(2),
             ]);
@@ -96,69 +147,64 @@ class TransactionResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-
             ->columns([
                 Tables\Columns\TextColumn::make('transaction_date')
                     ->label('Dátum')
-                    ->date()
+                    ->date('d. m. Y')
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('account.name')
                     ->label('Účet'),
 
+                // ZOBRAZENIE KATEGÓRIE AKO: "Hlavná > Podkategória"
                 Tables\Columns\TextColumn::make('category.name')
                     ->label('Kategória')
+                    ->formatStateUsing(function ($record) {
+                        return $record->category?->parent 
+                            ? $record->category->parent->name . ' > ' . $record->category->name 
+                            : $record->category?->name;
+                    })
                     ->placeholder('Bez kategórie'),
 
                 Tables\Columns\TextColumn::make('amount')
                     ->label('Suma')
-                    ->money(fn($record) => $record->account->currency->code)
+                    ->money(fn($record) => $record->account->currency?->code ?? 'EUR')
                     ->color(fn($record) => match ($record->type) {
                         'income' => 'success',
                         'expense' => 'danger',
-                        'transfer' => 'gray', // Prevody budú sivé
+                        'transfer' => 'gray',
                         default => 'gray',
-                    }),
+                    })
+                    ->weight('bold'),
 
                 Tables\Columns\TextColumn::make('type')
+                    ->label('Typ')
                     ->badge(),
+
                 IconColumn::make('attachment')
-    ->label('Bloček')
-    ->icon('heroicon-o-paper-clip') // Ikona spinky
-    ->color('info')
-    ->boolean() // Ak je v stĺpci cesta k súboru, zobrazí ikonu. Ak je null, nezobrazí nič.
-    ->toggleable(isToggledHiddenByDefault: true), // Umožní stĺpec skryť/zobraziť v nastaveniach tabuľky
+                    ->label('Bloček')
+                    ->icon('heroicon-o-paper-clip')
+                    ->color('info')
+                    ->boolean()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
-
-                    // NAŠA NOVÁ AKCIA
                     Tables\Actions\BulkAction::make('export_pdf')
                         ->label('Exportovať do PDF')
                         ->icon('heroicon-o-document-arrow-down')
                         ->action(function (Collection $records) {
-                            // $records obsahuje všetky označené riadky
                             $pdf = Pdf::loadView('reports.transactions-pdf', [
                                 'transactions' => $records,
                             ]);
-
-                            // Vrátime PDF ako download
                             return response()->streamDownload(function () use ($pdf) {
                                 echo $pdf->output();
                             }, 'vypis-transakcii-' . now()->format('d-m-Y') . '.pdf');
                         }),
                 ]),
             ])
-            ->defaultSort('transaction_date', 'desc'); // Najnovšie transakcie hore
-
-    }
-
-    public static function getRelations(): array
-    {
-        return [
-            //
-        ];
+            ->defaultSort('transaction_date', 'desc');
     }
 
     public static function getPages(): array
@@ -169,23 +215,4 @@ class TransactionResource extends Resource
             'edit' => Pages\EditTransaction::route('/{record}/edit'),
         ];
     }
-
-    // app/Filament/Resources/TransactionResource.php
-
-    public static function getNavigationLabel(): string
-    {
-        return 'Transakcie'; // Názov v bočnom menu
-    }
-
-    public static function getPluralLabel(): string
-    {
-        return 'Transakcie'; // Názov v nadpise zoznamu
-    }
-
-    public static function getModelLabel(): string
-    {
-        return 'Transakcia'; // Názov pri vytváraní "New Transaction" -> "Nová transakcia"
-    }
-
-    protected static ?string $navigationGroup = 'Financie'; // Zoskupenie v menu
 }

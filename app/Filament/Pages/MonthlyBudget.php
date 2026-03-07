@@ -6,11 +6,13 @@ use App\Models\Budget;
 use App\Models\Transaction;
 use App\Models\MonthlyIncome;
 use App\Models\FinancialPlan;
-use App\Models\FinancialPlanItem;
+use App\Models\InvestmentTransaction;
+use App\Enums\TransactionType;
 use App\Models\Category;
 use Filament\Pages\Page;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class MonthlyBudget extends Page
 {
@@ -23,82 +25,115 @@ class MonthlyBudget extends Page
 
     public function mount()
     {
+        // Nastavíme aktuálny mesiac pri štarte
         $this->selectedMonth = now()->format('Y-m');
     }
 
+    /**
+     * HLAVNÝ VÝPOČET DÁT PRE STRÁNKU
+     */
     public function getBudgetData(): array
-{
-    $userId = auth()->id();
-    $date = \Carbon\Carbon::parse($this->selectedMonth . '-01');
+    {
+        $userId = Auth::id();
+        $date = Carbon::parse($this->selectedMonth . '-01');
 
-    // 1. Príjem
-    $incomeRecord = \App\Models\MonthlyIncome::where('user_id', $userId)->where('period', $this->selectedMonth)->first();
-    $actualIncome = $incomeRecord ? (float)$incomeRecord->amount : 0;
-    
-    $plan = \App\Models\FinancialPlan::where('user_id', $userId)->first();
-    $plannedIncome = $plan ? (float)$plan->monthly_income : 2200;
+        // 1. REÁLNY PRÍJEM (Zadaný v sekcii Mesačné príjmy)
+        $incomeRecord = MonthlyIncome::where('user_id', $userId)
+            ->where('period', $this->selectedMonth)
+            ->first();
+        $actualIncome = $incomeRecord ? (float)$incomeRecord->amount : 0;
+        
+        // 2. PLÁNOVANÝ PRÍJEM (Z Finančného plánu)
+        $plan = FinancialPlan::with('items')->where('user_id', $userId)->first();
+        $plannedIncome = $plan ? (float)$plan->monthly_income : 2200;
+        $incomeDiff = $actualIncome - $plannedIncome;
 
-    // 2. Bežná spotreba (Transakcie)
-    $totalSpent = \App\Models\Transaction::where('user_id', $userId)
-        ->where('type', 'expense')
-        ->whereMonth('transaction_date', $date->month)
-        ->whereYear('transaction_date', $date->year)
-        ->sum('amount');
-    $totalSpentAbs = abs((float)$totalSpent);
+        // 3. CELKOVÁ REÁLNA SPOTREBA (Všetky výdavky z banky v danom mesiaci)
+        $totalSpentAbs = abs((float)Transaction::where('user_id', $userId)
+            ->where('type', TransactionType::EXPENSE)
+            ->whereMonth('transaction_date', $date->month)
+            ->whereYear('transaction_date', $date->year)
+            ->sum('amount'));
 
-    // 3. Investovaná suma (Nákupy akcií) - TOTO TI CHÝBALO
-    $totalInvested = \App\Models\InvestmentTransaction::where('user_id', $userId)
-        ->where('type', \App\Enums\TransactionType::BUY)
-        ->whereMonth('transaction_date', $date->month)
-        ->whereYear('transaction_date', $date->year)
-        ->get()
-        ->sum(fn($tx) => ($tx->quantity * $tx->price_per_unit) / ($tx->exchange_rate ?: 1));
+        // 4. CELKOVÉ INVESTÍCIE (Ak chceš sčítať aj tie)
+        $totalInvested = (float)InvestmentTransaction::where('user_id', $userId)
+            ->where('type', TransactionType::BUY)
+            ->whereMonth('transaction_date', $date->month)
+            ->whereYear('transaction_date', $date->year)
+            ->get()
+            ->sum(fn($tx) => ($tx->quantity * $tx->price_per_unit) / ($tx->exchange_rate ?: 1));
 
-    // 4. Výsledok
-    $savings = $actualIncome - ($totalSpentAbs + $totalInvested);
-
-    // 5. Piliere (Zjednodušená verzia pre tento príklad)
-    $pillarData = [];
-    if ($plan) {
-        foreach ($plan->load('items')->items as $item) {
-            $pLimit = ($actualIncome * (float)$item->percentage) / 100;
-            $catIds = \App\Models\Category::where('financial_plan_item_id', $item->id)->pluck('id');
-            $pActual = abs((float)\App\Models\Transaction::whereIn('category_id', $catIds)->whereMonth('transaction_date', $date->month)->whereYear('transaction_date', $date->year)->sum('amount'));
-            
-            $pillarData[] = [
-                'name' => $item->name,
-                'limit' => $pLimit,
-                'actual' => $pActual,
-                'percent' => $pLimit > 0 ? ($pActual / $pLimit) * 100 : 0,
-                'budgets' => [] // Tu si doplň getCategoryBudgets ak ho používaš
-            ];
+        // 5. LOGIKA PILIEROV (ŠUFLÍKOV)
+        $pillarData = [];
+        if ($plan) {
+            foreach ($plan->items as $item) {
+                // Výpočet limitu piliera podľa percent z reálnej výplaty
+                $pLimit = ($actualIncome * (float)$item->percentage) / 100;
+                
+                // Získame rozpis kategórií pod týmto pilierom
+                $categoryBudgets = $this->getCategoryBudgets($item->id, $date);
+                
+                // --- TU JE OPRAVA: Master Bar sčíta presne to, čo majú kategórie pod ním ---
+                $pActualAbs = collect($categoryBudgets)->sum('actual');
+                
+                $pillarData[] = [
+                    'name' => $item->name,
+                    'limit' => $pLimit,
+                    'actual' => $pActualAbs,
+                    'percent' => $pLimit > 0 ? ($pActualAbs / $pLimit) * 100 : 0,
+                    'budgets' => $categoryBudgets
+                ];
+            }
         }
+
+        // 6. LOGIKA DNÍ (Pre widget disciplíny)
+        $now = now();
+        $daysRemaining = ($now->format('Y-m') === $this->selectedMonth) 
+            ? $now->diffInDays($now->copy()->endOfMonth()) + 1 
+            : 0;
+
+        return [
+            'actual_income' => $actualIncome,
+            'planned_income' => $plannedIncome,
+            'income_diff' => $incomeDiff,
+            'total_spent' => $totalSpentAbs,
+            'total_invested' => $totalInvested,
+            'savings' => $actualIncome - ($totalSpentAbs + $totalInvested),
+            'pillars' => $pillarData,
+            'days_remaining' => $daysRemaining,
+        ];
     }
 
-    return [
-        'actual_income' => $actualIncome,
-        'planned_income' => $plannedIncome,
-        'income_diff' => $actualIncome - $plannedIncome,
-        'total_spent' => $totalSpentAbs,
-        'total_invested' => $totalInvested, // TENTO KĽÚČ TU MUSÍ BYŤ
-        'savings' => $savings,
-        'pillars' => $pillarData,
-    ];
-}
-
+    /**
+     * VÝPOČET KATEGÓRIÍ POD KONKRÉTNYM PILIEROM
+     */
     protected function getCategoryBudgets($pillarId, $date): array
     {
-        $rules = Budget::where('financial_plan_item_id', $pillarId)->get();
+        $userId = Auth::id();
+        
+        // Získame pravidlá rozpočtov priradené k tomuto pilieru
+        $rules = Budget::where('user_id', $userId)
+            ->where('financial_plan_item_id', $pillarId)
+            ->get();
+
         $res = [];
         foreach ($rules as $rule) {
-            $act = Transaction::where('category_id', $rule->category_id)
+            // Získame ID hlavnej kategórie a všetkých jej podkategórií (napr. Bývanie + Nájom + Hypo)
+            $categoryIds = Category::where('id', $rule->category_id)
+                ->orWhere('parent_id', $rule->category_id)
+                ->pluck('id');
+
+            // Sčítame transakcie pre celú túto skupinu kategórií
+            $actual = Transaction::whereIn('category_id', $categoryIds)
                 ->whereMonth('transaction_date', $date->month)
                 ->whereYear('transaction_date', $date->year)
                 ->sum('amount');
-            $actAbs = abs((float)$act);
+                
+            $actAbs = abs((float)$actual);
             $lim = (float)$rule->limit_amount;
+
             $res[] = [
-                'category' => $rule->category->name ?? 'Zmazaná kategória',
+                'category' => $rule->category->name ?? 'Neznáma',
                 'actual' => $actAbs,
                 'limit' => $lim,
                 'percent' => $lim > 0 ? ($actAbs / $lim) * 100 : 0,
@@ -107,6 +142,14 @@ class MonthlyBudget extends Page
         return $res;
     }
 
-    public function previousMonth() { $this->selectedMonth = Carbon::parse($this->selectedMonth . '-01')->subMonth()->format('Y-m'); }
-    public function nextMonth() { $this->selectedMonth = Carbon::parse($this->selectedMonth . '-01')->addMonth()->format('Y-m'); }
+    // Navigačné metódy
+    public function previousMonth() 
+    { 
+        $this->selectedMonth = Carbon::parse($this->selectedMonth . '-01')->subMonth()->format('Y-m'); 
+    }
+
+    public function nextMonth() 
+    { 
+        $this->selectedMonth = Carbon::parse($this->selectedMonth . '-01')->addMonth()->format('Y-m'); 
+    }
 }

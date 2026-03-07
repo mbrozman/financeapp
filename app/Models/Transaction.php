@@ -8,6 +8,7 @@ use App\Models\Traits\BelongsToUser;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Casts\Attribute; // Naimportované správne
+use App\Enums\TransactionType;
 
 class Transaction extends Model
 {
@@ -26,6 +27,7 @@ class Transaction extends Model
     protected $casts = [
         'transaction_date' => 'date',
         'amount' => 'string',
+        'type' => TransactionType::class,
     ];
 
     // --- VZŤAHY ---
