@@ -1,0 +1,23 @@
+steps:
+  # 1. Build Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'europe-west3-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/laravel-app:$COMMIT_SHA', '.']
+
+  # 2. Push image do Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'europe-west3-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/laravel-app:$COMMIT_SHA']
+
+  # 3. Automatický Deploy do Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'finance-service' # Meno tvojej služby v Cloud Run
+      - '--image'
+      - 'europe-west3-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/laravel-app:$COMMIT_SHA'
+      - '--region'
+      - 'europe-west3'
+
+options:
+  logging: CLOUD_LOGGING_ONLY # TOTO VYRIEŠI TU CHYBU, KTORÚ TI TO HÁDZALO
