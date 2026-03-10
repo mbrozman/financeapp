@@ -20,7 +20,7 @@ class InvestmentCategoryResource extends Resource
     protected static ?string $model = InvestmentCategory::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-tag';
-    protected static ?string $navigationGroup = 'Investície';
+    protected static ?string $navigationGroup = 'Nastavenia';
     protected static ?string $label = 'Typ aktíva';
     protected static ?string $pluralLabel = 'Typy aktív';
 
@@ -36,33 +36,41 @@ class InvestmentCategoryResource extends Resource
                             ->live(onBlur: true)
                             // UX: Automaticky vytvorí slug z názvu
                             ->afterStateUpdated(fn(Set $set, ?string $state) => $set('slug', Str::slug($state))),
-                        // Vizuálny indikátor aktivity
-                        Tables\Columns\ToggleColumn::make('is_active')
-                            ->label('Aktívny'),
+                        
+                        Forms\Components\Toggle::make('is_active')
+                            ->label('Aktívny')
+                            ->default(true),
 
-                        // Indikátor zmazania (Soft delete)
-                        Tables\Columns\TextColumn::make('deleted_at')
-                            ->label('Stav')
-                            ->dateTime()
-                            ->placeholder('Aktívny záznam')
-                            ->color('danger')
-                            ->toggleable(isToggledHiddenByDefault: true),
                         Forms\Components\TextInput::make('slug')
                             ->required()
                             ->unique(ignoreRecord: true),
 
-                        Forms\Components\TextInput::make('icon')
-                            ->label('Ikona (Heroicon názov)')
-                            ->placeholder('heroicon-o-chart-bar')
-                            ->default('heroicon-o-chart-bar'),
+                        Forms\Components\Select::make('icon')
+                            ->label('Ikona')
+                            ->options([
+                                'heroicon-o-chart-bar' => 'Graf / Akcie',
+                                'heroicon-o-building-office' => 'Budova / Reality',
+                                'heroicon-o-banknotes' => 'Peniaze / Hotovosť',
+                                'heroicon-o-currency-bitcoin' => 'Krypto / Bitcoin',
+                                'heroicon-o-globe-alt' => 'Svet / ETF',
+                                'heroicon-o-academic-cap' => 'Vzdelanie / Iné',
+                                'heroicon-o-bolt' => 'Energia / Tech',
+                                'heroicon-o-shopping-cart' => 'Obchod / Spotreba',
+                                'heroicon-o-heart' => 'Srdce / Zdravie',
+                                'heroicon-o-briefcase' => 'Kufrík / Práca',
+                                'heroicon-o-shield-check' => 'Štít / Dlhopisy',
+                                'heroicon-o-sparkles' => 'Hviezdičky / Premium',
+                            ])
+                            ->default('heroicon-o-chart-bar')
+                            ->required()
+                            ->native(false)
+                            ->prefixIcon(fn($get) => $get('icon') ?? 'heroicon-o-chart-bar')
+                            ->live(),
 
                         Forms\Components\ColorPicker::make('color')
                             ->label('Farba pre grafy')
                             ->default('#3b82f6'),
                     ])->columns(2),
-            ])->filters([
-                // Filter na zobrazenie zmazaných záznamov
-                Tables\Filters\TrashedFilter::make(),
             ]);
     }
 

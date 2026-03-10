@@ -29,27 +29,25 @@ class ChildrenRelationManager extends RelationManager
         return $table
             ->recordTitleAttribute('name')
             ->columns([
-                Tables\Columns\TextColumn::make('name')
-                    ->label('Podkategória')
-                    ->weight('bold'),
-
-                // Podkategória ukazuje farbu rodiča
-                Tables\Columns\ColorColumn::make('parent.color')
-                    ->label('Zdedená farba'),
+                Tables\Columns\TextColumn::make('name'),
+            ])
+            ->filters([
+                //
             ])
             ->headerActions([
-                Tables\Actions\CreateAction::make()
-                    ->label('Pridať podkategóriu')
-                    // Automaticky priradíme ID aktuálneho rodiča
-                    ->mutateFormDataUsing(function (array $data) {
-                        $data['user_id'] = auth()->id();
-                        $data['type'] = 'expense';
-                        return $data;
-                    }),
+                Tables\Actions\CreateAction::make(),
+                Tables\Actions\AttachAction::make(),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
+                Tables\Actions\DetachAction::make(),
                 Tables\Actions\DeleteAction::make(),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DetachBulkAction::make(),
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
             ]);
     }
 }

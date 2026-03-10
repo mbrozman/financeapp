@@ -41,6 +41,7 @@ class InvestmentCalculationService
                 $remainingLots[] = [
                     'qty' => $qty,
                     'price' => $price,
+                    'date' => $tx->transaction_date,
                 ];
             } 
             
@@ -95,6 +96,7 @@ class InvestmentCalculationService
             'realized_gain_base' => (string) $realizedGainBase,
             'total_invested_base' => (string) $totalInvestedBase,
             'total_sales_base' => (string) $totalSalesBase,
+            'remaining_lots' => $remainingLots,
         ];
     }
 }

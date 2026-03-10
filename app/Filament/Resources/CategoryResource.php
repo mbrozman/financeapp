@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\CategoryResource\Pages;
+use App\Filament\Resources\CategoryResource\RelationManagers;
 use App\Models\Category;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -22,26 +23,35 @@ class CategoryResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\Section::make('Nastavenie kategórie')->schema([
-                Forms\Components\TextInput::make('name')->label('Názov')->required(),
+            Forms\Components\Section::make('Nastavenie hlavnej kategórie')->schema([
+                Forms\Components\TextInput::make('name')
+                    ->label('Názov')
+                    ->required()
+                    ->maxLength(255),
                 
-                Forms\Components\Select::make('parent_id')
-                    ->label('Nadradená kategória')
-                    ->relationship('parent', 'name', fn(Builder $query) => $query->whereNull('parent_id'))
-                    ->placeholder('Hlavná kategória')
-                    ->live(),
-
                 Forms\Components\Select::make('financial_plan_item_id')
                     ->label('Finančný pilier')
                     ->relationship('planItem', 'name')
-                    ->visible(fn (Forms\Get $get) => !$get('parent_id'))
-                    ->required(fn (Forms\Get $get) => !$get('parent_id')),
+                    ->required(),
 
                 Forms\Components\ColorPicker::make('color')
                     ->label('Farba')
-                    ->visible(fn (Forms\Get $get) => !$get('parent_id')),
+                    ->required()
+                    ->default('#34d399'),
                 
-                Forms\Components\Hidden::make('type')->default('expense'),
+                Forms\Components\Select::make('type')
+                    ->label('Typ kategórie')
+                    ->options([
+                        'expense' => 'Výdavok',
+                        'income' => 'Príjem',
+                    ])
+                    ->default('expense')
+                    ->required()
+                    ->native(false),
+                
+                Forms\Components\TextInput::make('icon')
+                    ->label('Ikona')
+                    ->placeholder('heroicon-o-tag'),
             ])->columns(2)
         ]);
     }
@@ -52,25 +62,29 @@ class CategoryResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->label('Názov')
-                    ->formatStateUsing(fn ($state, $record) => $record?->parent_id ? "↳ {$state}" : $state)
-                    ->weight(fn ($record) => $record?->parent_id ? 'normal' : 'bold')
-                    ->color(fn ($record) => $record?->parent_id ? 'gray' : null)
+                    ->weight('bold')
                     ->searchable(),
 
                 Tables\Columns\TextColumn::make('planItem.name')
                     ->label('Pilier')
                     ->badge()
-                    ->state(fn ($record) => $record?->parent_id ? null : $record?->planItem?->name),
+                    ->color('info'),
 
-                Tables\Columns\ColorColumn::make('effective_color')->label('Farba'),
+                Tables\Columns\TextColumn::make('type')
+                    ->label('Typ')
+                    ->badge()
+                    ->color(fn ($state) => $state === 'income' ? 'success' : 'danger')
+                    ->formatStateUsing(fn ($state) => $state === 'income' ? 'Príjem' : 'Výdavok'),
+
+                Tables\Columns\ColorColumn::make('color')
+                    ->label('Farba'),
+
+                Tables\Columns\TextColumn::make('children_count')
+                    ->label('Podkategórie')
+                    ->counts('children')
+                    ->badge()
+                    ->color('gray'),
             ])
-            ->groups([
-                Group::make('group_name')
-                    ->label('')
-                    ->collapsible()->titlePrefixedWithLabel(false),
-                    
-            ])
-            ->defaultGroup('group_name')
             ->actions([
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
@@ -79,18 +93,15 @@ class CategoryResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        // 1. Základný dotaz
-        $query = parent::getEloquentQuery();
+        return parent::getEloquentQuery()
+            ->whereNull('parent_id');
+    }
 
-        // 2. Ručne kvalifikujeme dotaz, aby sme sa vyhli konfliktom mien
-        return $query
-            ->leftJoin('categories as parents', 'categories.parent_id', '=', 'parents.id')
-            ->select(
-                'categories.*', 
-                DB::raw('COALESCE(parents.name, categories.name) as group_name')
-            )
-            ->orderBy('group_name')
-            ->orderByRaw('categories.parent_id IS NOT NULL ASC');
+    public static function getRelations(): array
+    {
+        return [
+            RelationManagers\ChildrenRelationManager::class,
+        ];
     }
 
     public static function getPages(): array

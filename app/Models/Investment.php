@@ -20,7 +20,8 @@ class Investment extends Model
 
     protected $fillable = [
         'user_id', 'account_id', 'investment_category_id', 'currency_id',
-        'ticker', 'name', 'broker', 'current_price', 'is_archived', 'last_price_update',
+        'ticker', 'name', 'broker', 'sector', 'industry', 'country', 'asset_type',
+        'current_price', 'is_archived', 'last_price_update',
     ];
 
     protected $casts = [
@@ -59,6 +60,11 @@ class Investment extends Model
     protected function averageBuyPriceBase(): Attribute
     {
         return Attribute::make(get: fn() => $this->getInvestmentStats()['average_buy_price']);
+    }
+
+    protected function averageBuyPriceEur(): Attribute
+    {
+        return Attribute::make(get: fn() => CurrencyService::convertToEur($this->average_buy_price_base, $this->currency_id));
     }
 
     protected function totalInvestedBase(): Attribute
@@ -160,24 +166,61 @@ class Investment extends Model
     {
         return Attribute::make(
             get: function () {
-                $oneYearAgo = Carbon::now()->subYear();
-                $processedSold = BigDecimal::of($this->transactions->where('type', TransactionType::SELL)->sum('quantity'));
-                $buys = $this->transactions->where('type', TransactionType::BUY)->sortBy('transaction_date');
+                $oneYearAgo = Carbon::now()->subYear()->startOfDay();
+                $lots = $this->getInvestmentStats()['remaining_lots'] ?? [];
                 $taxFreeAmount = BigDecimal::of(0);
 
-                foreach ($buys as $buy) {
-                    $qty = BigDecimal::of($buy->quantity);
-                    if ($processedSold->isGreaterThan(0)) {
-                        $subtract = $qty->isLessThanOrEqualTo($processedSold) ? $qty : $processedSold;
-                        $qty = $qty->minus($subtract);
-                        $processedSold = $processedSold->minus($subtract);
-                    }
-                    if ($qty->isGreaterThan(0) && $buy->transaction_date->lessThan($oneYearAgo)) {
-                        $taxFreeAmount = $taxFreeAmount->plus($qty);
+                foreach ($lots as $lot) {
+                    // Ak je nákup starší alebo rovný 1 roku (vrátane výročného dňa)
+                    if ($lot['date']->startOfDay()->lessThanOrEqualTo($oneYearAgo)) {
+                        $taxFreeAmount = $taxFreeAmount->plus($lot['qty']);
                     }
                 }
                 return (string) $taxFreeAmount;
             }
         );
     }
+
+    protected function taxFreePercent(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                if (BigDecimal::of($this->total_quantity)->isZero()) return 0;
+                return (float) BigDecimal::of($this->tax_free_quantity)
+                    ->dividedBy($this->total_quantity, 4, RoundingMode::HALF_UP)
+                    ->multipliedBy(100)
+                    ->toFloat();
+            }
+        );
+    }
+
+    protected function taxStatus(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                $percent = $this->tax_free_percent;
+                if ($percent >= 100) return 'Oslobodené';
+                if ($percent <= 0) return 'Zdaniteľné';
+                return "Časť oslobodená ({$percent}%)";
+            }
+        );
+    }
+
+    protected function nextTaxFreeDate(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                $oneYearAgo = Carbon::now()->subYear()->startOfDay();
+                $lots = $this->getInvestmentStats()['remaining_lots'] ?? [];
+
+                foreach ($lots as $lot) {
+                    if ($lot['date']->startOfDay()->greaterThan($oneYearAgo)) {
+                        return $lot['date']->copy()->addYear();
+                    }
+                }
+                return null;
+            }
+        );
+    }
+
 }

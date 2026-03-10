@@ -15,7 +15,7 @@ class Account extends Model
     // VŽDY odfiltruje dáta podľa prihláseného užívateľa.
     use BelongsToUser, LogsActivity,SoftDeletes;
 
-    protected $fillable = ['currency_id', 'name', 'type', 'balance', 'is_active'];
+    protected $fillable = ['user_id', 'currency_id', 'name', 'type', 'balance', 'is_active'];
       protected $casts = [
         'balance'   => 'string',  
         'is_active' => 'boolean',

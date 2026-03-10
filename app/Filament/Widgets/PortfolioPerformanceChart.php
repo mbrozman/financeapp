@@ -119,8 +119,9 @@ class PortfolioPerformanceChart extends ChartWidget
     {
         return 'line';
     }
+
     public static function canView(): bool
     {
-        return false; // Toto skryje widget z Dashboardu
+        return false;
     }
 }

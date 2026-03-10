@@ -84,6 +84,7 @@ class RecurringTransactionResource extends Resource
                         Forms\Components\Select::make('interval')
                             ->label('Interval opakovania')
                             ->options([
+                                'daily' => 'Denne',
                                 'weekly' => 'Týždenne',
                                 'monthly' => 'Mesačne',
                                 'yearly' => 'Ročne',
@@ -125,6 +126,7 @@ class RecurringTransactionResource extends Resource
                     ->badge()
                     ->color('info')
                     ->formatStateUsing(fn(string $state): string => match ($state) {
+                        'daily' => 'Denne',
                         'weekly' => 'Týždenne',
                         'monthly' => 'Mesačne',
                         'yearly' => 'Ročne',

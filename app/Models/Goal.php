@@ -11,6 +11,8 @@ class Goal extends Model
     use BelongsToUser;
 
     protected $fillable = [
+        'user_id',
+        'account_id',
         'name',
         'target_amount',
         'current_amount',
@@ -24,6 +26,26 @@ class Goal extends Model
         'current_amount' => 'decimal:4',
         'deadline' => 'date',
     ];
+
+    public function account(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Account::class);
+    }
+
+    // --- VLASTNÝ GETTER PRE AKTUÁLNY STAV ---
+    protected function currentAmount(): Attribute
+    {
+        return Attribute::make(
+            get: function ($value, $attributes) {
+                // Ak je cieľ prepojený na účet, prečítame jeho zostatok
+                if (!empty($attributes['account_id'])) {
+                    $acc = \App\Models\Account::find($attributes['account_id']);
+                    return $acc ? $acc->balance : $value;
+                }
+                return $value;
+            }
+        );
+    }
 
     // --- VÝPOČET PROGRESU ---
     // Toto nám vráti číslo od 0 do 100

@@ -62,7 +62,21 @@ class TransactionsRelationManager extends RelationManager
 
                         Forms\Components\TextInput::make('quantity')
                             ->label('Počet kusov')
-                            ->numeric()->required()->step(0.00000001),
+                            ->numeric()->required()->step(0.00000001)
+                            ->rules([
+                                fn(Forms\Get $get): \Closure => function (string $attribute, $value, \Closure $fail) use ($get) {
+                                    if ($get('type') === \App\Enums\TransactionType::SELL->value) {
+                                        $currentQty = (float) $this->getOwnerRecord()->total_quantity;
+                                        // Ak upravujeme existujúcu transakciu, musíme pripočítať jej pôvodnú hodnotu k dostupnému množstvu
+                                        $originalQty = (float) ($this->getMountedTableActionRecord()?->quantity ?? 0);
+                                        $availableQty = $currentQty + $originalQty;
+
+                                        if ((float)$value > $availableQty) {
+                                            $fail("Nemôžete predať viac kusov, než vlastníte. Aktuálne k dispozícii: {$availableQty} ks.");
+                                        }
+                                    }
+                                },
+                            ]),
 
                         Forms\Components\TextInput::make('price_per_unit')
                             ->label("Cena za kus ({$code})")
@@ -101,27 +115,10 @@ class TransactionsRelationManager extends RelationManager
                         default => $state,
                     }),
 
-                Forms\Components\TextInput::make('quantity')
-                    ->label('Počet kusov')
-                    ->numeric()
-                    ->required()
-                    ->step(0.00000001)
-                    // TÁTO VALIDÁCIA ZABRÁNI PREDAJU NAD RÁMEC VLASTNÍCTVA
-                    ->rules([
-                        fn(Forms\Get $get): \Closure => function (string $attribute, $value, \Closure $fail) use ($get) {
-                            if ($get('type') === \App\Enums\TransactionType::SELL->value) {
-                                $currentQty = (float) $this->getOwnerRecord()->total_quantity;
+                Tables\Columns\TextColumn::make('quantity')
+                    ->label('Ks')
+                    ->numeric(4),
 
-                                // Ak upravujeme existujúcu transakciu, musíme pripočítať jej pôvodnú hodnotu k zostatku
-                                $originalQty = (float) ($this->getMountedTableActionRecord()?->quantity ?? 0);
-                                $availableQty = $currentQty + $originalQty;
-
-                                if ((float)$value > $availableQty) {
-                                    $fail("Nemôžete predať viac kusov, než vlastníte. Aktuálne k dispozícii: {$availableQty} ks.");
-                                }
-                            }
-                        },
-                    ]),
                 // FIX: CELKOVÁ SUMA CEZ BIGDECIMAL
                 Tables\Columns\TextColumn::make('total_price')
                     ->label('Celková suma')
@@ -164,7 +161,6 @@ class TransactionsRelationManager extends RelationManager
                         $data['currency_id'] = $this->getOwnerRecord()->currency_id;
                         return $data;
                     })
-                    ->after(fn() => redirect(request()->header('Referer'))),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

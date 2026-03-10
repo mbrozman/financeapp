@@ -37,11 +37,12 @@ class MonthlyBudget extends Page
         $userId = Auth::id();
         $date = Carbon::parse($this->selectedMonth . '-01');
 
-        // 1. REÁLNY PRÍJEM (Zadaný v sekcii Mesačné príjmy)
-        $incomeRecord = MonthlyIncome::where('user_id', $userId)
-            ->where('period', $this->selectedMonth)
-            ->first();
-        $actualIncome = $incomeRecord ? (float)$incomeRecord->amount : 0;
+        // 1. REÁLNY PRÍJEM (Sčíta transakcie typu income za daný mesiac)
+        $actualIncome = abs((float)Transaction::where('user_id', $userId)
+            ->where('type', TransactionType::INCOME)
+            ->whereMonth('transaction_date', $date->month)
+            ->whereYear('transaction_date', $date->year)
+            ->sum('amount'));
         
         // 2. PLÁNOVANÝ PRÍJEM (Z Finančného plánu)
         $plan = FinancialPlan::with('items')->where('user_id', $userId)->first();

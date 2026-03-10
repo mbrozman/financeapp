@@ -15,7 +15,9 @@ class NetWorthRealityVsPlanChart extends ChartWidget
 {
     protected static ?string $heading = 'Mesačný rast: Realita vs. Plán (€)';
     protected static ?int $sort = 1;
-    protected static ?string $maxHeight = '300px';
+    protected static ?string $maxHeight = '800px';
+    
+    public ?string $filter = 'with_roi';
 
     protected function getFilters(): ?array
     {
@@ -115,5 +117,17 @@ class NetWorthRealityVsPlanChart extends ChartWidget
     protected function getType(): string
     {
         return 'line';
+    }
+
+    protected function getOptions(): array
+    {
+        return [
+            'maintainAspectRatio' => false,
+        ];
+    }
+
+    public static function canView(): bool
+    {
+        return false;
     }
 }

@@ -10,7 +10,7 @@ class BudgetDefinition extends Model
 {
     use BelongsToUser;
 
-    protected $fillable = ['category_id', 'financial_plan_item_id', 'amount', 'valid_from'];
+    protected $fillable = ['user_id', 'category_id', 'financial_plan_item_id', 'amount', 'valid_from'];
 
     protected $casts = [
         'valid_from' => 'date',

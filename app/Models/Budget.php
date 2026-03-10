@@ -12,7 +12,7 @@ class Budget extends Model
 {
     use BelongsToUser;
 
-    protected $fillable = ['category_id', 'financial_plan_item_id', 'limit_amount', 'period', 'valid_from'];
+    protected $fillable = ['user_id', 'category_id', 'financial_plan_item_id', 'limit_amount', 'period', 'valid_from'];
 
     protected $casts = [
         'valid_from' => 'date',
@@ -36,13 +36,18 @@ class Budget extends Model
     {
         return Attribute::make(
             get: function () {
-                // Rozoberieme period "2025-03" na rok a mesiac
-                [$year, $month] = explode('-', $this->period);
+                // Berieme do úvahy aktuálny mesiac a rok
+                $now = now();
+
+                // Ak pravidlo začína platiť až v budúcnosti, aktuálne čerpanie je 0
+                if ($this->valid_from && $this->valid_from->copy()->startOfMonth()->isFuture()) {
+                    return '0.00';
+                }
 
                 $sum = Transaction::where('category_id', $this->category_id)
                     ->where('type', 'expense')
-                    ->whereYear('transaction_date', $year)
-                    ->whereMonth('transaction_date', $month)
+                    ->whereYear('transaction_date', $now->year)
+                    ->whereMonth('transaction_date', $now->month)
                     ->sum('amount');
 
                 // Vrátime kladné číslo (absolútnu hodnotu)

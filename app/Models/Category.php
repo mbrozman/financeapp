@@ -30,4 +30,29 @@ class Category extends Model
             get: fn () => $this->color ?? $this->parent?->color ?? '#808080'
         );
     }
+
+    /**
+     * Vygeneruje odtieň farby na základe vstupného HEXu
+     */
+    public static function generateShadedColor(string $hex, int $percent = 20): string
+    {
+        $hex = str_replace('#', '', $hex);
+        if (strlen($hex) === 3) {
+            $hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+        }
+
+        $r = hexdec(substr($hex, 0, 2));
+        $g = hexdec(substr($hex, 2, 2));
+        $b = hexdec(substr($hex, 4, 2));
+
+        // Ak je farba tmavá, zosvetlíme. Ak svetlá, stmavíme.
+        $brightness = ($r * 299 + $g * 587 + $b * 114) / 1000;
+        $step = $brightness > 128 ? -$percent : $percent;
+
+        $r = max(0, min(255, $r + $step));
+        $g = max(0, min(255, $g + $step));
+        $b = max(0, min(255, $b + $step));
+
+        return sprintf('#%02x%02x%02x', $r, $g, $b);
+    }
 }

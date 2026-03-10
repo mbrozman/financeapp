@@ -8,6 +8,7 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Database\Eloquent\Model;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
+use App\Services\CurrencyService;
 
 class InvestmentProfitStats extends BaseWidget
 {
@@ -31,31 +32,52 @@ class InvestmentProfitStats extends BaseWidget
         }
 
         $record = $this->record;
-        $symbol = $record->currency?->symbol ?? '$';
+        $isEur = request()->query('currency') === 'EUR';
+        $symbol = $isEur ? '€' : ($record->currency?->symbol ?? '$');
 
-        // 2. INICIALIZÁCIA CEZ BIGDECIMAL
-        $investedBase = BigDecimal::of($record->total_invested_base ?? 0);
-        
-        $currentValueBase = BigDecimal::of(
-            $record->is_archived 
-                ? ($record->total_sales_base ?? 0) 
-                : ($record->current_market_value_base ?? 0)
-        );
+        // 2. INICIALIZÁCIA CEZ BIGDECIMAL (Zohľadníme prepínač meny)
+        if ($isEur) {
+            $investedBase = BigDecimal::of($record->total_invested_eur ?? 0);
+            $currentValueBase = BigDecimal::of($record->current_market_value_eur ?? 0);
+            $gainBase = BigDecimal::of($record->gain_eur ?? 0);
+        } else {
+            $investedBase = BigDecimal::of($record->total_invested_base ?? 0);
+            $currentValueBase = BigDecimal::of(
+                $record->is_archived 
+                    ? ($record->total_sales_base ?? 0) 
+                    : ($record->current_market_value_base ?? 0)
+            );
+            $gainBase = $currentValueBase->minus($investedBase);
+        }
 
-        // 3. VÝPOČET ZISKU A PERCENT
-        $gainBase = $currentValueBase->minus($investedBase);
+        // 3. VÝPOČET PERCENT (Tie sú rovnaké pre obe meny, ak vychádzame z rovnakého základu)
         $gainPercent = $investedBase->isGreaterThan(0)
             ? $gainBase->dividedBy($investedBase, 4, RoundingMode::HALF_UP)->multipliedBy(100)
             : BigDecimal::zero();
 
-        // 4. VÝPOČET POPLATKOV A DIVIDEND (Nové)
-        $totalFees = BigDecimal::of($record->transactions->sum('commission') ?? 0);
-        
-        $dividendTxs = $record->transactions->where('type', TransactionType::DIVIDEND);
+        // 4. VÝPOČET POPLATKOV A DIVIDEND (S konverziou do EUR ak treba)
+        $totalFees = BigDecimal::of(0);
         $totalDividends = BigDecimal::of(0);
-        foreach ($dividendTxs as $tx) {
-            $val = BigDecimal::of($tx->quantity)->multipliedBy($tx->price_per_unit);
-            $totalDividends = $totalDividends->plus($val);
+
+        foreach ($record->transactions as $tx) {
+            $comm = BigDecimal::of($tx->commission ?? 0);
+            
+            if ($tx->type === TransactionType::DIVIDEND) {
+                $divVal = BigDecimal::of($tx->quantity)->multipliedBy($tx->price_per_unit);
+                if ($isEur) {
+                    $totalDividends = $totalDividends->plus(CurrencyService::convertToEur((string)$divVal, $tx->currency_id, $tx->exchange_rate));
+                } else {
+                    $totalDividends = $totalDividends->plus($divVal);
+                }
+            }
+
+            if ($comm->isGreaterThan(0)) {
+                if ($isEur) {
+                    $totalFees = $totalFees->plus(CurrencyService::convertToEur((string)$comm, $tx->currency_id, $tx->exchange_rate));
+                } else {
+                    $totalFees = $totalFees->plus($comm);
+                }
+            }
         }
 
         // 5. LOGIKA ZOBRAZENIA

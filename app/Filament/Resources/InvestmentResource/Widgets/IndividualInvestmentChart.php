@@ -6,6 +6,7 @@ use App\Models\InvestmentPriceHistory;
 use Filament\Widgets\ChartWidget;
 use Illuminate\Database\Eloquent\Model;
 use Brick\Math\BigDecimal; // PRIDANÉ
+use App\Services\CurrencyService;
 
 class IndividualInvestmentChart extends ChartWidget
 {
@@ -25,13 +26,29 @@ class IndividualInvestmentChart extends ChartWidget
             ->orderBy('recorded_at', 'asc')
             ->get();
 
-        $prices = $history->pluck('price')->toArray();
+        $isEur = request()->query('currency') === 'EUR';
+        $symbol = $isEur ? '€' : ($this->record->currency?->symbol ?? '$');
+
+        $prices = $history->map(function ($h) use ($isEur) {
+            $price = (string) $h->price;
+            return $isEur 
+                ? (float) CurrencyService::convertToEur($price, $this->record->currency_id)
+                : (float) $price;
+        })->toArray();
+
         $labels = $history->pluck('recorded_at')->map(fn($date) => $date->format('d.M'))->toArray();
 
         // 2. PRESNÁ NÁKUPNÁ CENA (BigDecimal)
-        // Atribút z modelu nám už vracia string
-        $avgPriceString = $this->record->average_buy_price_base ?? '0';
-        $avgPriceBD = BigDecimal::of($avgPriceString);
+        $avgPriceString = $isEur 
+            ? $this->record->average_buy_price_eur // Predpokladáme, že pridáme tento atribút alebo použijeme konverziu
+            : $this->record->average_buy_price_base;
+
+        // Ak nemáme average_buy_price_eur v modeli, prepočítame ho tu (pre presnosť v grafe stačí toto)
+        if ($isEur && !$avgPriceString) {
+            $avgPriceString = CurrencyService::convertToEur($this->record->average_buy_price_base, $this->record->currency_id);
+        }
+
+        $avgPriceBD = BigDecimal::of($avgPriceString ?? '0');
 
         // 3. VYTVORENIE VODOROVNEJ ČIARY (Break-even)
         // Pre graf musíme použiť float, ale vytvoríme ho z presného BigDecimalu

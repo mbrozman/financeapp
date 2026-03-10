@@ -69,9 +69,12 @@ class InvestmentTransactionResource extends Resource
                             ->default(0)
                             ->prefixIcon('heroicon-o-receipt-percent'),
 
-                        Forms\Components\TextInput::make('currency')
+                        Forms\Components\Select::make('currency_id')
                             ->label('Mena transakcie')
-                            ->default('USD')
+                            ->relationship('currency', 'code')
+                            ->searchable()
+                            ->preload()
+                            ->default(fn() => \App\Models\Currency::where('code', 'USD')->value('id') ?? 1)
                             ->required(),
 
                         Forms\Components\TextInput::make('exchange_rate')

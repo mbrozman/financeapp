@@ -9,4 +9,8 @@ use Filament\Resources\Pages\CreateRecord;
 class CreateBroker extends CreateRecord
 {
 protected static string $resource = BrokerResource::class;
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
+    }
 }

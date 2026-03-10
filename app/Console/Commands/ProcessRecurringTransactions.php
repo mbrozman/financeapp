@@ -27,31 +27,45 @@ class ProcessRecurringTransactions extends Command
      */
     public function handle()
     {
+        $today = now()->copy()->startOfDay();
+
         // 1. Nájdeme všetky aktívne platby, ktoré majú dátum splatnosti dnes alebo v minulosti
         $recurring = RecurringTransaction::where('is_active', true)
-            ->where('next_date', '<=', now()->toDateString())
+            ->where('next_date', '<=', $today->toDateString())
             ->get();
 
         foreach ($recurring as $item) {
-            // 2. Vytvoríme reálnu transakciu
-            Transaction::create([
-                'user_id' => $item->user_id,
-                'account_id' => $item->account_id,
-                'category_id' => $item->category_id,
-                'amount' => $item->amount,
-                'type' => $item->type,
-                'description' => "Automatická platba: {$item->name}",
-                'transaction_date' => $item->next_date,
-            ]);
+            // Zabezpečíme dobehnutie zameškaných platieb (napr. ak cron nebežal niekoľko dní)
+            while ($item->next_date->startOfDay()->lte($today)) {
+                
+                // 2. Vytvoríme reálnu transakciu manuálne (nie .create()) kvôli zabezpečeniu užívateľa
+                // a správnemu poradiu priraďovania atribútov pre mutátor sumy
+                $transaction = new Transaction();
+                
+                // Najprv priradíme typ, aby mutátor na 'amount' vedel, aké znamienko použiť
+                $transaction->type = $item->type;
+                $transaction->amount = $item->amount;
+                
+                // Ostatné atribúty (user_id by sa pri ::create ignorovalo kvôli $fillable)
+                $transaction->user_id = $item->user_id;
+                $transaction->account_id = $item->account_id;
+                $transaction->category_id = $item->category_id;
+                $transaction->description = "Automatická platba: {$item->name}";
+                $transaction->transaction_date = $item->next_date->copy(); 
+                
+                $transaction->save();
 
-            // 3. Posunieme next_date na ďalšie obdobie
-            $nextDate = match ($item->interval) {
-                'weekly' => $item->next_date->addWeek(),
-                'yearly' => $item->next_date->addYear(),
-                default => $item->next_date->addMonth(), // monthly
-            };
+                // 3. Posunieme next_date na ďalšie obdobie
+                $item->next_date = match ($item->interval) {
+                    'daily' => $item->next_date->copy()->addDay(),
+                    'weekly' => $item->next_date->copy()->addWeek(),
+                    'yearly' => $item->next_date->copy()->addYear(),
+                    default => $item->next_date->copy()->addMonth(), // monthly
+                };
 
-            $item->update(['next_date' => $nextDate]);
+                // Uložíme model (čím sa updatne next_date aj v DB pre ďalší beh while cyklu)
+                $item->save();
+            }
         }
     }
 }

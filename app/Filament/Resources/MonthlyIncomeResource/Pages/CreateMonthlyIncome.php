@@ -9,4 +9,8 @@ use Filament\Resources\Pages\CreateRecord;
 class CreateMonthlyIncome extends CreateRecord
 {
     protected static string $resource = MonthlyIncomeResource::class;
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
+    }
 }

@@ -22,7 +22,21 @@ class ViewInvestment extends ViewRecord
      */
     protected function getHeaderActions(): array
     {
+        $isEur = request()->query('currency') === 'EUR';
+        $record = $this->getRecord();
+        $isNativeEur = $record->currency?->code === 'EUR';
+
         return [
+            // 0. PREPÍNAČ MENY (Zobraziť len ak pôvodná mena nie je EUR)
+            Action::make('toggle_currency')
+                ->label($isEur ? 'Zobraziť v ' . ($record->currency?->code ?? 'USD') : 'Zobraziť v EUR')
+                ->icon('heroicon-o-currency-euro')
+                ->color('success')
+                ->url(fn () => $isEur 
+                    ? static::getResource()::getUrl('view', ['record' => $record])
+                    : static::getResource()::getUrl('view', ['record' => $record, 'currency' => 'EUR'])
+                )
+                ->visible(!$isNativeEur),
             // 1. AKTUALIZÁCIA CIEN
             Action::make('refresh_data')
                 ->label('Aktualizovať z trhu')

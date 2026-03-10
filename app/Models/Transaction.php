@@ -15,6 +15,7 @@ class Transaction extends Model
     use BelongsToUser, LogsActivity;
 
     protected $fillable = [
+        'user_id',
         'account_id',
         'category_id',
         'amount',

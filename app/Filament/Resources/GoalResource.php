@@ -59,10 +59,20 @@ class GoalResource extends Resource
                             ->required()
                             ->prefix('€'),
 
+                        Forms\Components\Select::make('account_id')
+                            ->label('Previazať s účtom (Automatický progres)')
+                            ->relationship('account', 'name')
+                            ->searchable()
+                            ->preload()
+                            ->live()
+                            ->helperText('Ak vyberiete účet, progres sa bude aktualizovať automaticky podľa jeho zostatku.'),
+
                         Forms\Components\TextInput::make('current_amount')
-                            ->label('Aktuálny stav')
+                            ->label('Ručný aktuálny stav')
                             ->numeric()
-                            ->required()
+                            ->required(fn(Forms\Get $get) => empty($get('account_id')))
+                            ->disabled(fn(Forms\Get $get) => filled($get('account_id')))
+                            ->dehydrated()
                             ->default(0)
                             ->prefix('€'),
 

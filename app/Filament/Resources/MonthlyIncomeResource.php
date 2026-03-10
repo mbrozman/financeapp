@@ -59,10 +59,22 @@ class MonthlyIncomeResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('period')
-                    ->label('Mesiac')
-                    ->formatStateUsing(fn($state) => \Carbon\Carbon::parse($state . '-01')->translatedFormat('F Y')),
-                Tables\Columns\TextColumn::make('amount')->label('Suma')->money('EUR'),
+                Tables\Columns\Layout\Split::make([
+                    Tables\Columns\TextColumn::make('period')
+                        ->label('Mesiac')
+                        ->formatStateUsing(fn($state) => \Carbon\Carbon::parse($state . '-01')->translatedFormat('F Y'))
+                        ->weight('bold')
+                        ->searchable(),
+                    Tables\Columns\TextColumn::make('amount')
+                        ->label('Zadané príjmy')
+                        ->money('EUR')
+                        ->color('success')
+                        ->weight('bold'),
+                ]),
+                Tables\Columns\Layout\Panel::make([
+                    Tables\Columns\ViewColumn::make('details')
+                        ->view('filament.tables.columns.monthly-income-transactions')
+                ])->collapsible(),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
@@ -73,6 +85,7 @@ class MonthlyIncomeResource extends Resource
     // Zaradenie do menu
     protected static ?string $navigationGroup = 'Financie';
     protected static ?string $navigationLabel = 'Mesačné príjmy';
+    protected static bool $shouldRegisterNavigation = false;
 
     public static function getRelations(): array
     {

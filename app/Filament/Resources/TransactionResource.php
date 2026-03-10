@@ -49,7 +49,6 @@ class TransactionResource extends Resource
                             ->options([
                                 'income' => 'Príjem',
                                 'expense' => 'Výdavok',
-                                'transfer' => 'Prevod',
                             ])
                             ->required()
                             ->live()
@@ -58,7 +57,7 @@ class TransactionResource extends Resource
                         // 3. SELECT: HLAVNÁ KATEGÓRIA (RODIČ)
                         Forms\Components\Select::make('parent_category_id')
                             ->label('Hlavná skupina')
-                            ->options(fn() => Category::whereNull('parent_id')->where('type', 'expense')->pluck('name', 'id'))
+                            ->options(fn(\Filament\Forms\Get $get) => Category::whereNull('parent_id')->where('type', $get('type') ?? 'expense')->pluck('name', 'id'))
                             ->live()
                             ->dehydrated(false) // Toto pole sa neukladá do tabuľky Transactions
                             ->searchable()
@@ -72,11 +71,11 @@ class TransactionResource extends Resource
                                     ->options(FinancialPlanItem::all()->pluck('name', 'id'))
                                     ->required(),
                             ])
-                            ->createOptionUsing(function (array $data) {
+                            ->createOptionUsing(function (array $data, \Filament\Forms\Get $get) {
                                 return Category::create([
                                     'user_id' => auth()->id(),
                                     'name' => $data['name'],
-                                    'type' => 'expense',
+                                    'type' => $get('type') ?? 'expense',
                                     'financial_plan_item_id' => $data['financial_plan_item_id'],
                                 ])->id;
                             }),
@@ -98,12 +97,12 @@ class TransactionResource extends Resource
                                     ->label('Názov podkategórie')
                                     ->required(),
                             ])
-                            ->createOptionUsing(function (array $data, $get) {
+                            ->createOptionUsing(function (array $data, \Filament\Forms\Get $get) {
                                 return Category::create([
                                     'user_id' => auth()->id(),
                                     'parent_id' => $get('parent_category_id'),
                                     'name' => $data['name'],
-                                    'type' => 'expense',
+                                    'type' => $get('type') ?? 'expense',
                                 ])->id;
                             }),
 
@@ -168,6 +167,7 @@ class TransactionResource extends Resource
 
                 Tables\Columns\TextColumn::make('amount')
                     ->label('Suma')
+                    ->formatStateUsing(fn($state) => number_format(abs((float)$state), 2, ',', ' '))
                     ->money(fn($record) => $record->account->currency?->code ?? 'EUR')
                     ->color(fn($record) => match ($record->type) {
                         'income' => 'success',
