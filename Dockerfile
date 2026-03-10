@@ -5,6 +5,9 @@ RUN curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y nodejs
 
 # 2. Inštalácia systémových knižníc (ako predtým)
+COPY package*.json ./
+RUN npm install
+
 RUN apt-get update && apt-get install -y \
     libpq-dev libicu-dev libzip-dev zip unzip \
     && docker-php-ext-configure intl \
