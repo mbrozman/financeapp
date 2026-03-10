@@ -13,11 +13,11 @@ steps:
     args:
       - 'run'
       - 'deploy'
-      - 'finance-service' # Meno tvojej služby v Cloud Run
+      - 'finance-service' 
       - '--image'
       - 'europe-west3-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/laravel-app:$COMMIT_SHA'
       - '--region'
       - 'europe-west3'
 
 options:
-  logging: CLOUD_LOGGING_ONLY # TOTO VYRIEŠI TU CHYBU, KTORÚ TI TO HÁDZALO
+  logging: CLOUD_LOGGING_ONLY 
