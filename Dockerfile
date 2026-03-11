@@ -4,11 +4,16 @@ FROM php:8.3-apache
 # 2. Nainštalujeme systémové závislosti a Node.js (Vite/Tailwind to potrebuje)
 RUN apt-get update && apt-get install -y \
     libpq-dev \
+    libicu-dev \
+    libzip-dev \
     git \
     unzip \
     && curl -sL https://deb.nodesource.com/setup_18.x | bash - && \
     apt-get install -y nodejs && \
     rm -rf /var/lib/apt/lists/*
+
+RUN docker-php-ext-configure intl \
+    && docker-php-ext-install pdo pdo_pgsql intl zip
 
 # 3. Povolíme Apache rewrite module
 RUN a2enmod rewrite
