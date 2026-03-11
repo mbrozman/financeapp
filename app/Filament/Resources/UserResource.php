@@ -36,14 +36,39 @@ class UserResource extends Resource
     {
         return $form
             ->schema([
-                //
+                Forms\Components\TextInput::make('name')
+                    ->label('Meno')
+                    ->required()
+                    ->maxLength(255),
+                Forms\Components\TextInput::make('email')
+                    ->label('Email')
+                    ->email()
+                    ->required()
+                    ->maxLength(255)
+                    ->unique(ignoreRecord: true),
+                Forms\Components\TextInput::make('password')
+                    ->label('Heslo')
+                    ->password()
+                    ->dehydrated(fn (?string $state) => filled($state))
+                    ->required(fn (string $operation): bool => $operation === 'create')
+                    ->maxLength(255),
+                Forms\Components\Toggle::make('is_admin')
+                    ->label('Je Adminový prístup (bežný obsah)')
+                    ->required(),
+                Forms\Components\Toggle::make('is_superadmin')
+                    ->label('Je Superadmin (správa používateľov)')
+                    ->required(),
+                Forms\Components\Toggle::make('is_active')
+                    ->label('Aktívny')
+                    ->default(true)
+                    ->required(),
             ]);
     }
 
     public static function canViewAny(): bool
     {
-        // Iba užívateľ, ktorý má v DB is_admin = true, vidí zoznam užívateľov
-        return auth()->user()->is_admin;
+        // Iba superadmin vidí zoznam užívateľov
+        return auth()->user()->is_superadmin;
     }
 
     public static function table(Table $table): Table
@@ -60,6 +85,10 @@ class UserResource extends Resource
                 Tables\Columns\IconColumn::make('is_admin')
                     ->label('Admin')
                     ->boolean(),
+                
+                Tables\Columns\IconColumn::make('is_superadmin')
+                    ->label('Superadmin')
+                    ->boolean(),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
@@ -69,6 +98,15 @@ class UserResource extends Resource
             ->filters([
                 Tables\Filters\TernaryFilter::make('is_active')
                     ->label('Stav konta'),
+            ])
+            ->actions([
+                Tables\Actions\EditAction::make(),
+                Tables\Actions\DeleteAction::make(),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
             ]);
     }
 

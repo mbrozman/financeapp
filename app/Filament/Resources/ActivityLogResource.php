@@ -29,6 +29,11 @@ class ActivityLogResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
     protected static ?string $label = 'Audit Log';
 
+    public static function canViewAny(): bool
+    {
+        return ! auth()->user()->is_superadmin;
+    }
+
     public static function table(Table $table): Table
     {
         return $table

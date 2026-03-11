@@ -35,6 +35,11 @@ class RecurringTransactionResource extends Resource
     protected static ?string $navigationGroup = 'Financie';
 
     protected static ?string $navigationIcon = 'heroicon-o-arrow-path';
+
+    public static function canViewAny(): bool
+    {
+        return ! auth()->user()->is_superadmin;
+    }
     public static function form(Form $form): Form
     {
         return $form

@@ -6,6 +6,11 @@ use Filament\Pages\Page;
 
 class FinanceOverview extends Page
 {
+    public static function canAccess(): bool
+    {
+        return !auth()->user() || !auth()->user()->is_superadmin;
+    }
+
     protected static ?string $navigationIcon = 'heroicon-o-presentation-chart-line';
     protected static ?string $navigationGroup = 'Financie';
     protected static ?string $navigationLabel = 'Prehľad';

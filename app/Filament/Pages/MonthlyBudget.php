@@ -16,6 +16,11 @@ use Illuminate\Support\Facades\DB;
 
 class MonthlyBudget extends Page
 {
+    public static function canAccess(): bool
+    {
+        return !auth()->user() || !auth()->user()->is_superadmin;
+    }
+
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
     protected static ?string $navigationLabel = 'Mesačný rozpočet';
     protected static ?string $navigationGroup = 'Financie';

@@ -9,6 +9,11 @@ use Livewire\Component;
 
 class ExpenseDrilldownChart extends Component
 {
+    public static function canView(): bool
+    {
+        return !auth()->user() || !auth()->user()->is_superadmin;
+    }
+
     public string $period = '1'; // mesiacov späť
     public ?int $drillCategoryId = null;
     public ?string $drillCategoryName = null;
