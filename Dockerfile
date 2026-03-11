@@ -1,33 +1,55 @@
+# 1. Použijeme PHP 8.3 s Apache
 FROM php:8.3-apache
 
-# 1. Inštalácia Node.js (potrebné pre Tailwind/Vite)
-RUN curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y nodejs
+# 2. Nainštalujeme systémové závislosti a Node.js (Vite/Tailwind to potrebuje)
+RUN apt-get update && apt-get install -y \
+    libpq-dev \
+    git \
+    unzip \
+    && curl -sL https://deb.nodesource.com/setup_18.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
 
-# 2. Inštalácia systémových knižníc (ako predtým)
-COPY package*.json ./
+# 3. Povolíme Apache rewrite module
+RUN a2enmod rewrite
+
+# 4. Nainštalujeme PHP rozšírenia pre Postgres
+RUN docker-php-ext-install pdo pdo_pgsql
+
+# 5. Nastavíme pracovný priečinok
+WORKDIR /var/www/html
+
+# 6. Nainštalujeme Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# 7. Skopírujeme Composer súbory a nainštalujeme PHP závislosti
+COPY composer.json composer.lock ./
+RUN composer install --no-scripts --no-autoloader
+
+# 8. KRITICKÝ KROK PRE TAILWIND: Skopírujeme NPM súbory a nainštalujeme JS závislosti
+COPY package.json package-lock.json ./
 RUN npm install
 
-RUN apt-get update && apt-get install -y \
-    libpq-dev libicu-dev libzip-dev zip unzip \
-    && docker-php-ext-configure intl \
-    && docker-php-ext-install pdo_pgsql pgsql intl zip
+# 9. Skopírujeme zvyšok aplikácie (VRÁTANE TAILWIND/VITE KONFIGURÁCIÍ)
+COPY . .
 
-RUN a2enmod rewrite
+# 10. KRITICKÝ KROK PRE TAILWIND: Kompilácia produkčných štýlov (Vite)
+RUN npm run build
+
+# 11. Dokončíme inštaláciu Composera (vytvoríme autoloader a spustíme skripty)
+RUN composer install --optimize-autoloader
+
+# 12. Nastavíme práva pre Laravel
+RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+RUN chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+
+# 13. Nastavíme Apache, aby smeroval do priečinka /public
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/000-default.conf
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
 
-COPY . /var/www/html
+# 14. Otvoríme port 80
+EXPOSE 80
 
-# 3. Inštalácia PHP závislostí
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
-RUN composer install --no-dev --optimize-autoloader
-
-# 4. Kompilácia Tailwindu (Vite)
-RUN npm install && npm run build
-
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
-RUN sed -i 's/80/8080/g' /etc/apache2/sites-available/000-default.conf /etc/apache2/ports.conf
-
-EXPOSE 8080
+# 15. Spustíme Apache
+CMD ["apache2-foreground"]
