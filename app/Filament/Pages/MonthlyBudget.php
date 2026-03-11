@@ -80,7 +80,9 @@ class MonthlyBudget extends Page
                 $categoryBudgets = $this->getCategoryBudgets($item->id, $date);
                 
                 // --- TU JE OPRAVA: Master Bar sčíta presne to, čo majú kategórie pod ním ---
-                $pActualAbs = collect($categoryBudgets)->sum('actual');
+                // Keďže $categoryBudgets je teraz zoskupené pole (parentName => [items]),
+                // musíme sčítať 'actual' zo všetkých podpoložiek naprieč všetkými skupinami.
+                $pActualAbs = collect($categoryBudgets)->flatten(1)->sum('actual');
                 
                 $pillarData[] = [
                     'name' => $item->name,
@@ -111,25 +113,27 @@ class MonthlyBudget extends Page
     }
 
     /**
-     * VÝPOČET KATEGÓRIÍ POD KONKRÉTNYM PILIEROM
+     * VÝPOČET KATEGÓRIÍ POD KONKRÉTNYM PILIEROM ZOSKUUPENYCH PODĽA HLAVNEJ KATEGÓRIE
      */
     protected function getCategoryBudgets($pillarId, $date): array
     {
         $userId = Auth::id();
         
-        // Získame pravidlá rozpočtov priradené k tomuto pilieru
-        $rules = Budget::where('user_id', $userId)
+        // Získame pravidlá rozpočtov priradené k tomuto pilieru (očakávame, že rule->category_id patrí podkategórii)
+        $rules = Budget::with('category.parent')->where('user_id', $userId)
             ->where('financial_plan_item_id', $pillarId)
             ->get();
 
-        $res = [];
+        $groupedRes = [];
+        
         foreach ($rules as $rule) {
-            // Získame ID hlavnej kategórie a všetkých jej podkategórií (napr. Bývanie + Nájom + Hypo)
+            // Predpokladáme, že vybratí kategória je podkategória (pretože na to teraz obmedzujeme výber v BudgetResource)
+            // Stále ale pre istotu zohľadníme aj jej samotnej id + prípadné children ak by to náhodou bola hlavná
             $categoryIds = Category::where('id', $rule->category_id)
                 ->orWhere('parent_id', $rule->category_id)
                 ->pluck('id');
 
-            // Sčítame transakcie pre celú túto skupinu kategórií
+            // Sčítame transakcie pre túto (pod)kategóriu
             $actual = Transaction::whereIn('category_id', $categoryIds)
                 ->whereMonth('transaction_date', $date->month)
                 ->whereYear('transaction_date', $date->year)
@@ -137,15 +141,28 @@ class MonthlyBudget extends Page
                 
             $actAbs = abs((float)$actual);
             $lim = (float)$rule->limit_amount;
+            
+            // Určíme názov hlavnej kategórie, ak má parenta. Ak nemá, použijeme jej vlastný názov.
+            $parentCategoryName = $rule->category && $rule->category->parent 
+                ? $rule->category->parent->name 
+                : ($rule->category->name ?? 'Nezaradené');
 
-            $res[] = [
+            $itemData = [
                 'category' => $rule->category->name ?? 'Neznáma',
                 'actual' => $actAbs,
                 'limit' => $lim,
                 'percent' => $lim > 0 ? ($actAbs / $lim) * 100 : 0,
             ];
+
+            // Ak ešte takáto nadkategória neexistuje v poli, vytvoríme kľúč
+            if (!isset($groupedRes[$parentCategoryName])) {
+                $groupedRes[$parentCategoryName] = [];
+            }
+            
+            $groupedRes[$parentCategoryName][] = $itemData;
         }
-        return $res;
+        
+        return $groupedRes;
     }
 
     // Navigačné metódy

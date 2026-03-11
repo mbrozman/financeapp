@@ -28,17 +28,7 @@ class CategoryResource extends Resource
                     ->label('Názov')
                     ->required()
                     ->maxLength(255),
-                
-                Forms\Components\Select::make('financial_plan_item_id')
-                    ->label('Finančný pilier')
-                    ->relationship('planItem', 'name')
-                    ->required(),
 
-                Forms\Components\ColorPicker::make('color')
-                    ->label('Farba')
-                    ->required()
-                    ->default('#34d399'),
-                
                 Forms\Components\Select::make('type')
                     ->label('Typ kategórie')
                     ->options([
@@ -47,11 +37,45 @@ class CategoryResource extends Resource
                     ])
                     ->default('expense')
                     ->required()
-                    ->native(false),
+                    ->native(false)
+                    ->live(),
                 
-                Forms\Components\TextInput::make('icon')
+                Forms\Components\Select::make('financial_plan_item_id')
+                    ->label('Finančný pilier')
+                    ->relationship('planItem', 'name')
+                    ->required(fn (\Filament\Forms\Get $get) => $get('type') === 'expense')
+                    ->visible(fn (\Filament\Forms\Get $get) => $get('type') === 'expense'),
+
+                Forms\Components\ColorPicker::make('color')
+                    ->label('Farba')
+                    ->required()
+                    ->default('#34d399'),
+                
+                Forms\Components\Select::make('icon')
                     ->label('Ikona')
-                    ->placeholder('heroicon-o-tag'),
+                    ->options([
+                        'heroicon-o-home' => 'Domov / Bývanie',
+                        'heroicon-o-shopping-cart' => 'Nákupy / Strava',
+                        'heroicon-o-truck' => 'Auto / Doprava',
+                        'heroicon-o-heart' => 'Zdravie / Krása',
+                        'heroicon-o-academic-cap' => 'Vzdelanie',
+                        'heroicon-o-briefcase' => 'Práca / Podnikanie',
+                        'heroicon-o-banknotes' => 'Peniaze / Hotovosť',
+                        'heroicon-o-building-office' => 'Budova / Reality',
+                        'heroicon-o-chart-bar' => 'Graf / Investície',
+                        'heroicon-o-shield-check' => 'Štít / Poistenie',
+                        'heroicon-o-bolt' => 'Energia / Tech',
+                        'heroicon-o-globe-alt' => 'Svet / Cestovanie',
+                        'heroicon-o-gift' => 'Darčeky / Zábava',
+                        'heroicon-o-sparkles' => 'Hviezdičky / Premium',
+                        'heroicon-o-tag' => 'Štítok / Všeobecné',
+                        'heroicon-o-currency-dollar' => 'Mena / Financie',
+                        'heroicon-o-puzzle-piece' => 'Skladačka / Ostatné',
+                    ])
+                    ->default('heroicon-o-tag')
+                    ->native(false)
+                    ->prefixIcon(fn($get) => $get('icon') ?? 'heroicon-o-tag')
+                    ->live(),
             ])->columns(2)
         ]);
     }
@@ -60,6 +84,10 @@ class CategoryResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\IconColumn::make('icon')
+                    ->label('Ikona')
+                    ->icon(fn(?string $state): ?string => $state),
+
                 Tables\Columns\TextColumn::make('name')
                     ->label('Názov')
                     ->weight('bold')

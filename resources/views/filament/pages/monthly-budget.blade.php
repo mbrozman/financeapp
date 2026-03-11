@@ -97,29 +97,41 @@
                         </div>
                     </div>
 
-                    {{-- Kategórie (VNÚTRI) --}}
+                    {{-- Kategórie (VNÚTRI) ZOSKUUPENÉ PODĽA HLAVNEJ KATEGÓRIE --}}
                     <div x-show="isOpen" x-collapse class="bg-gray-50/50 dark:bg-gray-800/20 p-6 border-t border-gray-100 dark:border-gray-800">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            @foreach($group['budgets'] as $item)
-                                @php
-                                    $iPercent = (float) $item['percent'];
-                                    $iColor = $iPercent >= 101 ? '#dc2626' : ($iPercent >= 100 ? '#f59e0b' : '#22c55e');
-                                @endphp
-                                <div class="bg-white dark:bg-gray-900 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-800 border-l-4" style="border-left-color: {{ $iColor }};">
-                                    <div class="flex justify-between mb-2">
-                                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-tight">{{ $item['category'] }}</span>
-                                        <span class="font-black text-sm text-gray-900 dark:text-white">{{ number_format($item['actual'], 2, ',', ' ') }} €</span>
+                        
+                        @foreach($group['budgets'] as $parentCategoryName => $subcategories)
+                            
+                            {{-- Hlavička hlavnej kategórie --}}
+                            <h4 class="text-[11px] font-black uppercase tracking-widest text-gray-400 mb-3 mt-4 first:mt-0">
+                                {{ $parentCategoryName }}
+                            </h4>
+                            
+                            {{-- Grid s podkategóriami Patriacimi pod túto kategóriu --}}
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6 last:mb-0">
+                                @foreach($subcategories as $item)
+                                    @php
+                                        $iPercent = (float) $item['percent'];
+                                        $iColor = $iPercent >= 101 ? '#dc2626' : ($iPercent >= 100 ? '#f59e0b' : '#22c55e');
+                                    @endphp
+                                    <div class="bg-white dark:bg-gray-900 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-800 border-l-4" style="border-left-color: {{ $iColor }};">
+                                        <div class="flex justify-between mb-2">
+                                            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-tight">{{ $item['category'] }}</span>
+                                            <span class="font-black text-sm text-gray-900 dark:text-white">{{ number_format($item['actual'], 2, ',', ' ') }} €</span>
+                                        </div>
+                                        <div class="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5">
+                                            <div class="h-1.5 rounded-full" style="width: {{ min($iPercent, 100) }}%; background-color: {{ $iColor }};"></div>
+                                        </div>
+                                        <div class="mt-1 flex justify-between text-[8px] font-bold text-gray-400 uppercase">
+                                            <span>{{ round($iPercent, 0) }}%</span>
+                                            <span>{{ number_format($item['limit'], 0) }} €</span>
+                                        </div>
                                     </div>
-                                    <div class="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5">
-                                        <div class="h-1.5 rounded-full" style="width: {{ min($iPercent, 100) }}%; background-color: {{ $iColor }};"></div>
-                                    </div>
-                                    <div class="mt-1 flex justify-between text-[8px] font-bold text-gray-400 uppercase">
-                                        <span>{{ round($iPercent, 0) }}%</span>
-                                        <span>{{ number_format($item['limit'], 0) }} €</span>
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
+                                @endforeach
+                            </div>
+                            
+                        @endforeach
+                        
                     </div>
                 </div>
             @endforeach

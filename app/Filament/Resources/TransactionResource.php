@@ -69,7 +69,8 @@ class TransactionResource extends Resource
                                 Forms\Components\Select::make('financial_plan_item_id')
                                     ->label('Priradiť k pilieru')
                                     ->options(FinancialPlanItem::all()->pluck('name', 'id'))
-                                    ->required(),
+                                    ->required(fn (\Filament\Forms\Get $get) => $get('../../type') === 'expense')
+                                    ->visible(fn (\Filament\Forms\Get $get) => $get('../../type') === 'expense'),
                             ])
                             ->createOptionUsing(function (array $data, \Filament\Forms\Get $get) {
                                 return Category::create([
@@ -80,14 +81,26 @@ class TransactionResource extends Resource
                                 ])->id;
                             }),
 
-                        // 4. SELECT: PODKATEGÓRIA (ZÁVISLÝ SELECT)
+                        // 4. SELECT: PODKATEGÓRIA (ZÁVISLÝ SELECT, ALEBO VŠETKY ZOSKUUPENÉ AK NIE JE VYBRATÁ HLAVNÁ)
                         Forms\Components\Select::make('category_id')
                             ->label('Podkategória / Detail')
-                            ->placeholder(fn ($get) => $get('parent_category_id') ? 'Vyberte detail...' : 'Najprv vyberte hlavnú skupinu')
+                            ->placeholder(fn ($get) => $get('parent_category_id') ? 'Vyberte detail...' : 'Alebo vyberte zo zoznamu')
                             ->options(function ($get) {
                                 $parentId = $get('parent_category_id');
-                                if (!$parentId) return [];
-                                return Category::where('parent_id', $parentId)->pluck('name', 'id');
+                                $type = $get('type') ?? 'expense';
+                                
+                                $query = Category::whereNotNull('parent_id')
+                                    ->where('type', $type);
+                                    
+                                if ($parentId) {
+                                    $query->where('parent_id', $parentId);
+                                }
+                                
+                                return $query->with('parent')
+                                    ->get()
+                                    ->groupBy('parent.name')
+                                    ->map(fn($categories) => $categories->pluck('name', 'id'))
+                                    ->toArray();
                             })
                             ->required()
                             ->searchable()

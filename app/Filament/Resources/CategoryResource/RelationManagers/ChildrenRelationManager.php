@@ -35,7 +35,14 @@ class ChildrenRelationManager extends RelationManager
                 //
             ])
             ->headerActions([
-                Tables\Actions\CreateAction::make(),
+                Tables\Actions\CreateAction::make()
+                    ->mutateFormDataUsing(function (array $data): array {
+                        $parent = $this->getOwnerRecord();
+                        $data['type'] = $parent->type;
+                        $data['financial_plan_item_id'] = $parent->financial_plan_item_id;
+                        $data['color'] = $parent->color;
+                        return $data;
+                    }),
                 Tables\Actions\AttachAction::make(),
             ])
             ->actions([

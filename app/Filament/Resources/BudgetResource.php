@@ -42,10 +42,18 @@ class BudgetResource extends Resource
                     ->description('Tento limit sa bude automaticky aplikovať každý mesiac od zvoleného dátumu.')
                     ->schema([
 
-                        // 1. VÝBER KATEGÓRIE (Opravený na $query)
+                        // 1. VÝBER KATEGÓRIE (Podkategórie zoskupené podľa hlavnej)
                         Forms\Components\Select::make('category_id')
                             ->label('Kategória výdavkov')
-                            ->relationship('category', 'name', fn(Builder $query) => $query->where('type', 'expense'))
+                            ->options(function () {
+                                return \App\Models\Category::whereNotNull('parent_id')
+                                    ->where('type', 'expense')
+                                    ->with('parent')
+                                    ->get()
+                                    ->groupBy('parent.name')
+                                    ->map(fn($categories) => $categories->pluck('name', 'id'))
+                                    ->toArray();
+                            })
                             ->required()
                             ->searchable()
                             ->preload(),
