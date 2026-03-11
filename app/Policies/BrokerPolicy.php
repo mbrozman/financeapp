@@ -13,7 +13,7 @@ class BrokerPolicy
      */
     public function viewAny(User $user): bool
     {
-        return !auth()->user()->is_superadmin;
+        return !$user->is_superadmin;
     }
 
     /**
@@ -21,7 +21,7 @@ class BrokerPolicy
      */
     public function view(User $user, Broker $broker): bool
     {
-        return !auth()->user()->is_superadmin;
+        return !$user->is_superadmin;
     }
 
     /**
@@ -29,7 +29,7 @@ class BrokerPolicy
      */
     public function create(User $user): bool
     {
-        return !auth()->user()->is_superadmin;
+        return !$user->is_superadmin;
     }
 
     /**
@@ -37,7 +37,7 @@ class BrokerPolicy
      */
     public function update(User $user, Broker $broker): bool
     {
-        return !auth()->user()->is_superadmin;
+        return !$user->is_superadmin;
     }
 
     /**
@@ -45,7 +45,7 @@ class BrokerPolicy
      */
     public function delete(User $user, Broker $broker): bool
     {
-        return !auth()->user()->is_superadmin;
+        return !$user->is_superadmin;
     }
 
     /**
@@ -53,7 +53,7 @@ class BrokerPolicy
      */
     public function restore(User $user, Broker $broker): bool
     {
-        return !auth()->user()->is_superadmin;
+        return !$user->is_superadmin;
     }
 
     /**
@@ -61,6 +61,6 @@ class BrokerPolicy
      */
     public function forceDelete(User $user, Broker $broker): bool
     {
-        return !auth()->user()->is_superadmin;
+        return !$user->is_superadmin;
     }
 }

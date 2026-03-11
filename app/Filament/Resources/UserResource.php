@@ -68,7 +68,7 @@ class UserResource extends Resource
     public static function canViewAny(): bool
     {
         // Iba superadmin vidí zoznam užívateľov
-        return auth()->user()->is_superadmin;
+        return (bool) auth()->user()?->is_superadmin;
     }
 
     public static function table(Table $table): Table

@@ -13,7 +13,7 @@ class TransactionPolicy
      */
     public function viewAny(User $user): bool
     {
-        return !auth()->user()->is_superadmin;
+        return !$user->is_superadmin;
     }
 
     /**
@@ -21,7 +21,7 @@ class TransactionPolicy
      */
     public function view(User $user, Transaction $transaction): bool
     {
-        return !auth()->user()->is_superadmin;
+        return !$user->is_superadmin;
     }
 
     /**
@@ -29,7 +29,7 @@ class TransactionPolicy
      */
     public function create(User $user): bool
     {
-        return !auth()->user()->is_superadmin;
+        return !$user->is_superadmin;
     }
 
     /**
@@ -37,7 +37,7 @@ class TransactionPolicy
      */
     public function update(User $user, Transaction $transaction): bool
     {
-        return !auth()->user()->is_superadmin;
+        return !$user->is_superadmin;
     }
 
     /**
@@ -45,7 +45,7 @@ class TransactionPolicy
      */
     public function delete(User $user, Transaction $transaction): bool
     {
-        return !auth()->user()->is_superadmin;
+        return !$user->is_superadmin;
     }
 
     /**
@@ -53,7 +53,7 @@ class TransactionPolicy
      */
     public function restore(User $user, Transaction $transaction): bool
     {
-        return !auth()->user()->is_superadmin;
+        return !$user->is_superadmin;
     }
 
     /**
@@ -61,6 +61,6 @@ class TransactionPolicy
      */
     public function forceDelete(User $user, Transaction $transaction): bool
     {
-        return !auth()->user()->is_superadmin;
+        return !$user->is_superadmin;
     }
 }
