@@ -1,25 +1,23 @@
 # 1. Použijeme PHP 8.3 s Apache
 FROM php:8.3-apache
 
-# 2. Nainštalujeme systémové závislosti a Node.js (Vite/Tailwind to potrebuje)
+# 2. Inštalácia systémových knižníc pre PHP rozšírenia a Node.js
 RUN apt-get update && apt-get install -y \
     libpq-dev \
     libicu-dev \
     libzip-dev \
     git \
     unzip \
-    && curl -sL https://deb.nodesource.com/setup_18.x | bash - && \
+    && curl -sL https://deb.nodesource.com/setup_22.x | bash - && \
     apt-get install -y nodejs && \
     rm -rf /var/lib/apt/lists/*
 
+# 3. Konfigurácia a inštalácia PHP rozšírení (všetko v jednom kroku)
 RUN docker-php-ext-configure intl \
     && docker-php-ext-install pdo pdo_pgsql intl zip
 
-# 3. Povolíme Apache rewrite module
+# 4. Povolíme Apache rewrite module (potrebné pre pekné Laravel URL)
 RUN a2enmod rewrite
-
-# 4. Nainštalujeme PHP rozšírenia pre Postgres
-RUN docker-php-ext-install pdo pdo_pgsql
 
 # 5. Nastavíme pracovný priečinok
 WORKDIR /var/www/html
@@ -27,34 +25,36 @@ WORKDIR /var/www/html
 # 6. Nainštalujeme Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# 7. Skopírujeme Composer súbory a nainštalujeme PHP závislosti
+# 7. Optimalizácia: Najprv skopírujeme len lock súbory a nainštalujeme závislosti
+# Týmto využijeme Docker cache a build bude rýchlejší
 COPY composer.json composer.lock ./
-RUN composer install --no-scripts --no-autoloader
+RUN composer install --no-scripts --no-autoloader --no-dev
 
-# 8. KRITICKÝ KROK PRE TAILWIND: Skopírujeme NPM súbory a nainštalujeme JS závislosti
 COPY package.json package-lock.json ./
-RUN npm install
+# Použijeme npm ci pre presnú inštaláciu verzií z lock súboru
+RUN npm ci || npm install
 
-# 9. Skopírujeme zvyšok aplikácie (VRÁTANE TAILWIND/VITE KONFIGURÁCIÍ)
+# 8. Skopírujeme zvyšok aplikácie (vrátane Tailwind/Vite konfigurácií)
 COPY . .
 
-# 10. KRITICKÝ KROK PRE TAILWIND: Kompilácia produkčných štýlov (Vite)
+# 9. KRITICKÝ KROK: Kompilácia Tailwindu cez Vite
+# Tu sa prejaví sila Node 22, ktorú Vite vyžaduje
 RUN npm run build
 
-# 11. Dokončíme inštaláciu Composera (vytvoríme autoloader a spustíme skripty)
-RUN composer install --optimize-autoloader
+# 10. Dokončíme inštaláciu Composera (optimalizácia autoloadera)
+RUN composer install --optimize-autoloader --no-dev
 
-# 12. Nastavíme práva pre Laravel
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
-RUN chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+# 11. Nastavíme práva pre Laravel (aby mohol zapisovať logy a cache)
+RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
+    && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# 13. Nastavíme Apache, aby smeroval do priečinka /public
+# 12. Nastavíme Apache, aby smeroval do priečinka /public
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
-RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/000-default.conf
-RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
+RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/000-default.conf \
+    && sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
 
-# 14. Otvoríme port 80
+# 13. Otvoríme port 80
 EXPOSE 80
 
-# 15. Spustíme Apache
+# 14. Spustíme Apache server
 CMD ["apache2-foreground"]
