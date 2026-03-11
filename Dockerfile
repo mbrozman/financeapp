@@ -54,7 +54,8 @@ RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-av
     && sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
 
 # 13. Otvoríme port 80
-EXPOSE 80
+RUN sed -i 's/80/8080/g' /etc/apache2/ports.conf /etc/apache2/sites-available/000-default.conf
+EXPOSE 8080
 
 # 14. Spustíme Apache server
 CMD ["apache2-foreground"]
