@@ -3,16 +3,11 @@
         {{-- 1. KPI Karty: Majetok a likvidita --}}
         @livewire(\App\Filament\Widgets\NetWorthOverview::class)
 
-        {{-- 2. Grafy 2-stĺpcová mriežka --}}
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {{-- Graf: Mesačný cashflow (Príjmy vs. Výdavky) --}}
-            <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 h-[360px]">
+        {{-- 2. Grafy --}}
+        <div class="space-y-6">
+            {{-- Graf: Mesačný cashflow (Príjmy vs. Výdavky) - celá šírka --}}
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 h-[420px]">
                 @livewire(\App\Filament\Widgets\MonthlyCashflowChart::class)
-            </div>
-
-            {{-- Graf: Analýza pilierov (Radar 50/30/20) --}}
-            <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 h-[360px]">
-                @livewire(\App\Filament\Widgets\FinancialPlanAnalysis::class)
             </div>
         </div>
 

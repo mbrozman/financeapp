@@ -9,46 +9,55 @@ use Illuminate\Support\Facades\DB;
 
 class MonthlyCashflowChart extends ChartWidget
 {
-    protected static ?string $heading = 'Mesačný Cashflow: Príjmy vs. Výdavky (€)';
-    protected static ?int $sort = 2;
-
-    public ?string $filter = '6'; // Predvolených 6 mesiacov
-
-    protected function getFilters(): ?array
+    public function getHeading(): ?string
     {
-        return [
-            '3' => 'Posledné 3 mesiace',
-            '6' => 'Posledných 6 mesiacov',
-            '12' => 'Posledný rok',
-        ];
+        $year = now()->year;
+        $userId = auth()->id();
+        
+        $totals = Transaction::select(
+            DB::raw("SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as total_income"),
+            DB::raw("SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as total_expense")
+        )
+            ->where('user_id', $userId)
+            ->whereYear('transaction_date', $year)
+            ->first();
+
+        $income = number_format(abs($totals->total_income), 0, ',', ' ');
+        $expense = number_format(abs($totals->total_expense), 0, ',', ' ');
+
+        return "Cashflow {$year}: Príjmy {$income} € vs. Výdavky {$expense} €";
     }
 
     protected function getData(): array
     {
-        $months = (int) ($this->filter ?? 6);
         $userId = auth()->id();
+        $year = now()->year;
 
-        // 1. Získame dáta za zvolené obdobie
+        // Získame dáta za celý aktuálny rok
         $data = Transaction::select(
             DB::raw("date_trunc('month', transaction_date) as month"),
             DB::raw("SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as total_income"),
             DB::raw("SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as total_expense")
         )
             ->where('user_id', $userId)
-            ->where('transaction_date', '>=', now()->subMonths($months)->startOfMonth())
+            ->whereYear('transaction_date', $year)
             ->groupBy('month')
             ->orderBy('month')
             ->get();
 
-        // 2. Pripravíme polia pre graf
-        $labels = $data->map(fn($item) => Carbon::parse($item->month)->format('M Y'))->toArray();
-        $incomeValues = $data->pluck('total_income')->map(fn($v) => abs((float)$v))->toArray();
-        $expenseValues = $data->pluck('total_expense')->map(fn($v) => abs((float)$v))->toArray();
-        
-        // Výpočet čistého toku (Profit/Loss)
-        $netFlowValues = [];
-        foreach ($data as $index => $row) {
-            $netFlowValues[] = (float)$row->total_income - (float)$row->total_expense;
+        // Inicializujeme polia pre všetkých 12 mesiacov
+        $labels = [];
+        $incomeValues = [];
+        $expenseValues = [];
+
+        for ($i = 1; $i <= 12; $i++) {
+            $monthDate = Carbon::create($year, $i, 1);
+            $labels[] = $monthDate->translatedFormat('M');
+            
+            $monthData = $data->first(fn($item) => Carbon::parse($item->month)->month === $i);
+            
+            $incomeValues[] = $monthData ? abs((float)$monthData->total_income) : 0;
+            $expenseValues[] = $monthData ? abs((float)$monthData->total_expense) : 0;
         }
 
         return [
