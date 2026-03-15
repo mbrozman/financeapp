@@ -17,6 +17,11 @@ class InvestmentTransactionResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-arrows-right-left';
     protected static ?string $navigationGroup = 'Investície';
+    
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
     protected static ?string $label = 'Pohyb na majetku';
     protected static ?string $pluralLabel = 'História pohybov';
 

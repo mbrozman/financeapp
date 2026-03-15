@@ -21,7 +21,9 @@ class FinancialPlanResource extends Resource
         return 'Môj finančný plán';
     }
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-presentation-chart-bar';
+    protected static ?string $navigationGroup = '🎯 STRATÉGIA';
+    protected static ?int $navigationSort = 1;
 
     public static function form(Form $form): Form
     {

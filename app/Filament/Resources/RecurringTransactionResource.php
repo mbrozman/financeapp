@@ -32,7 +32,8 @@ class RecurringTransactionResource extends Resource
         return 'Pravidelná platba';
     }
 
-    protected static ?string $navigationGroup = 'Financie';
+    protected static ?string $navigationGroup = '💸 OPERÁCIE';
+    protected static ?int $navigationSort = 2;
 
     protected static ?string $navigationIcon = 'heroicon-o-arrow-path';
 

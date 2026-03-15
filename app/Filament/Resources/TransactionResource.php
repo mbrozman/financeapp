@@ -22,7 +22,8 @@ class TransactionResource extends Resource
     protected static ?string $model = Transaction::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
-    protected static ?string $navigationGroup = 'Financie';
+    protected static ?string $navigationGroup = '💸 OPERÁCIE';
+    protected static ?int $navigationSort = 1;
 
     public static function getNavigationLabel(): string { return 'Transakcie'; }
     public static function getPluralLabel(): string { return 'Transakcie'; }

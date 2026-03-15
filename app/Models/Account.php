@@ -9,11 +9,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes; 
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+
 class Account extends Model
 {
     // Aplikujeme Multi-tenancy. Odteraz tento model 
     // VŽDY odfiltruje dáta podľa prihláseného užívateľa.
-    use BelongsToUser, LogsActivity,SoftDeletes;
+    use BelongsToUser, LogsActivity, SoftDeletes, HasFactory;
 
     protected $fillable = ['user_id', 'currency_id', 'name', 'type', 'balance', 'is_active'];
       protected $casts = [

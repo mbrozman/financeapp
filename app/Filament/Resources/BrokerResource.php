@@ -16,7 +16,8 @@ class BrokerResource extends Resource
     protected static ?string $model = Account::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-building-office-2';
-    protected static ?string $navigationGroup = 'Nastavenia';
+    protected static ?string $navigationGroup = '🔧 NASTAVENIA';
+    protected static ?int $navigationSort = 1;
     
     public static function getNavigationLabel(): string { return 'Brokeri'; }
     public static function getModelLabel(): string { return 'Broker'; }

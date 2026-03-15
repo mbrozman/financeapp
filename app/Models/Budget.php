@@ -44,7 +44,13 @@ class Budget extends Model
                     return '0.00';
                 }
 
-                $sum = Transaction::where('category_id', $this->category_id)
+                // Zistíme, či ide o hlavnú kategóriu alebo podkategóriu
+                // Ak je to hlavná kategória, sčítame aj všetky jej podkategórie
+                $categoryIds = Category::where('id', $this->category_id)
+                    ->orWhere('parent_id', $this->category_id)
+                    ->pluck('id');
+
+                $sum = Transaction::whereIn('category_id', $categoryIds)
                     ->where('type', 'expense')
                     ->whereYear('transaction_date', $now->year)
                     ->whereMonth('transaction_date', $now->month)

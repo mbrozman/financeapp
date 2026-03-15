@@ -16,14 +16,19 @@ use Illuminate\Support\Facades\DB;
 
 class CategoryResource extends Resource
 {
-    protected static ?string $model = Category::class;
     protected static ?string $navigationIcon = 'heroicon-o-tag';
-    protected static ?string $navigationGroup = 'Nastavenia';
+    protected static ?string $navigationGroup = '🎯 STRATÉGIA';
+    protected static ?int $navigationSort = 2;
+
+    public static function getNavigationLabel(): string
+    {
+        return 'Kategórie a Limity';
+    }
 
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\Section::make('Nastavenie hlavnej kategórie')->schema([
+            Forms\Components\Section::make('Nastavenie kategórie')->schema([
                 Forms\Components\TextInput::make('name')
                     ->label('Názov')
                     ->required()
@@ -41,13 +46,21 @@ class CategoryResource extends Resource
                     ->live(),
                 
                 Forms\Components\Select::make('financial_plan_item_id')
-                    ->label('Finančný pilier')
+                    ->label('Finančný pilier (Šuflík)')
                     ->relationship('planItem', 'name')
                     ->required(fn (\Filament\Forms\Get $get) => $get('type') === 'expense')
                     ->visible(fn (\Filament\Forms\Get $get) => $get('type') === 'expense'),
 
-                Forms\Components\ColorPicker::make('color')
-                    ->label('Farba')
+                Forms\Components\TextInput::make('monthly_limit')
+                    ->label('Mesačný limit (€)')
+                    ->numeric()
+                    ->prefix('€')
+                    ->helperText('Ak nastavíte limit pre hlavnú kategóriu, bude slúžiť ako globálny limit pre túto skupinu.')
+                    ->visible(fn (\Filament\Forms\Get $get) => $get('type') === 'expense'),
+
+                Forms\Components\ViewField::make('color')
+                    ->label('Farba kategórie')
+                    ->view('filament.forms.components.color-picker-grid')
                     ->required()
                     ->default('#34d399'),
                 
@@ -106,6 +119,12 @@ class CategoryResource extends Resource
 
                 Tables\Columns\ColorColumn::make('color')
                     ->label('Farba'),
+
+                Tables\Columns\TextColumn::make('monthly_limit')
+                    ->label('Mesačný limit')
+                    ->money('EUR')
+                    ->placeholder('Bez limitu')
+                    ->sortable(),
 
                 Tables\Columns\TextColumn::make('children_count')
                     ->label('Podkategórie')

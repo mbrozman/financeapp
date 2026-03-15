@@ -12,10 +12,10 @@ class InvestmentsDashboard extends Page
         return !auth()->user() || !auth()->user()->is_superadmin;
     }
 
-    protected static ?string $navigationIcon = 'heroicon-o-presentation-chart-line';
-    protected static ?string $navigationGroup = 'Investície';
-    protected static ?string $navigationLabel = 'Prehľad';
-    protected static ?int $navigationSort = 1;
+    protected static ?string $navigationIcon = 'heroicon-o-chart-bar';
+    protected static ?string $navigationGroup = '📊 PREHĽADY';
+    protected static ?string $navigationLabel = 'Investície';
+    protected static ?int $navigationSort = 3;
     protected static ?string $title = 'Investičný Dashboard';
 
     protected static string $view = 'filament.pages.investments-dashboard';

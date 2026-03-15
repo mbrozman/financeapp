@@ -21,6 +21,10 @@ class ChildrenRelationManager extends RelationManager
                 Forms\Components\TextInput::make('name')
                     ->required()
                     ->maxLength(255),
+                Forms\Components\TextInput::make('monthly_limit')
+                    ->label('Mesačný limit (€)')
+                    ->numeric()
+                    ->prefix('€'),
             ]);
     }
 
@@ -29,7 +33,17 @@ class ChildrenRelationManager extends RelationManager
         return $table
             ->recordTitleAttribute('name')
             ->columns([
-                Tables\Columns\TextColumn::make('name'),
+                Tables\Columns\TextColumn::make('name')
+                    ->label('Názov')
+                    ->weight('bold'),
+                
+                Tables\Columns\ColorColumn::make('effective_color')
+                    ->label('Farba (automaticky)')
+                    ->tooltip('Farba je odvodená od hlavnej kategórie'),
+
+                Tables\Columns\TextColumn::make('monthly_limit')
+                    ->label('Limit')
+                    ->money('EUR'),
             ])
             ->filters([
                 //
@@ -38,9 +52,10 @@ class ChildrenRelationManager extends RelationManager
                 Tables\Actions\CreateAction::make()
                     ->mutateFormDataUsing(function (array $data): array {
                         $parent = $this->getOwnerRecord();
+                        $data['user_id'] = $parent->user_id;
                         $data['type'] = $parent->type;
                         $data['financial_plan_item_id'] = $parent->financial_plan_item_id;
-                        $data['color'] = $parent->color;
+                        // Color necháme null, aby sa uplatnila logika z modelu effectiveColor
                         return $data;
                     }),
                 Tables\Actions\AttachAction::make(),

@@ -20,7 +20,8 @@ class InvestmentCategoryResource extends Resource
     protected static ?string $model = InvestmentCategory::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-tag';
-    protected static ?string $navigationGroup = 'Nastavenia';
+    protected static ?string $navigationGroup = '🔧 NASTAVENIA';
+    protected static ?int $navigationSort = 2;
     protected static ?string $label = 'Typ aktíva';
     protected static ?string $pluralLabel = 'Typy aktív';
 
@@ -67,8 +68,9 @@ class InvestmentCategoryResource extends Resource
                             ->prefixIcon(fn($get) => $get('icon') ?? 'heroicon-o-chart-bar')
                             ->live(),
 
-                        Forms\Components\ColorPicker::make('color')
+                        Forms\Components\ViewField::make('color')
                             ->label('Farba pre grafy')
+                            ->view('filament.forms.components.color-picker-grid')
                             ->default('#3b82f6'),
                     ])->columns(2),
             ]);

@@ -237,17 +237,11 @@ class ExpenseDrilldownChart extends Component
                 
                 if ($subCat) {
                     $labels[] = $rootCat->name . ' - ' . $subCat->name;
-                    // Ak ma podkategoria vlastnu farbu, daj ju. Ak nie, urob odtien podla indexu z rodica.
-                    $color = $subCat->effective_color ?? $subCat->color ?? null;
-                    if (!$color) {
-                       $adjust = (int)(($subCount / 2 - $i) * $step); 
-                       $color = $this->adjustBrightness($rootColor, $adjust);
-                    }
+                    $color = $subCat->effective_color;
                 } else {
                     $labels[] = $rootCat->name . ' (všeobecne)';
-                    // Pre zakladne t.j. bez podkategorie pouzijeme len rodicovsku farbu, jemne upravenu ak by tam bolo viac subcat
-                    $adjust = (int)(($subCount / 2 - $i) * $step);
-                    $color = $this->adjustBrightness($rootColor, $adjust);
+                    // Pre "všeobecné" vytvoríme špecifický odtieň (napr. stredne svetlý index 2)
+                    $color = \App\Models\Category::generateHSLShade($rootColor, 2);
                 }
 
                 $values[] = round($subData['total'], 2);

@@ -16,6 +16,9 @@ return new class extends Migration
         $table->date('valid_from')->default(now()->startOfMonth())->index();
         
         // Stĺpec period (2025-03) môžeme vďaka tomu vymazať, lebo je už zbytočný
+        // Najprv musíme odstrániť unikátny kľúč a indexy, inak to v SQLite padne
+        $table->dropUnique(['user_id', 'category_id', 'period']);
+        $table->dropIndex(['period']);
         $table->dropColumn('period'); 
     });
 }

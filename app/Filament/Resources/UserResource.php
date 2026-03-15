@@ -29,7 +29,8 @@ class UserResource extends Resource
     {
         return 'Užívateľ';
     }
-    protected static ?string $navigationGroup = 'Systém';
+    protected static ?string $navigationGroup = '🔧 NASTAVENIA';
+    protected static ?int $navigationSort = 4;
     protected static ?string $navigationIcon = 'heroicon-o-users';
 
     public static function form(Form $form): Form

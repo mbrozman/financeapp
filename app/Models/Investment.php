@@ -13,10 +13,11 @@ use App\Enums\TransactionType;
 use Carbon\Carbon;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Investment extends Model
 {
-    use BelongsToUser;
+    use BelongsToUser, HasFactory;
 
     protected $fillable = [
         'user_id', 'account_id', 'investment_category_id', 'currency_id',
@@ -37,17 +38,25 @@ class Investment extends Model
     public function transactions(): HasMany { return $this->hasMany(InvestmentTransaction::class); }
     public function priceHistories(): HasMany { return $this->hasMany(InvestmentPriceHistory::class); }
 
+    protected array $statsCache = [];
+
     /**
      * CENTRÁLNY MOZOG VÝPOČTOV
      * Táto metóda zavolá službu a výsledok si zapamätá počas jedného načítania stránky.
      */
-    protected function getInvestmentStats(): array
+    public function getInvestmentStats(): array
     {
-        static $statsCache = [];
-        if (isset($statsCache[$this->id])) return $statsCache[$this->id];
+        if (isset($this->statsCache[$this->id])) {
+            return $this->statsCache[$this->id];
+        }
 
         // Služba vráti: current_quantity, average_buy_price, realized_gain_base, total_invested_base, total_sales_base
-        return $statsCache[$this->id] = InvestmentCalculationService::getStats($this);
+        return $this->statsCache[$this->id] = InvestmentCalculationService::getStats($this);
+    }
+
+    public function clearStatsCache(): void
+    {
+        $this->statsCache = [];
     }
 
     // --- VÝPOČTY ODVODENÉ ZO SLUŽBY (Domovská mena) ---

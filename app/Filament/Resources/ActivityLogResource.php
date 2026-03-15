@@ -24,7 +24,8 @@ class ActivityLogResource extends Resource
     {
         return 'Záznam';
     }
-    protected static ?string $navigationGroup = 'Systém';
+    protected static ?string $navigationGroup = '🔧 NASTAVENIA';
+    protected static ?int $navigationSort = 5;
 
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
     protected static ?string $label = 'Audit Log';

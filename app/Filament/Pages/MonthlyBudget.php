@@ -2,7 +2,6 @@
 
 namespace App\Filament\Pages;
 
-use App\Models\Budget;
 use App\Models\Transaction;
 use App\Models\MonthlyIncome;
 use App\Models\FinancialPlan;
@@ -23,7 +22,8 @@ class MonthlyBudget extends Page
 
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
     protected static ?string $navigationLabel = 'Mesačný rozpočet';
-    protected static ?string $navigationGroup = 'Financie';
+    protected static ?string $navigationGroup = '📊 PREHĽADY';
+    protected static ?int $navigationSort = 2;
     protected static string $view = 'filament.pages.monthly-budget';
 
     public $selectedMonth;
@@ -119,47 +119,41 @@ class MonthlyBudget extends Page
     {
         $userId = Auth::id();
         
-        // Získame pravidlá rozpočtov priradené k tomuto pilieru (očakávame, že rule->category_id patrí podkategórii)
-        $rules = Budget::with('category.parent')->where('user_id', $userId)
+        // Získame všetky kategórie priradené k tomuto pilieru, ktoré majú nastavený limit
+        $categories = Category::with('parent')
+            ->where('user_id', $userId)
             ->where('financial_plan_item_id', $pillarId)
+            ->whereNotNull('monthly_limit')
             ->get();
 
         $groupedRes = [];
         
-        foreach ($rules as $rule) {
-            // Predpokladáme, že vybratí kategória je podkategória (pretože na to teraz obmedzujeme výber v BudgetResource)
-            // Stále ale pre istotu zohľadníme aj jej samotnej id + prípadné children ak by to náhodou bola hlavná
-            $categoryIds = Category::where('id', $rule->category_id)
-                ->orWhere('parent_id', $rule->category_id)
-                ->pluck('id');
-
-            // Sčítame transakcie pre túto (pod)kategóriu
-            $actual = Transaction::whereIn('category_id', $categoryIds)
-                ->whereMonth('transaction_date', $date->month)
-                ->whereYear('transaction_date', $date->year)
-                ->sum('amount');
-                
-            $actAbs = abs((float)$actual);
-            $lim = (float)$rule->limit_amount;
+        foreach ($categories as $cat) {
+            $actAbs = abs($cat->actualAmount($this->selectedMonth));
+            $lim = (float)$cat->monthly_limit;
             
-            // Určíme názov hlavnej kategórie, ak má parenta. Ak nemá, použijeme jej vlastný názov.
-            $parentCategoryName = $rule->category && $rule->category->parent 
-                ? $rule->category->parent->name 
-                : ($rule->category->name ?? 'Nezaradené');
+            // Určíme názov hlavnej kategórie pre zoskupenie
+            $parentCategoryName = $cat->parent 
+                ? $cat->parent->name 
+                : $cat->name;
 
             $itemData = [
-                'category' => $rule->category->name ?? 'Neznáma',
+                'category' => $cat->name,
                 'actual' => $actAbs,
                 'limit' => $lim,
                 'percent' => $lim > 0 ? ($actAbs / $lim) * 100 : 0,
             ];
 
-            // Ak ešte takáto nadkategória neexistuje v poli, vytvoríme kľúč
             if (!isset($groupedRes[$parentCategoryName])) {
                 $groupedRes[$parentCategoryName] = [];
             }
             
-            $groupedRes[$parentCategoryName][] = $itemData;
+            // Ak je to hlavná kategória, dajme ju na začiatok jej skupiny
+            if (!$cat->parent_id) {
+                array_unshift($groupedRes[$parentCategoryName], $itemData);
+            } else {
+                $groupedRes[$parentCategoryName][] = $itemData;
+            }
         }
         
         return $groupedRes;

@@ -7,9 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\DB; // TENTO RIADOK TU MUSÍ BYŤ
 use App\Enums\TransactionType;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class InvestmentTransaction extends Model
 {
+    use HasFactory;
     use BelongsToUser;
 
     protected $fillable = [

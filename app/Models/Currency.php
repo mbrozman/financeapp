@@ -3,9 +3,11 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Currency extends Model
 {
+    use HasFactory;
     // Hromadné priradenie: hovoríme Laravelu, ktoré polia smie užívateľ meniť cez formulár
     protected $fillable = ['code', 'name', 'symbol', 'exchange_rate'];
 

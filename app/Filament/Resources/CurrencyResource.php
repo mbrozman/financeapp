@@ -29,7 +29,8 @@ class CurrencyResource extends Resource
     {
         return 'Mena';
     }
-    protected static ?string $navigationGroup = 'Nastavenia';
+    protected static ?string $navigationGroup = '🔧 NASTAVENIA';
+    protected static ?int $navigationSort = 3;
 
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
 

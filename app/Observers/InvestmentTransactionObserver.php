@@ -126,5 +126,9 @@ class InvestmentTransactionObserver
         $investment->updateQuietly([
             'is_archived' => $totalQty->isLessThanOrEqualTo(0.00000001)
         ]);
+
+        // Vymažeme cache, aby sa pri ďalšom prístupe k atribútom (napr. total_quantity) 
+        // prepočítali čerstvé dáta.
+        $investment->clearStatsCache();
     }
 }
