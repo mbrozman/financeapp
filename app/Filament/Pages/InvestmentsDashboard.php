@@ -14,9 +14,9 @@ class InvestmentsDashboard extends Page
 
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar';
     protected static ?string $navigationGroup = '📊 PREHĽADY';
-    protected static ?string $navigationLabel = 'Investície';
+    protected static ?string $navigationLabel = 'Prehľad investícií';
     protected static ?int $navigationSort = 3;
-    protected static ?string $title = 'Investičný Dashboard';
+    protected static ?string $title = 'Prehľad investícií';
 
     protected static string $view = 'filament.pages.investments-dashboard';
 

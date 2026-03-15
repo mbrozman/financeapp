@@ -23,7 +23,7 @@ class TransactionResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
     protected static ?string $navigationGroup = '💸 OPERÁCIE';
-    protected static ?int $navigationSort = 1;
+    protected static ?int $navigationSort = 20;
 
     public static function getNavigationLabel(): string { return 'Transakcie'; }
     public static function getPluralLabel(): string { return 'Transakcie'; }

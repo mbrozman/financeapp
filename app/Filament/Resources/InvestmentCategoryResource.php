@@ -21,7 +21,7 @@ class InvestmentCategoryResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-tag';
     protected static ?string $navigationGroup = '🔧 NASTAVENIA';
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 100;
     protected static ?string $label = 'Typ aktíva';
     protected static ?string $pluralLabel = 'Typy aktív';
 

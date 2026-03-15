@@ -33,8 +33,8 @@ class InvestmentResource extends Resource
     {
         return 'Investícia';
     }
-    protected static ?string $navigationGroup = '💸 OPERÁCIE';
-    protected static ?int $navigationSort = 3;
+    protected static ?string $navigationGroup = '📈 INVESTÍCIE';
+    protected static ?int $navigationSort = 30;
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar';
 
     public static function form(Form $form): Form

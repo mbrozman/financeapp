@@ -30,7 +30,7 @@ class GoalResource extends Resource
         return 'Cieľ';
     }
     protected static ?string $navigationGroup = '💸 OPERÁCIE';
-    protected static ?int $navigationSort = 4;
+    protected static ?int $navigationSort = 22;
     protected static ?string $navigationIcon = 'heroicon-o-flag';
 
 

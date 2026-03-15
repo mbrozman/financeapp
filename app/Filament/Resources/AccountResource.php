@@ -31,7 +31,7 @@ class AccountResource extends Resource
     }
 
     protected static ?string $navigationGroup = '💸 OPERÁCIE';
-    protected static ?int $navigationSort = 5;
+    protected static ?int $navigationSort = 23;
     protected static ?string $navigationIcon = 'heroicon-o-building-library';
 
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
