@@ -128,4 +128,24 @@ class Category extends Model
 
         return sprintf('#%02x%02x%02x', round($r * 255), round($g * 255), round($b * 255));
     }
+
+    /**
+     * Výpočet reálneho čerpania (sumy transakcií) pre daný mesiac.
+     * Ak je to hlavná kategória, sčítava aj všetky jej podkategórie.
+     */
+    public function actualAmount(string $month): float
+    {
+        $date = \Carbon\Carbon::parse($month . '-01');
+        
+        // Zistíme ID kategórie a všetkých jej detí
+        $categoryIds = self::where('id', $this->id)
+            ->orWhere('parent_id', $this->id)
+            ->pluck('id');
+
+        // Sčítame transakcie za daný mesiac a rok
+        return (float) Transaction::whereIn('category_id', $categoryIds)
+            ->whereMonth('transaction_date', $date->month)
+            ->whereYear('transaction_date', $date->year)
+            ->sum('amount');
+    }
 }
