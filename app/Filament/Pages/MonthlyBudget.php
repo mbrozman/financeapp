@@ -129,13 +129,16 @@ class MonthlyBudget extends Page
         $groupedRes = [];
         
         foreach ($categories as $cat) {
+            // Ak je to hlavná kategória, preskočíme ju (užívateľ chce len podkategórie)
+            if (!$cat->parent_id) {
+                continue;
+            }
+
             $actAbs = abs($cat->actualAmount($this->selectedMonth));
             $lim = (float)$cat->monthly_limit;
             
             // Určíme názov hlavnej kategórie pre zoskupenie
-            $parentCategoryName = $cat->parent 
-                ? $cat->parent->name 
-                : $cat->name;
+            $parentCategoryName = $cat->parent->name;
 
             $itemData = [
                 'category' => $cat->name,
@@ -148,12 +151,7 @@ class MonthlyBudget extends Page
                 $groupedRes[$parentCategoryName] = [];
             }
             
-            // Ak je to hlavná kategória, dajme ju na začiatok jej skupiny
-            if (!$cat->parent_id) {
-                array_unshift($groupedRes[$parentCategoryName], $itemData);
-            } else {
-                $groupedRes[$parentCategoryName][] = $itemData;
-            }
+            $groupedRes[$parentCategoryName][] = $itemData;
         }
         
         return $groupedRes;
