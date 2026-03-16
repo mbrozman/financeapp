@@ -59,6 +59,14 @@ class InvestmentResource extends Resource
                                     $set('name', $data['name']);
                                     $set('current_price', (string)$data['price']);
                                     $set('initial_price', (string)$data['price']);
+
+                                    // 1.5 Auto-nastavenie meny
+                                    if (isset($data['currency'])) {
+                                        $currency = \App\Models\Currency::where('code', $data['currency'])->first();
+                                        if ($currency) {
+                                            $set('currency_id', $currency->id);
+                                        }
+                                    }
                                 }
 
                                 // 2. Rozšírené info (Sektor, Krajina, Typ)
@@ -137,8 +145,14 @@ class InvestmentResource extends Resource
                         Forms\Components\TextInput::make('initial_quantity')->label('Počet kusov')->numeric()->default(0),
                         Forms\Components\TextInput::make('initial_price')->label('Cena za 1 ks')->numeric()->default(0),
                         Forms\Components\TextInput::make('initial_commission')->label('Poplatok')->numeric()->default(0),
+                        Forms\Components\TextInput::make('exchange_rate')
+                            ->label('Menový kurz (vs EUR)')
+                            ->numeric()
+                            ->required()
+                            ->default(fn(Forms\Get $get) => \App\Services\CurrencyService::getLiveRateById($get('currency_id')))
+                            ->helperText('Zadajte kurz, ktorý bol v čase nákupu.'),
                         Forms\Components\DatePicker::make('transaction_date')->label('Dátum nákupu')->default(now()),
-                    ])->columns(4),
+                    ])->columns(5),
             ]);
     }
 

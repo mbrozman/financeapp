@@ -27,16 +27,20 @@ class ViewInvestment extends ViewRecord
         $isNativeEur = $record->currency?->code === 'EUR';
 
         return [
-            // 0. PREPÍNAČ MENY (Zobraziť len ak pôvodná mena nie je EUR)
+            // 0. PREPÍNAČ MENY (Zobraziť vždy)
             Action::make('toggle_currency')
-                ->label($isEur ? 'Zobraziť v ' . ($record->currency?->code ?? 'USD') : 'Zobraziť v EUR')
+                ->label(function() use ($isEur, $record) {
+                    if ($isEur) {
+                        return 'Zobraziť v ' . ($record->currency?->code ?? 'USD');
+                    }
+                    return 'Zobraziť v EUR';
+                })
                 ->icon('heroicon-o-currency-euro')
                 ->color('success')
                 ->url(fn () => $isEur 
                     ? static::getResource()::getUrl('view', ['record' => $record])
                     : static::getResource()::getUrl('view', ['record' => $record, 'currency' => 'EUR'])
-                )
-                ->visible(!$isNativeEur),
+                ),
             // 1. AKTUALIZÁCIA CIEN
             Action::make('refresh_data')
                 ->label('Aktualizovať z trhu')
@@ -68,7 +72,11 @@ class ViewInvestment extends ViewRecord
                         ->send();
 
                     // Obnovíme stránku, aby sa prepočítali widgety
-                    return redirect()->to(InvestmentResource::getUrl('view', ['record' => $record]));
+                    $params = ['record' => $record];
+                    if (request()->query('currency')) {
+                        $params['currency'] = request()->query('currency');
+                    }
+                    return redirect()->to(InvestmentResource::getUrl('view', $params));
                 }),
 
             // 2. ARCHIVÁCIA

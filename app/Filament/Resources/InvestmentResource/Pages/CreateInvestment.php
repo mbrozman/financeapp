@@ -71,7 +71,7 @@ class CreateInvestment extends CreateRecord
             $initialQty = BigDecimal::of($data['initial_quantity'] ?? 0);
 
             if ($initialQty->isGreaterThan(0)) {
-                $currentRate = CurrencyService::getLiveRate($record->currency?->code);
+                $rate = $data['exchange_rate'] ?? CurrencyService::getLiveRate($record->currency?->code);
 
                 InvestmentTransaction::create([
                     'user_id' => auth()->id(),
@@ -82,7 +82,7 @@ class CreateInvestment extends CreateRecord
                     'quantity' => (string) $initialQty,
                     'price_per_unit' => $data['initial_price'],
                     'commission' => $data['initial_commission'] ?? 0,
-                    'exchange_rate' => $currentRate,
+                    'exchange_rate' => $rate,
                     'transaction_date' => $data['transaction_date'] ?? now(),
                 ]);
 

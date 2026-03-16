@@ -73,7 +73,15 @@ class Investment extends Model
 
     protected function averageBuyPriceEur(): Attribute
     {
-        return Attribute::make(get: fn() => CurrencyService::convertToEur($this->average_buy_price_base, $this->currency_id));
+        return Attribute::make(
+            get: function () {
+                $qty = BigDecimal::of($this->total_quantity);
+                if ($qty->isZero()) return '0.0000';
+                
+                return (string) BigDecimal::of($this->total_invested_eur)
+                    ->dividedBy($qty, 4, RoundingMode::HALF_UP);
+            }
+        );
     }
 
     protected function totalInvestedBase(): Attribute
@@ -132,10 +140,12 @@ class Investment extends Model
     protected function totalInvestedEur(): Attribute
     {
         return Attribute::make(
-            get: fn () => (string) $this->transactions->where('type', TransactionType::BUY)->sum(function ($tx) {
+            get: fn () => (string) $this->transactions->where('type', TransactionType::BUY)->reduce(function ($carry, $tx) {
+                $carry = $carry ?? BigDecimal::of(0);
                 $costBase = BigDecimal::of($tx->quantity)->multipliedBy($tx->price_per_unit)->plus($tx->commission ?? 0);
-                return CurrencyService::convertToEur((string)$costBase, $tx->currency_id, $tx->exchange_rate);
-            })
+                $costEur = CurrencyService::convertToEur((string)$costBase, $tx->currency_id, $tx->exchange_rate);
+                return $carry->plus($costEur);
+            }, BigDecimal::of(0))
         );
     }
 
@@ -152,10 +162,12 @@ class Investment extends Model
     protected function totalSalesEur(): Attribute
     {
         return Attribute::make(
-            get: fn () => (string) $this->transactions->where('type', TransactionType::SELL)->sum(function ($tx) {
+            get: fn () => (string) $this->transactions->where('type', TransactionType::SELL)->reduce(function ($carry, $tx) {
+                $carry = $carry ?? BigDecimal::of(0);
                 $revBase = BigDecimal::of($tx->quantity)->multipliedBy($tx->price_per_unit)->minus($tx->commission ?? 0);
-                return CurrencyService::convertToEur((string)$revBase, $tx->currency_id, $tx->exchange_rate);
-            })
+                $revEur = CurrencyService::convertToEur((string)$revBase, $tx->currency_id, $tx->exchange_rate);
+                return $carry->plus($revEur);
+            }, BigDecimal::of(0))
         );
     }
 

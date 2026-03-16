@@ -81,6 +81,7 @@ class StockApiService
                     'price' => (string) $quote->getRegularMarketPrice(),
                     'change_percent' => (string) $quote->getRegularMarketChangePercent(),
                     'name' => $quote->getLongName() ?? $quote->getShortName() ?? $ticker,
+                    'currency' => $quote->getCurrency(),
                 ];
             } catch (\Exception $e) {
                 Log::error("Yahoo Live Quote Error for {$ticker}: " . $e->getMessage());
@@ -152,27 +153,24 @@ class StockApiService
             }
 
             try {
-                $response = Http::withHeaders([
-                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                ])->get("https://finance.yahoo.com/quote/{$ticker}/profile");
+                // Použijeme vstavanú metódu API klienta namiesto nestabilného scraping-u
+                $results = $this->client->getStockSummary($ticker, ['assetProfile', 'quoteType']);
+                $summary = $results[0] ?? [];
+                
+                $profile = $summary['assetProfile'] ?? [];
+                $quoteType = $summary['quoteType'] ?? [];
 
-                if ($response->successful()) {
-                    $html = $response->body();
+                $data['sector'] = $profile['sector'] ?? null;
+                $data['industry'] = $profile['industry'] ?? null;
+                $data['country'] = $profile['country'] ?? null;
+                
+                $type = $quoteType['quoteType'] ?? 'EQUITY';
+                $data['asset_type'] = ($type === 'ETF') ? 'ETF' : 'Equity';
 
-                    if (preg_match('/"sector":"([^"]+)"/', $html, $matches)) {
-                        $data['sector'] = $matches[1];
-                    }
-                    if (preg_match('/"industry":"([^"]+)"/', $html, $matches)) {
-                        $data['industry'] = $matches[1];
-                    }
-                    if (preg_match('/"country":"([^"]+)"/', $html, $matches)) {
-                        $data['country'] = $matches[1];
-                    }
-                    if (preg_match('/"quoteType":"(ETF)"/', $html, $matches)) {
-                        $data['asset_type'] = 'ETF';
-                        if (!$data['sector']) $data['sector'] = 'Index Fund';
-                    }
+                if ($data['asset_type'] === 'ETF' && !$data['sector']) {
+                    $data['sector'] = 'Index Fund';
                 }
+
             } catch (\Exception $e) {
                 Log::error("Yahoo Profile Error for {$ticker}: " . $e->getMessage());
             }

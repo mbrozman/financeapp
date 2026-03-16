@@ -57,8 +57,6 @@ class IndividualInvestmentChart extends ChartWidget
             ? array_fill(0, count($prices), $averageLineValue)
             : [];
 
-        $symbol = $this->record->currency?->symbol ?? '$';
-
         return [
             'datasets' => [
                 [

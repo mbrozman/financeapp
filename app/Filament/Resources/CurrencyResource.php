@@ -12,6 +12,10 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Support\Facades\Http;
+use Filament\Forms\Get;
+use Filament\Forms\Set;
+use Filament\Forms\Components\Actions\Action;
 
 class CurrencyResource extends Resource
 {
@@ -47,7 +51,19 @@ class CurrencyResource extends Resource
                             ->required() // Toto pridá klientskú validáciu
                             ->unique(ignoreRecord: true) // Nedovolí duplicitné kódy
                             ->maxLength(3)
-                            ->placeholder('EUR'),
+                            ->placeholder('EUR')
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(function (string $state, Set $set) {
+                                if (strlen($state) === 3 && strtoupper($state) !== 'EUR') {
+                                    $response = Http::get("https://api.frankfurter.app/latest?from=EUR&to=" . strtoupper($state));
+                                    if ($response->successful()) {
+                                        $rate = $response->json("rates." . strtoupper($state));
+                                        if ($rate) {
+                                            $set('exchange_rate', $rate);
+                                        }
+                                    }
+                                }
+                            }),
 
                         Forms\Components\TextInput::make('name')
                             ->label('Názov meny')
@@ -64,7 +80,23 @@ class CurrencyResource extends Resource
                             ->numeric()
                             ->default(1.0)
                             ->required()
-                            ->helperText('Ak je toto vaša hlavná mena, nechajte 1.0'),
+                            ->helperText('Ak je toto vaša hlavná mena, nechajte 1.0')
+                            ->suffixAction(
+                                Action::make('refresh_rate')
+                                    ->icon('heroicon-m-arrow-path')
+                                    ->action(function (Get $get, Set $set) {
+                                        $code = $get('code');
+                                        if ($code && strlen($code) === 3 && strtoupper($code) !== 'EUR') {
+                                            $response = Http::get("https://api.frankfurter.app/latest?from=EUR&to=" . strtoupper($code));
+                                            if ($response->successful()) {
+                                                $rate = $response->json("rates." . strtoupper($code));
+                                                if ($rate) {
+                                                    $set('exchange_rate', $rate);
+                                                }
+                                            }
+                                        }
+                                    })
+                            ),
                     ])->columns(2), // Rozdelí formulár na dva stĺpce
             ]);
     }
