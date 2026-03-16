@@ -7,6 +7,8 @@ use App\Enums\TransactionType;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 
+use App\Services\CurrencyService;
+
 class InvestmentCalculationService
 {
     /**
@@ -16,6 +18,7 @@ class InvestmentCalculationService
     {
         // 1. ZÍSKAME TRANSACKIE (zoradené podľa dátumu)
         $transactions = $investment->transactions->sortBy('transaction_date');
+        $baseCurrencyId = $investment->currency_id;
 
         // 2. INICIALIZÁCIA PREMENNÝCH (BigDecimal pre presnosť)
         $remainingLots = []; 
@@ -25,9 +28,13 @@ class InvestmentCalculationService
         $totalCommissionBase = BigDecimal::of(0);
 
         foreach ($transactions as $tx) {
+            // Prepočítame cenu a poplatok do NAtívnej meny aktíva (napr. z EUR do USD)
+            $priceInBase = CurrencyService::convert($tx->price_per_unit, $tx->currency_id, $baseCurrencyId);
+            $commInBase = CurrencyService::convert($tx->commission ?? 0, $tx->currency_id, $baseCurrencyId);
+
             $qty = BigDecimal::of($tx->quantity);
-            $price = BigDecimal::of($tx->price_per_unit);
-            $comm = BigDecimal::of($tx->commission ?? 0);
+            $price = BigDecimal::of($priceInBase);
+            $comm = BigDecimal::of($commInBase);
             
             $totalCommissionBase = $totalCommissionBase->plus($comm);
 

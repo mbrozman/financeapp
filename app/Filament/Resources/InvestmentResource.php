@@ -142,18 +142,60 @@ class InvestmentResource extends Resource
                 Forms\Components\Section::make('Prvý nákup')
                     ->visible(fn($livewire) => $livewire instanceof Pages\CreateInvestment)
                     ->schema([
-                        Forms\Components\TextInput::make('initial_quantity')->label('Počet kusov')->numeric()->default(0),
-                        Forms\Components\TextInput::make('initial_price')->label('Cena za 1 ks')->numeric()->default(0),
-                        Forms\Components\TextInput::make('initial_commission')->label('Poplatok')->numeric()->default(0),
+                        Forms\Components\Select::make('initial_currency_id')
+                            ->label('Mena nákupu')
+                            ->relationship('currency', 'code')
+                            ->required()
+                            ->live()
+                            ->default(fn(Forms\Get $get) => $get('currency_id')),
+                        Forms\Components\TextInput::make('initial_quantity')
+                            ->label('Počet kusov')
+                            ->numeric()
+                            ->default(0)
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(fn(Forms\Set $set, Forms\Get $get) => self::calculateInitialCommission($set, $get)),
+                        Forms\Components\TextInput::make('initial_price')
+                            ->label(fn(Forms\Get $get) => "Cena za 1 ks (" . (\App\Models\Currency::find($get('initial_currency_id'))?->code ?? 'EUR') . ")")
+                            ->numeric()
+                            ->default(0)
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(fn(Forms\Set $set, Forms\Get $get) => self::calculateInitialCommission($set, $get)),
+                        Forms\Components\Grid::make(2)
+                            ->schema([
+                                Forms\Components\TextInput::make('initial_commission_percent')
+                                    ->label('Poplatok v %')
+                                    ->numeric()
+                                    ->live(onBlur: true)
+                                    ->afterStateUpdated(fn(Forms\Set $set, Forms\Get $get) => self::calculateInitialCommission($set, $get))
+                                    ->suffix('%'),
+                                Forms\Components\TextInput::make('initial_commission')
+                                    ->label(fn(Forms\Get $get) => "Poplatok (" . (\App\Models\Currency::find($get('initial_currency_id'))?->code ?? 'EUR') . ")")
+                                    ->numeric()
+                                    ->default(0),
+                            ])->columnSpan(1),
                         Forms\Components\TextInput::make('exchange_rate')
-                            ->label('Menový kurz (vs EUR)')
+                            ->label(fn(Forms\Get $get) => "Kurz (1 " . (\App\Models\Currency::find($get('initial_currency_id'))?->code ?? 'EUR') . " = X EUR)")
                             ->numeric()
                             ->required()
-                            ->default(fn(Forms\Get $get) => \App\Services\CurrencyService::getLiveRateById($get('currency_id')))
-                            ->helperText('Zadajte kurz, ktorý bol v čase nákupu.'),
+                            ->default(fn(Forms\Get $get) => \App\Services\CurrencyService::getLiveRateById($get('initial_currency_id')))
+                            ->helperText(fn(Forms\Get $get) => "Zadajte kurz pre menu " . (\App\Models\Currency::find($get('initial_currency_id'))?->code ?? 'EUR') . " voči EUR."),
                         Forms\Components\DatePicker::make('transaction_date')->label('Dátum nákupu')->default(now()),
-                    ])->columns(5),
+                    ])->columns(3),
             ]);
+    }
+
+    protected static function calculateInitialCommission(Forms\Set $set, Forms\Get $get): void
+    {
+        $percent = (float) ($get('initial_commission_percent') ?? 0);
+        if ($percent <= 0) return;
+
+        $qty = (float) ($get('initial_quantity') ?? 0);
+        $price = (float) ($get('initial_price') ?? 0);
+
+        if ($qty > 0 && $price > 0) {
+            $absCommission = ($qty * $price) * ($percent / 100);
+            $set('initial_commission', number_format($absCommission, 2, '.', ''));
+        }
     }
 
     public static function table(Table $table): Table
@@ -181,23 +223,49 @@ class InvestmentResource extends Resource
                     ->numeric(4)
                     ->hidden(fn($livewire) => $livewire->activeTab === 'archived'),
 
+                // % Z PORTFÓLIA
+                Tables\Columns\TextColumn::make('portfolio_weight')
+                    ->label('% portfólia')
+                    ->alignEnd()
+                    ->state(function (Investment $record) {
+                        static $totalValue = null;
+                        if ($totalValue === null) {
+                            $totalValue = Investment::where('user_id', auth()->id())
+                                ->where('is_archived', false)
+                                ->get()
+                                ->sum(fn($i) => (float) $i->current_market_value_eur);
+                        }
+                        if ($totalValue <= 0 || $record->is_archived) return '0.00 %';
+                        $weight = ((float) $record->current_market_value_eur / $totalValue) * 100;
+                        return number_format($weight, 2, ',', ' ') . ' %';
+                    })
+                    ->badge()
+                    ->color('gray'),
+
                 Tables\Columns\TextColumn::make('total_invested_base')
                     ->label('Investované')
                     ->alignEnd()
-                    ->formatStateUsing(
-                        fn($state, $record) =>
-                        number_format((float)$state, 2, ',', ' ') . ' ' . ($record->currency?->symbol ?? '')
-                    ),
+                    ->state(fn($record) => $record->getInvestedForCurrency(request()->query('table_currency')))
+                    ->formatStateUsing(function ($state, $record) {
+                        $currencyCode = request()->query('table_currency');
+                        $symbol = $currencyCode 
+                            ? (\App\Models\Currency::where('code', $currencyCode)->first()?->symbol ?? $currencyCode)
+                            : ($record->currency?->symbol ?? '');
+                        return number_format((float)$state, 2, ',', ' ') . ' ' . $symbol;
+                    }),
 
-                // ZISK V MENE POZÍCIE
+                // ZISK V MENE
                 Tables\Columns\TextColumn::make('total_gain_base')
                     ->label('Zisk/Strata')
                     ->alignEnd()
                     ->weight('bold')
-                    // Matematicky bezpečné určenie farby: ak reťazec nezačína mínusom a nie je nula
-                    ->color(fn($state) => str_contains((string)$state, '-') ? 'danger' : ((float)$state > 0 ? 'success' : 'gray'))
+                    ->state(fn($record) => $record->getGainForCurrency(request()->query('table_currency')))
+                    ->color(fn($state) => (float)$state < 0 ? 'danger' : ((float)$state > 0 ? 'success' : 'gray'))
                     ->formatStateUsing(function ($state, $record) {
-                        $symbol = $record->currency?->symbol ?? '$';
+                        $currencyCode = request()->query('table_currency');
+                        $symbol = $currencyCode 
+                            ? (\App\Models\Currency::where('code', $currencyCode)->first()?->symbol ?? $currencyCode)
+                            : ($record->currency?->symbol ?? '');
                         $val = (float)$state;
                         $prefix = $val > 0 ? '+' : '';
                         return $prefix . number_format($val, 2, ',', ' ') . ' ' . $symbol;
@@ -209,11 +277,14 @@ class InvestmentResource extends Resource
                     ->alignEnd()
                     ->weight('black')
                     ->color(fn($record) => $record->is_archived ? 'gray' : 'info')
-                    ->state(fn($record) => $record->is_archived ? $record->total_sales_base : $record->current_market_value_base)
-                    ->formatStateUsing(
-                        fn($state, $record) =>
-                        number_format((float)$state, 2, ',', ' ') . ' ' . ($record->currency?->symbol ?? '')
-                    ),
+                    ->state(fn($record) => $record->getCurrentValueForCurrency(request()->query('table_currency')))
+                    ->formatStateUsing(function ($state, $record) {
+                        $currencyCode = request()->query('table_currency');
+                        $symbol = $currencyCode 
+                            ? (\App\Models\Currency::where('code', $currencyCode)->first()?->symbol ?? $currencyCode)
+                            : ($record->currency?->symbol ?? '');
+                        return number_format((float)$state, 2, ',', ' ') . ' ' . $symbol;
+                    }),
 
                 // VÝNOS %
                 Tables\Columns\TextColumn::make('total_gain_percent')
@@ -242,6 +313,28 @@ class InvestmentResource extends Resource
         return $infolist
             ->schema([
                 Infolists\Components\Section::make('Prehľad pozície')
+                    ->headerActions([
+                        Infolists\Components\Actions\Action::make('set_view_currency')
+                            ->label(function() {
+                                $code = request()->query('currency');
+                                return $code ? "Mena zobrazenia: {$code}" : 'Pôvodná mena';
+                            })
+                            ->icon('heroicon-o-currency-dollar')
+                            ->color('gray')
+                            ->form([
+                                Forms\Components\Select::make('currency')
+                                    ->label('Zobraziť detail v mene:')
+                                    ->options(\App\Models\Currency::pluck('code', 'code')->prepend('Pôvodná mena', '')->toArray())
+                                    ->default(request()->query('currency'))
+                            ])
+                            ->action(function (array $data, $record) {
+                                $params = ['record' => $record];
+                                if ($data['currency']) {
+                                    $params['currency'] = $data['currency'];
+                                }
+                                return redirect()->to(InvestmentResource::getUrl('view', $params));
+                            })
+                    ])
                     ->schema([
                         Infolists\Components\TextEntry::make('ticker')->label('Ticker')->badge(),
                         Infolists\Components\TextEntry::make('name')->label('Názov spoločnosti'),
@@ -257,30 +350,31 @@ class InvestmentResource extends Resource
 
                         Infolists\Components\TextEntry::make('market_value')
                             ->label(function ($record) {
-                                $isEur = request()->query('currency') === 'EUR';
-                                $suffix = $isEur ? ' (EUR)' : '';
+                                $currencyCode = request()->query('currency');
+                                $suffix = $currencyCode ? " ({$currencyCode})" : '';
                                 return ($record->is_archived ? 'Realizované tržby' : 'Trhová hodnota') . $suffix;
                             })
-                            ->state(function ($record) {
-                                $isEur = request()->query('currency') === 'EUR';
-                                if ($isEur) {
-                                    return $record->is_archived ? $record->total_sales_eur : $record->current_market_value_eur;
-                                }
-                                return $record->is_archived ? $record->total_sales_base : $record->current_market_value_base;
-                            })
+                            ->state(fn($record) => $record->getCurrentValueForCurrency(request()->query('currency')))
                             ->formatStateUsing(function ($state, $record) {
-                                $isEur = request()->query('currency') === 'EUR';
-                                $symbol = $isEur ? '€' : ($record->currency?->symbol ?? '');
+                                $currencyCode = request()->query('currency');
+                                $symbol = $currencyCode 
+                                    ? (\App\Models\Currency::where('code', $currencyCode)->first()?->symbol ?? $currencyCode)
+                                    : ($record->currency?->symbol ?? '');
                                 return number_format((float)$state, 2, ',', ' ') . ' ' . $symbol;
                             })
                             ->weight('black')->color('info'),
 
                         Infolists\Components\TextEntry::make('total_invested_base')
-                            ->label(fn() => (request()->query('currency') === 'EUR' ? 'Celková investícia (EUR)' : 'Celková investícia'))
-                            ->state(fn($record) => request()->query('currency') === 'EUR' ? $record->total_invested_eur : $record->total_invested_base)
+                            ->label(function() {
+                                $currencyCode = request()->query('currency');
+                                return $currencyCode ? "Celková investícia ({$currencyCode})" : 'Celková investícia';
+                            })
+                            ->state(fn($record) => $record->getInvestedForCurrency(request()->query('currency')))
                             ->formatStateUsing(function ($state, $record) {
-                                $isEur = request()->query('currency') === 'EUR';
-                                $symbol = $isEur ? '€' : ($record->currency?->symbol ?? '');
+                                $currencyCode = request()->query('currency');
+                                $symbol = $currencyCode 
+                                    ? (\App\Models\Currency::where('code', $currencyCode)->first()?->symbol ?? $currencyCode)
+                                    : ($record->currency?->symbol ?? '');
                                 return number_format((float)$state, 2, ',', ' ') . ' ' . $symbol;
                             }),
 
@@ -290,30 +384,72 @@ class InvestmentResource extends Resource
                             ->visible(fn($record) => !$record->is_archived),
 
                         Infolists\Components\TextEntry::make('current_price')
-                            ->label(fn() => (request()->query('currency') === 'EUR' ? 'Aktuálna cena (EUR / ks)' : 'Aktuálna cena (ks)'))
+                            ->label(function() {
+                                $currencyCode = request()->query('currency');
+                                return $currencyCode ? "Aktuálna cena ({$currencyCode} / ks)" : 'Aktuálna cena (ks)';
+                            })
                             ->state(function ($record) {
-                                $isEur = request()->query('currency') === 'EUR';
-                                if ($isEur) {
+                                $currencyCode = request()->query('currency');
+                                if ($currencyCode === 'EUR') {
                                     return \App\Services\CurrencyService::convertToEur($record->current_price, $record->currency_id);
+                                }
+                                if ($currencyCode && $currencyCode !== $record->currency?->code) {
+                                    $targetCurrency = \App\Models\Currency::where('code', $currencyCode)->first();
+                                    return \App\Services\CurrencyService::convert($record->current_price, $record->currency_id, $targetCurrency?->id);
                                 }
                                 return $record->current_price;
                             })
                             ->formatStateUsing(function ($state, $record) {
-                                $isEur = request()->query('currency') === 'EUR';
-                                $symbol = $isEur ? '€' : ($record->currency?->symbol ?? '');
+                                $currencyCode = request()->query('currency');
+                                $symbol = $currencyCode 
+                                    ? (\App\Models\Currency::where('code', $currencyCode)->first()?->symbol ?? $currencyCode)
+                                    : ($record->currency?->symbol ?? '');
                                 return number_format((float)$state, 2, ',', ' ') . ' ' . $symbol;
                             })
                             ->weight('bold')
                             ->visible(fn($record) => !$record->is_archived),
 
                         Infolists\Components\TextEntry::make('average_buy_price_base')
-                            ->label(fn() => (request()->query('currency') === 'EUR' ? 'Priemerná nákupka (EUR)' : 'Priemerná nákupka'))
-                            ->state(fn($record) => request()->query('currency') === 'EUR' ? $record->average_buy_price_eur : $record->average_buy_price_base)
+                            ->label(function() {
+                                $currencyCode = request()->query('currency');
+                                return $currencyCode ? "Priemerná nákupka ({$currencyCode})" : 'Priemerná nákupka';
+                            })
+                            ->state(function($record) {
+                                $currencyCode = request()->query('currency') ?? $record->currency?->code;
+                                if ($currencyCode === 'EUR') return $record->average_buy_price_eur;
+                                
+                                // Pre natívnu menu (USD) vrátime priamo nákupku
+                                if ($currencyCode === $record->currency?->code) {
+                                    return $record->average_buy_price_base;
+                                }
+
+                                // Pre ostatné (CZK) prepočítame EUR nákupku na cieľovú menu (najlepšia aproximácia)
+                                $targetCurrency = \App\Models\Currency::where('code', $currencyCode)->first();
+                                return \App\Services\CurrencyService::convert($record->average_buy_price_eur, null, $targetCurrency?->id);
+                            })
                             ->formatStateUsing(function ($state, $record) {
-                                $isEur = request()->query('currency') === 'EUR';
-                                $symbol = $isEur ? '€' : ($record->currency?->symbol ?? '');
+                                $currencyCode = request()->query('currency');
+                                $symbol = $currencyCode 
+                                    ? (\App\Models\Currency::where('code', $currencyCode)->first()?->symbol ?? $currencyCode)
+                                    : ($record->currency?->symbol ?? '');
                                 return number_format((float)$state, 2, ',', ' ') . ' ' . $symbol;
                             }),
+
+                        Infolists\Components\TextEntry::make('gain_base')
+                            ->label(function() {
+                                $currencyCode = request()->query('currency');
+                                return $currencyCode ? "Výsledok P/L ({$currencyCode})" : 'Výsledok P/L';
+                            })
+                            ->state(fn($record) => $record->getGainForCurrency(request()->query('currency')))
+                            ->formatStateUsing(function ($state, $record) {
+                                $currencyCode = request()->query('currency');
+                                $symbol = $currencyCode 
+                                    ? (\App\Models\Currency::where('code', $currencyCode)->first()?->symbol ?? $currencyCode)
+                                    : ($record->currency?->symbol ?? '');
+                                return number_format((float)$state, 2, ',', ' ') . ' ' . $symbol;
+                            })
+                            ->weight('black')
+                            ->color(fn($state) => (float)$state >= 0 ? 'success' : 'danger'),
 
                         Infolists\Components\TextEntry::make('last_price_update')
                             ->label('Posledná aktualizácia')

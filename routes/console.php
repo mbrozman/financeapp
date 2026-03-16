@@ -12,4 +12,5 @@ Artisan::command('inspire', function () {
 
 Schedule::command('app:update-rates')->daily();
 Schedule::command('app:process-recurring-transactions')->dailyAt('06:00');
+Schedule::command('investments:execute-plans')->dailyAt('07:00');
 Schedule::command('app:take-portfolio-snapshot')->dailyAt('23:55');

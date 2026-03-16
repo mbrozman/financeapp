@@ -24,27 +24,22 @@ class InvestmentKpiOverview extends BaseWidget
         $totalInvested = BigDecimal::zero();
         $totalGain = BigDecimal::zero();
 
-        $targetRate = CurrencyService::getRate($this->currency);
-        $targetRateBD = BigDecimal::of($targetRate);
+        $targetCurrency = \App\Models\Currency::where('code', $this->currency)->first();
+        $targetCurrencyId = $targetCurrency?->id; // Ak null, CurrencyService::convert použije EUR ako fallback (ak mu pošleme null cieľ)
+        if (!$targetCurrencyId && $this->currency === 'EUR') {
+            // Skúsime nájsť EUR v DB pre istotu, ak nie je, convert(..., null) by malo fungovať ako EUR
+            $targetCurrencyId = \App\Models\Currency::where('code', 'EUR')->first()?->id;
+        }
 
         foreach($investments as $inv) {
-            // Hodnota zakladna
-            $valBase = $inv->is_archived ? $inv->total_sales_base : $inv->current_market_value_base;
-            $valEur = CurrencyService::convertToEur((string)$valBase, $inv->currency_id);
-            $valTarget = BigDecimal::of($valEur)->multipliedBy($targetRateBD);
-            $totalValue = $totalValue->plus($valTarget);
+            // 1. Hodnota (Market Value / Sales)
+            $totalValue = $totalValue->plus($inv->getCurrentValueForCurrency($this->currency));
 
-            // Investovane
-            $invBase = $inv->total_invested_base;
-            $invEur = CurrencyService::convertToEur((string)$invBase, $inv->currency_id);
-            $invTarget = BigDecimal::of($invEur)->multipliedBy($targetRateBD);
-            $totalInvested = $totalInvested->plus($invTarget);
+            // 2. Investované (Cost Basis)
+            $totalInvested = $totalInvested->plus($inv->getInvestedForCurrency($this->currency));
 
-            // Zisk
-            $gainBase = $inv->total_gain_base;
-            $gainEur = CurrencyService::convertToEur((string)$gainBase, $inv->currency_id);
-            $gainTarget = BigDecimal::of($gainEur)->multipliedBy($targetRateBD);
-            $totalGain = $totalGain->plus($gainTarget);
+            // 3. Zisk (P/L)
+            $totalGain = $totalGain->plus($inv->getGainForCurrency($this->currency));
         }
 
         $symbol = match($this->currency) {

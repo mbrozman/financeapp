@@ -71,12 +71,13 @@ class CreateInvestment extends CreateRecord
             $initialQty = BigDecimal::of($data['initial_quantity'] ?? 0);
 
             if ($initialQty->isGreaterThan(0)) {
-                $rate = $data['exchange_rate'] ?? CurrencyService::getLiveRate($record->currency?->code);
+                $initialCurrencyId = $data['initial_currency_id'] ?? $record->currency_id;
+                $rate = $data['exchange_rate'] ?? CurrencyService::getLiveRateById($initialCurrencyId);
 
                 InvestmentTransaction::create([
                     'user_id' => auth()->id(),
                     'investment_id' => $record->id,
-                    'currency_id' => $record->currency_id,
+                    'currency_id' => $initialCurrencyId,
                     'type' => TransactionType::BUY,
                     // Posielame dáta ako stringy, o presnosť sa postará DB a BigDecimal v modeli
                     'quantity' => (string) $initialQty,

@@ -35,10 +35,14 @@ class UpdateCurrencyRates extends Command
         foreach ($currencies as $currency) {
             // Ak API obsahuje kurz pre našu menu, aktualizujeme ju
             if (isset($rates[$currency->code])) {
+                // Frankfurter vracia USD/EUR (napr. 1.09). 
+                // My chceme EUR/USD násobiteľ (napr. 0.917).
+                $invertedRate = 1 / $rates[$currency->code];
+                
                 $currency->update([
-                    'exchange_rate' => $rates[$currency->code],
+                    'exchange_rate' => $invertedRate,
                 ]);
-                $this->line("Mena {$currency->code} aktualizovaná na {$rates[$currency->code]}");
+                $this->line("Mena {$currency->code} aktualizovaná na {$invertedRate} (z API: {$rates[$currency->code]})");
             }
         }
 

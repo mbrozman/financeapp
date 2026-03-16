@@ -171,15 +171,53 @@ class Investment extends Model
         );
     }
 
+    // --- UNIVERZÁLNE METÓDY PRE PREPOČTY (Zohľadňujú celkový zisk vrátane meny) ---
+
+    public function getCurrentValueForCurrency(?string $code = null): string
+    {
+        if (!$code || $code === $this->currency?->code) {
+            return $this->is_archived ? $this->total_sales_base : $this->current_market_value_base;
+        }
+        
+        if ($code === 'EUR') {
+            return $this->is_archived ? $this->total_sales_eur : $this->current_market_value_eur;
+        }
+
+        // Pre ostatné meny prepočítame základnú hodnotu (USD) do cieľovej (CZK...)
+        $targetCurrency = Currency::where('code', $code)->first();
+        return CurrencyService::convert(
+            $this->is_archived ? $this->total_sales_base : $this->current_market_value_base,
+            $this->currency_id,
+            $targetCurrency?->id
+        );
+    }
+
+    public function getInvestedForCurrency(?string $code = null): string
+    {
+        if (!$code || $code === $this->currency?->code) {
+            return $this->total_invested_base;
+        }
+
+        if ($code === 'EUR') {
+            return $this->total_invested_eur;
+        }
+
+        // Pre ostatné (CZK) prepočítame EUR základ do cieľovej meny aktuálnym kurzom
+        // (Najlepšia aproximácia historických nákladov pre iné meny)
+        $targetCurrency = Currency::where('code', $code)->first();
+        return CurrencyService::convert($this->total_invested_eur, null, $targetCurrency?->id);
+    }
+
+    public function getGainForCurrency(?string $code = null): string
+    {
+        $current = BigDecimal::of($this->getCurrentValueForCurrency($code));
+        $invested = BigDecimal::of($this->getInvestedForCurrency($code));
+        return (string) $current->minus($invested);
+    }
+
     protected function gainEur(): Attribute
     {
-        return Attribute::make(
-            get: function () {
-                $invested = BigDecimal::of($this->total_invested_eur);
-                $current  = $this->is_archived ? BigDecimal::of($this->total_sales_eur) : BigDecimal::of($this->current_market_value_eur);
-                return (string) $current->minus($invested);
-            }
-        );
+        return Attribute::make(get: fn() => $this->getGainForCurrency('EUR'));
     }
 
     // --- DAŇOVÝ TEST ---

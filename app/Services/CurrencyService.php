@@ -12,6 +12,7 @@ class CurrencyService
     /**
      * Univerzálny a presný prepočet do EUR
      * Vracia STRING, aby sa zachovala presnosť pre ďalšie výpočty.
+     * Kurz očakávame v tvare násobiteľa: "Koľko EUR stojí 1 jednotka cudzej meny" (napr. 0.92 EUR za 1 USD)
      */
     public static function convertToEur(string|float|null $amount, ?int $currencyId, ?float $historicalRate = null): string
     {
@@ -32,11 +33,33 @@ class CurrencyService
 
         if ($rawRate <= 0) return (string) $amountBD->toScale(4, RoundingMode::HALF_UP);
 
-        // 4. PREVOD KURZU NA BIGDECIMAL (Tento krok ti chýbal pre 100% presnosť)
+        // 4. PREVOD KURZU NA BIGDECIMAL
         $rateBD = BigDecimal::of($rawRate);
 
-        // 5. Presné delenie: Suma / Kurz
-        return (string) $amountBD->dividedBy($rateBD, 4, RoundingMode::HALF_UP);
+        // 5. Presné NÁSOBENIE: Suma * Kurz (napr. 100 USD * 0.92 = 92 EUR)
+        return (string) $amountBD->multipliedBy($rateBD)->toScale(4, RoundingMode::HALF_UP);
+    }
+
+    /**
+     * Flexibilný prepočet medzi ľubovoľnými menami cez EUR ako základňu.
+     */
+    public static function convert(string|float|null $amount, ?int $fromCurrencyId, ?int $toCurrencyId): string
+    {
+        if (!$amount || $amount == 0) return '0.0000';
+        if ($fromCurrencyId === $toCurrencyId) return (string) BigDecimal::of($amount)->toScale(4, RoundingMode::HALF_UP);
+
+        // 1. Prevedieme "Z meny" do EUR (násobením)
+        $eurValue = self::convertToEur($amount, $fromCurrencyId);
+
+        // 2. Ak cieľová mena je EUR, končíme
+        if ($toCurrencyId === 1) return $eurValue;
+
+        // 3. Prevedieme z EUR do "Cieľovej meny" (DELENÍM kurzom, keďže kurz je k EUR)
+        // Ak 1 USD = 0.92 EUR, tak 1 EUR = 1 / 0.92 USD
+        $rate = self::getLiveRateById($toCurrencyId);
+        if ($rate <= 0) return $eurValue;
+
+        return (string) BigDecimal::of($eurValue)->dividedBy($rate, 4, RoundingMode::HALF_UP);
     }
 
     /**

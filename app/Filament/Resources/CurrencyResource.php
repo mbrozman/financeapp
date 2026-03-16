@@ -57,9 +57,9 @@ class CurrencyResource extends Resource
                                 if (strlen($state) === 3 && strtoupper($state) !== 'EUR') {
                                     $response = Http::get("https://api.frankfurter.app/latest?from=EUR&to=" . strtoupper($state));
                                     if ($response->successful()) {
-                                        $rate = $response->json("rates." . strtoupper($state));
-                                        if ($rate) {
-                                            $set('exchange_rate', $rate);
+                                        $apiRate = $response->json("rates." . strtoupper($state));
+                                        if ($apiRate) {
+                                            $set('exchange_rate', 1 / $apiRate);
                                         }
                                     }
                                 }
@@ -76,11 +76,11 @@ class CurrencyResource extends Resource
                             ->placeholder('€'),
 
                         Forms\Components\TextInput::make('exchange_rate')
-                            ->label('Výmenný kurz (voči hlavnej mene)')
+                            ->label('Kurz (1 jednotka = X EUR)')
                             ->numeric()
                             ->default(1.0)
                             ->required()
-                            ->helperText('Ak je toto vaša hlavná mena, nechajte 1.0')
+                            ->helperText('Napr. pre USD zadajte 0.92 (ak 1$ = 0.92€).')
                             ->suffixAction(
                                 Action::make('refresh_rate')
                                     ->icon('heroicon-m-arrow-path')
@@ -89,9 +89,9 @@ class CurrencyResource extends Resource
                                         if ($code && strlen($code) === 3 && strtoupper($code) !== 'EUR') {
                                             $response = Http::get("https://api.frankfurter.app/latest?from=EUR&to=" . strtoupper($code));
                                             if ($response->successful()) {
-                                                $rate = $response->json("rates." . strtoupper($code));
-                                                if ($rate) {
-                                                    $set('exchange_rate', $rate);
+                                                $apiRate = $response->json("rates." . strtoupper($code));
+                                                if ($apiRate) {
+                                                    $set('exchange_rate', 1 / $apiRate);
                                                 }
                                             }
                                         }

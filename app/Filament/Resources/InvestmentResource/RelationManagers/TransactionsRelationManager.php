@@ -45,29 +45,42 @@ class TransactionsRelationManager extends RelationManager
 
     public function form(Form $form): Form
     {
-        $assetCurrency = $this->getOwnerRecord()->currency;
-        $symbol = $assetCurrency?->symbol ?? '$';
-        $code = $assetCurrency?->code ?? 'USD';
-
         return $form
             ->schema([
-                Forms\Components\Grid::make(2)
+                Forms\Components\Grid::make(3)
                     ->schema([
                         Forms\Components\Select::make('type')
                             ->label('Typ pohybu')
-                            ->options(TransactionType::class)->required()->native(false),
+                            ->options(TransactionType::class)
+                            ->required()
+                            ->native(false),
+
+                        Forms\Components\Select::make('currency_id')
+                            ->label('Mena transakcie')
+                            ->relationship('currency', 'code')
+                            ->required()
+                            ->live()
+                            ->default(fn() => $this->getOwnerRecord()->currency_id),
 
                         Forms\Components\DatePicker::make('transaction_date')
-                            ->label('Dátum')->default(now())->required(),
+                            ->label('Dátum')
+                            ->default(now())
+                            ->required(),
+                    ]),
 
+                Forms\Components\Grid::make(3)
+                    ->schema([
                         Forms\Components\TextInput::make('quantity')
                             ->label('Počet kusov')
-                            ->numeric()->required()->step(0.00000001)
+                            ->numeric()
+                            ->required()
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(fn($state, Forms\Set $set, Forms\Get $get) => self::calculateCommission($set, $get))
+                            ->step(0.00000001)
                             ->rules([
                                 fn(Forms\Get $get): \Closure => function (string $attribute, $value, \Closure $fail) use ($get) {
                                     if ($get('type') === \App\Enums\TransactionType::SELL->value) {
                                         $currentQty = (float) $this->getOwnerRecord()->total_quantity;
-                                        // Ak upravujeme existujúcu transakciu, musíme pripočítať jej pôvodnú hodnotu k dostupnému množstvu
                                         $originalQty = (float) ($this->getMountedTableActionRecord()?->quantity ?? 0);
                                         $availableQty = $currentQty + $originalQty;
 
@@ -79,24 +92,50 @@ class TransactionsRelationManager extends RelationManager
                             ]),
 
                         Forms\Components\TextInput::make('price_per_unit')
-                            ->label("Cena za kus ({$code})")
-                            ->numeric()->required()
-                            ->prefix($symbol),
-
-                        Forms\Components\TextInput::make('commission')
-                            ->label("Poplatok brokerovi ({$code})")
-                            ->numeric()->default(0)
-                            ->prefix($symbol),
-
-                        Forms\Components\TextInput::make('exchange_rate')
-                            ->label("Menový kurz ({$code} / EUR)")
+                            ->label(fn(Forms\Get $get) => "Cena za kus (" . (\App\Models\Currency::find($get('currency_id'))?->code ?? 'USD') . ")")
                             ->numeric()
                             ->required()
-                            // FIX: Používame našu službu bez float pretypovania
-                            ->default(fn() => CurrencyService::getLiveRate($code))
-                            ->helperText("Zadajte, koľko {$code} dostanete za 1 EUR."),
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(fn($state, Forms\Set $set, Forms\Get $get) => self::calculateCommission($set, $get))
+                            ->prefix(fn(Forms\Get $get) => \App\Models\Currency::find($get('currency_id'))?->symbol ?? '$'),
+
+                        Forms\Components\Grid::make(2)
+                            ->schema([
+                                Forms\Components\TextInput::make('commission_percent')
+                                    ->label('Poplatok v %')
+                                    ->numeric()
+                                    ->live(onBlur: true)
+                                    ->afterStateUpdated(fn($state, Forms\Set $set, Forms\Get $get) => self::calculateCommission($set, $get))
+                                    ->suffix('%'),
+                                Forms\Components\TextInput::make('commission')
+                                    ->label(fn(Forms\Get $get) => "Poplatok (" . (\App\Models\Currency::find($get('currency_id'))?->code ?? 'USD') . ")")
+                                    ->numeric()
+                                    ->default(0)
+                                    ->prefix(fn(Forms\Get $get) => \App\Models\Currency::find($get('currency_id'))?->symbol ?? '$'),
+                            ])->columnSpan(1),
                     ]),
+
+                Forms\Components\TextInput::make('exchange_rate')
+                    ->label(fn(Forms\Get $get) => "Kurz (1 " . (\App\Models\Currency::find($get('currency_id'))?->code ?? 'USD') . " = X EUR)")
+                    ->numeric()
+                    ->required()
+                    ->default(fn(Forms\Get $get) => CurrencyService::getLiveRateById($get('currency_id')))
+                    ->helperText(fn(Forms\Get $get) => "Zadajte kurz pre menu " . (\App\Models\Currency::find($get('currency_id'))?->code ?? 'USD') . " voči EUR."),
             ]);
+    }
+
+    protected static function calculateCommission(Forms\Set $set, Forms\Get $get): void
+    {
+        $percent = (float) ($get('commission_percent') ?? 0);
+        if ($percent <= 0) return;
+
+        $qty = (float) ($get('quantity') ?? 0);
+        $price = (float) ($get('price_per_unit') ?? 0);
+
+        if ($qty > 0 && $price > 0) {
+            $absCommission = ($qty * $price) * ($percent / 100);
+            $set('commission', number_format($absCommission, 2, '.', ''));
+        }
     }
 
     public function table(Table $table): Table
@@ -158,7 +197,6 @@ class TransactionsRelationManager extends RelationManager
                     ->icon('heroicon-m-plus')
                     ->mutateFormDataUsing(function (array $data): array {
                         $data['user_id'] = auth()->id();
-                        $data['currency_id'] = $this->getOwnerRecord()->currency_id;
                         return $data;
                     })
             ])
