@@ -290,6 +290,18 @@ class InvestmentResource extends Resource
                 Tables\Columns\TextColumn::make('total_gain_percent')
                     ->label('Výnos (%)')
                     ->alignEnd()
+                    ->state(function ($record) {
+                        $currencyCode = request()->query('table_currency');
+                        if (!$currencyCode || $currencyCode === $record->currency?->code) {
+                            return $record->total_gain_percent;
+                        }
+                        
+                        $invested = \Brick\Math\BigDecimal::of($record->getInvestedForCurrency($currencyCode));
+                        if ($invested->isZero()) return '0';
+                        
+                        $gain = \Brick\Math\BigDecimal::of($record->getGainForCurrency($currencyCode));
+                        return (string) $gain->dividedBy($invested, 4, \Brick\Math\RoundingMode::HALF_UP)->multipliedBy(100)->toScale(2, \Brick\Math\RoundingMode::HALF_UP);
+                    })
                     ->badge()
                     ->color(fn($state) => (float)$state > 0 ? 'success' : ((float)$state < 0 ? 'danger' : 'gray'))
                     ->formatStateUsing(fn($state) => ((float)$state > 0 ? '+' : '') . number_format((float)$state, 2, ',', ' ') . ' %'),
