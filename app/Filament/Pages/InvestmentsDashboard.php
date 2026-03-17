@@ -20,15 +20,8 @@ class InvestmentsDashboard extends Page
 
     protected static string $view = 'filament.pages.investments-dashboard';
 
-    public $currency = 'EUR';
-
     public function mount()
     {
-        $this->currency = 'EUR';
-    }
-
-    public function getCurrenciesProperty()
-    {
-        return Currency::pluck('code', 'code')->toArray();
+        // No longer needed: currency is handled globally via session
     }
 }

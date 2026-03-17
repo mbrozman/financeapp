@@ -16,70 +16,51 @@ class StatsOverview extends BaseWidget
     protected static ?int $sort = 1;
     protected function getStats(): array
     {
-        // 1. VÝPOČET CELKOVÉHO MAJETKU (Net Worth)
-        // Prepočítavame každý účet podľa jeho kurzu do EUR (naša základná mena)
-        $totalNetWorth = Account::with('currency')->get()->sum(function ($account) {
-            return $account->balance / ($account->currency->exchange_rate ?: 1);
-        });
+        // 1. Likvidita (Bank + Cash)
+        $accounts = Account::with('currency')->get();
+        $totalLiquidity = 0.0;
+        $totalBank = 0.0;
+        $totalCash = 0.0;
 
-        // 2. PRÍJMY ZA AKTUÁLNY MESIAC
-        $monthlyIncome = Transaction::where('type', 'income')
-            ->whereMonth('transaction_date', Carbon::now()->month)
-            ->whereYear('transaction_date', Carbon::now()->year)
-            ->sum('amount');
+        foreach ($accounts as $account) {
+            $rate = $account->currency->exchange_rate ?: 1;
+            $valEur = $account->balance * $rate;
+            $totalLiquidity += $valEur;
+            
+            if ($account->type === 'bank') $totalBank += $valEur;
+            if ($account->type === 'cash') $totalCash += $valEur;
+        }
 
-        // 3. VÝDAVKY ZA AKTUÁLNY MESIAC
-        $monthlyExpenses = Transaction::where('type', 'expense')
-            ->whereMonth('transaction_date', Carbon::now()->month)
-            ->whereYear('transaction_date', Carbon::now()->year)
-            ->sum('amount');
+        // 2. Investície (Market Value)
+        $investments = \App\Models\Investment::all();
+        $totalInvestments = 0.0;
+        foreach ($investments as $inv) {
+            $totalInvestments += (float) $inv->current_market_value_eur;
+        }
 
-        // 4. PRIEMERNÉ MESAČNÉ VÝDAVKY (za posledné 3 mesiace)
-        // Získame sumu výdavkov za 90 dní a vydelíme ju tromi
-        $expensesLastThreeMonths = Transaction::where('type', 'expense')
-            ->where('transaction_date', '>=', now()->subDays(90))
-            ->sum('amount');
-
-        $averageMonthlyExpense = abs($expensesLastThreeMonths) / 3;
-
-        // 5. VÝPOČET REZERVY (Počet mesiacov)
-        // Ak sú výdavky 0, rezerva je technicky "nekonečná", tak to ošetríme
-        $financialBufferMonths = $averageMonthlyExpense > 0
-            ? $totalNetWorth / $averageMonthlyExpense
-            : 0;
-
-        // Určíme farbu podľa stavu rezervy
-        $bufferColor = match (true) {
-            $financialBufferMonths >= 6 => 'success', // 6+ mesiacov je bezpečné
-            $financialBufferMonths >= 3 => 'warning', // 3-6 mesiacov je fajn
-            default => 'danger',                      // menej ako 3 je riziko
-        };
+        // 3. Celkový majetok
+        $totalNetWorth = $totalLiquidity + $totalInvestments;
 
         return [
-            Stat::make('Celkový majetkok (v EUR)', number_format($totalNetWorth, 2) . ' €')
-                ->description('Súčet všetkých účtov a investícií')
-                ->descriptionIcon('heroicon-m-banknotes')
+            Stat::make('Celkový majetok', number_format($totalNetWorth, 2, ',', ' ') . ' €')
+                ->description('Likvidita + Trhová cena investícií')
+                ->descriptionIcon('heroicon-m-scale')
                 ->color('success'),
 
-            Stat::make('Príjmy tento mesiac', number_format($monthlyIncome, 2) . ' €')
-                ->description('Peniaze pripísané k dnešnému dňu')
+            Stat::make('Likvidita', number_format($totalLiquidity, 2, ',', ' ') . ' €')
+                ->description('Bankové účty + hotovosť')
+                ->descriptionIcon('heroicon-m-wallet')
+                ->color('info'),
+
+            Stat::make('Investície', number_format($totalInvestments, 2, ',', ' ') . ' €')
+                ->description('Aktuálna hodnota portfólia')
                 ->descriptionIcon('heroicon-m-arrow-trending-up')
-                ->chart([7, 2, 10, 3, 15, 4, 17]) // Toto neskôr napojíme na reálne dáta
-                ->color('success'),
-
-            Stat::make('Výdavky tento mesiac', number_format(abs($monthlyExpenses), 2) . ' €')
-                ->description('Peniaze odoslané z účtov')
-                ->descriptionIcon('heroicon-m-arrow-trending-down')
-                ->chart([15, 4, 10, 2, 12, 4, 11])
-                ->color('danger'),
-            Stat::make('Finančná rezerva', number_format($financialBufferMonths, 1) . ' mes.')
-                ->description($financialBufferMonths >= 6 ? 'Ste v bezpečí' : 'Odporúča sa aspoň 6 mesiacov')
-                ->descriptionIcon('heroicon-m-shield-check')
-                ->color($bufferColor),
+                ->color('warning'),
         ];
     }
+
     public static function canView(): bool
     {
-        return false; // Toto skryje widget z Dashboardu
+        return true;
     }
 }

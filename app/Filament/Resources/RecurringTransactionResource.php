@@ -65,6 +65,15 @@ class RecurringTransactionResource extends Resource
                             ->label('Kategória')
                             ->relationship('category', 'name')
                             ->searchable()
+                            ->preload()
+                            ->hidden(fn (Forms\Get $get) => $get('type') === 'transfer'),
+
+                        Forms\Components\Select::make('to_account_id')
+                            ->label('Cieľový účet')
+                            ->relationship('toAccount', 'name')
+                            ->required(fn (Forms\Get $get) => $get('type') === 'transfer')
+                            ->visible(fn (Forms\Get $get) => $get('type') === 'transfer')
+                            ->searchable()
                             ->preload(),
 
                         Forms\Components\TextInput::make('amount')
@@ -78,8 +87,10 @@ class RecurringTransactionResource extends Resource
                             ->options([
                                 'income' => 'Príjem',
                                 'expense' => 'Výdavok',
+                                'transfer' => 'Interný prevod',
                             ])
                             ->required()
+                            ->live()
                             ->native(false),
                     ])->columns(2),
 
@@ -137,6 +148,21 @@ class RecurringTransactionResource extends Resource
                         'monthly' => 'Mesačne',
                         'yearly' => 'Ročne',
                         default => $state,
+                    }),
+
+                Tables\Columns\TextColumn::make('type')
+                    ->label('Smer/Cieľ')
+                    ->formatStateUsing(fn ($record) => $record->type === 'transfer' ? "➔ " . ($record->toAccount?->name ?? '?') : match($record->type) {
+                        'income' => 'Príjem',
+                        'expense' => 'Výdavok',
+                        default => $record->type,
+                    })
+                    ->badge()
+                    ->color(fn ($record) => match ($record->type) {
+                        'income' => 'success',
+                        'expense' => 'danger',
+                        'transfer' => 'warning',
+                        default => 'gray',
                     }),
 
                 Tables\Columns\TextColumn::make('next_date')

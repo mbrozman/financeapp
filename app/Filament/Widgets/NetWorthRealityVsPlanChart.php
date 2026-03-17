@@ -34,17 +34,18 @@ class NetWorthRealityVsPlanChart extends ChartWidget
         $plan = FinancialPlan::with('items')->where('user_id', $userId)->first();
 
         // 1. ZÍSKAME POSLEDNÝ SNAPSHOT KAŽDÉHO MESIACA
-        // Tento SQL dotaz vráti len jeden záznam (ten najnovší) pre každý mesiac
+        // Zjednodušený prístup pre lepšiu kompatibilitu
         $snapshots = PortfolioSnapshot::where('user_id', $userId)
-            ->whereIn('recorded_at', function ($query) {
-                $query->select(DB::raw('MAX(recorded_at)'))
+            ->whereIn('id', function ($query) use ($userId) {
+                $query->select(DB::raw('MAX(id)'))
                     ->from('net_worth_snapshots')
+                    ->where('user_id', $userId)
                     ->groupBy(DB::raw("date_trunc('month', recorded_at)"));
             })
             ->orderBy('recorded_at', 'asc')
             ->get();
 
-        if ($snapshots->count() < 2 || !$plan) {
+        if (!$plan) {
             return ['datasets' => [], 'labels' => []];
         }
 
@@ -54,40 +55,55 @@ class NetWorthRealityVsPlanChart extends ChartWidget
 
         // --- INICIALIZÁCIA ---
         $firstSnapshot = $snapshots->first();
-        $currentModelValue = BigDecimal::of($firstSnapshot->total_market_value_eur);
         
-        // Koľko EUR mesačne máš podľa plánu ušetriť (napr. 50% z 2200 = 1100 €)
+        // Ak nemáme žiadne snapshoty, začneme od 0 pre model aspoň na aktuálny mesiac
+        $currentModelValue = $firstSnapshot 
+            ? BigDecimal::of($firstSnapshot->total_market_value_eur)
+            : BigDecimal::zero();
+        
+        // Koľko EUR mesačne máš podľa plánu ušetriť
         $monthlySavingsIdeal = $plan->getMonthlySavingsAmount(); 
         
         // Nastavenie mesačného úroku (8% / 12 mesiacov)
         $monthlyInterestRate = ($filter === 'with_roi') ? (8 / 100) / 12 : 0;
 
-        foreach ($snapshots as $snapshot) {
-            $labels[] = $snapshot->recorded_at->format('M Y');
-            
-            // A. REALITA: Čo si v ten mesiac naozaj mal na účtoch
-            $realityValues[] = (float) $snapshot->total_market_value_eur;
-
-            // B. MODEL: Kde si mal byť podľa vzorca
-            if ($snapshot->id === $firstSnapshot->id) {
-                $modelValues[] = $currentModelValue->toFloat();
-                continue;
+        // Ak nemáme snapshoty, zobrazíme aspoň projekciu na 12 mesiacov
+        if ($snapshots->isEmpty()) {
+            $date = now()->startOfYear();
+            for ($i = 0; $i < 12; $i++) {
+                $labels[] = $date->format('M Y');
+                $realityValues[] = null;
+                $currentModelValue = $currentModelValue->plus($monthlySavingsIdeal);
+                if ($monthlyInterestRate > 0) {
+                    $interest = $currentModelValue->multipliedBy($monthlyInterestRate);
+                    $currentModelValue = $currentModelValue->plus($interest);
+                }
+                $modelValues[] = round($currentModelValue->toFloat(), 2);
+                $date->addMonth();
             }
+        } else {
+            foreach ($snapshots as $snapshot) {
+                $labels[] = $snapshot->recorded_at->format('M Y');
+                $realityValues[] = (float) $snapshot->total_market_value_eur;
 
-            // Každý mesiac pripočítame fixný vklad z plánu
-            $currentModelValue = $currentModelValue->plus($monthlySavingsIdeal);
+                if ($snapshot->id === $firstSnapshot->id) {
+                    $modelValues[] = $currentModelValue->toFloat();
+                    continue;
+                }
 
-            // Ak je zapnutý výnos, zhodnotíme celú sumu (zložené úročenie)
-            if ($monthlyInterestRate > 0) {
-                $interest = $currentModelValue->multipliedBy($monthlyInterestRate);
-                $currentModelValue = $currentModelValue->plus($interest);
+                $currentModelValue = $currentModelValue->plus($monthlySavingsIdeal);
+                if ($monthlyInterestRate > 0) {
+                    $interest = $currentModelValue->multipliedBy($monthlyInterestRate);
+                    $currentModelValue = $currentModelValue->plus($interest);
+                }
+                $modelValues[] = round($currentModelValue->toFloat(), 2);
             }
-
-            $modelValues[] = round($currentModelValue->toFloat(), 2);
         }
 
-        // Určenie farby podľa posledného mesiaca
-        $isAhead = end($realityValues) >= end($modelValues);
+        // Určenie farby podľa posledného mesiaca (ak je realita dostupná)
+        $lastReality = end($realityValues);
+        $lastModel = end($modelValues);
+        $isAhead = ($lastReality !== null) ? $lastReality >= $lastModel : true;
 
         return [
             'datasets' => [
@@ -99,6 +115,7 @@ class NetWorthRealityVsPlanChart extends ChartWidget
                     'fill' => 'start',
                     'borderWidth' => 4,
                     'tension' => 0.2,
+                    'spanGaps' => true,
                 ],
                 [
                     'label' => 'Ideálna cesta (Tvoj plán)',
@@ -128,6 +145,6 @@ class NetWorthRealityVsPlanChart extends ChartWidget
 
     public static function canView(): bool
     {
-        return false;
+        return true;
     }
 }

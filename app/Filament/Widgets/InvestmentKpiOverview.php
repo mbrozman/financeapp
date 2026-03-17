@@ -13,8 +13,10 @@ use App\Services\PortfolioPerformanceService;
 
 class InvestmentKpiOverview extends BaseWidget
 {
-    #[Reactive]
-    public string $currency = 'EUR';
+    protected function getCurrency(): string
+    {
+        return session('global_currency', 'EUR');
+    }
 
     protected function getStats(): array
     {
@@ -24,25 +26,25 @@ class InvestmentKpiOverview extends BaseWidget
         $totalInvested = BigDecimal::zero();
         $totalGain = BigDecimal::zero();
 
-        $targetCurrency = \App\Models\Currency::where('code', $this->currency)->first();
+        $targetCurrency = \App\Models\Currency::where('code', $this->getCurrency())->first();
         $targetCurrencyId = $targetCurrency?->id; // Ak null, CurrencyService::convert použije EUR ako fallback (ak mu pošleme null cieľ)
-        if (!$targetCurrencyId && $this->currency === 'EUR') {
+        if (!$targetCurrencyId && $this->getCurrency() === 'EUR') {
             // Skúsime nájsť EUR v DB pre istotu, ak nie je, convert(..., null) by malo fungovať ako EUR
             $targetCurrencyId = \App\Models\Currency::where('code', 'EUR')->first()?->id;
         }
 
         foreach($investments as $inv) {
             // 1. Hodnota (Market Value / Sales)
-            $totalValue = $totalValue->plus($inv->getCurrentValueForCurrency($this->currency));
+            $totalValue = $totalValue->plus($inv->getCurrentValueForCurrency($this->getCurrency()));
 
             // 2. Investované (Cost Basis)
-            $totalInvested = $totalInvested->plus($inv->getInvestedForCurrency($this->currency));
+            $totalInvested = $totalInvested->plus($inv->getInvestedForCurrency($this->getCurrency()));
 
             // 3. Zisk (P/L)
-            $totalGain = $totalGain->plus($inv->getGainForCurrency($this->currency));
+            $totalGain = $totalGain->plus($inv->getGainForCurrency($this->getCurrency()));
         }
 
-        $symbol = match($this->currency) {
+        $symbol = match($this->getCurrency()) {
             'USD' => '$',
             'CZK' => 'Kč',
             'GBP' => '£',
@@ -76,6 +78,6 @@ class InvestmentKpiOverview extends BaseWidget
     }
     public static function canView(): bool
     {
-        return false;
+        return true;
     }
 }

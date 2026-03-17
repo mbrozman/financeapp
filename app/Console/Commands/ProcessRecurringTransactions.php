@@ -38,22 +38,41 @@ class ProcessRecurringTransactions extends Command
             // Zabezpečíme dobehnutie zameškaných platieb (napr. ak cron nebežal niekoľko dní)
             while ($item->next_date->startOfDay()->lte($today)) {
                 
-                // 2. Vytvoríme reálnu transakciu manuálne (nie .create()) kvôli zabezpečeniu užívateľa
-                // a správnemu poradiu priraďovania atribútov pre mutátor sumy
-                $transaction = new Transaction();
-                
-                // Najprv priradíme typ, aby mutátor na 'amount' vedel, aké znamienko použiť
-                $transaction->type = $item->type;
-                $transaction->amount = $item->amount;
-                
-                // Ostatné atribúty (user_id by sa pri ::create ignorovalo kvôli $fillable)
-                $transaction->user_id = $item->user_id;
-                $transaction->account_id = $item->account_id;
-                $transaction->category_id = $item->category_id;
-                $transaction->description = "Automatická platba: {$item->name}";
-                $transaction->transaction_date = $item->next_date->copy(); 
-                
-                $transaction->save();
+                if ($item->type === 'transfer') {
+                    // PREVOD: Vytvoríme dve transakcie
+                    
+                    // 1. Výdavok zo zdrojového účtu
+                    $out = new Transaction();
+                    $out->type = 'expense';
+                    $out->amount = $item->amount;
+                    $out->user_id = $item->user_id;
+                    $out->account_id = $item->account_id;
+                    $out->description = "Pravidelný prevod ➜ {$item->toAccount->name}: {$item->name}";
+                    $out->transaction_date = $item->next_date->copy();
+                    $out->save();
+
+                    // 2. Príjem na cieľový účet
+                    $in = new Transaction();
+                    $in->type = 'income';
+                    $in->amount = $item->amount;
+                    $in->user_id = $item->user_id;
+                    $in->account_id = $item->to_account_id;
+                    $in->description = "Pravidelný prevod z {$item->account->name}: {$item->name}";
+                    $in->transaction_date = $item->next_date->copy();
+                    $in->save();
+
+                } else {
+                    // BEŽNÁ PLATBA (Príjem/Výdavok)
+                    $transaction = new Transaction();
+                    $transaction->type = $item->type;
+                    $transaction->amount = $item->amount;
+                    $transaction->user_id = $item->user_id;
+                    $transaction->account_id = $item->account_id;
+                    $transaction->category_id = $item->category_id;
+                    $transaction->description = "Automatická platba: {$item->name}";
+                    $transaction->transaction_date = $item->next_date->copy();
+                    $transaction->save();
+                }
 
                 // 3. Posunieme next_date na ďalšie obdobie
                 $item->next_date = match ($item->interval) {

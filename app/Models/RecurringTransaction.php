@@ -13,6 +13,7 @@ class RecurringTransaction extends Model
     protected $fillable = [
         'user_id',
         'account_id',
+        'to_account_id',
         'category_id',
         'name',
         'amount',
@@ -32,6 +33,12 @@ class RecurringTransaction extends Model
     public function account(): BelongsTo
     {
         return $this->belongsTo(Account::class);
+    }
+
+    // Vzťah k cieľovému účtu (pre prevody)
+    public function toAccount(): BelongsTo
+    {
+        return $this->belongsTo(Account::class, 'to_account_id');
     }
 
     // Vzťah ku kategórii

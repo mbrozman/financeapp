@@ -17,5 +17,17 @@ steps:
       - '--region'
       - 'europe-west3'
 
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'services'
+      - 'update'
+      - 'finance-service'
+      - '--command'
+      - 'php,artisan,migrate,--force'
+      - '--region'
+      - 'europe-west3'
+
 options:
   logging: CLOUD_LOGGING_ONLY

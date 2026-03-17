@@ -13,8 +13,10 @@ class InvestmentDiversificationChart extends ChartWidget
     protected static ?string $heading = 'Rozloženie portfólia (Diverzifikácia)';
     protected static ?int $sort = 2;
 
-    #[Reactive]
-    public string $currency = 'EUR';
+    protected function getCurrency(): string
+    {
+        return session('global_currency', 'EUR');
+    }
 
     public ?string $grouping = 'asset_type';
 
@@ -35,7 +37,7 @@ class InvestmentDiversificationChart extends ChartWidget
             ->get();
 
         $groupingField = $this->grouping; // 'asset_type', 'sector', alebo 'country'
-        $targetRate = CurrencyService::getRate($this->currency);
+        $targetRate = CurrencyService::getRate($this->getCurrency());
         $targetRateBD = BigDecimal::of($targetRate);
 
         $aggregatedData = [];
@@ -65,7 +67,7 @@ class InvestmentDiversificationChart extends ChartWidget
         return [
             'datasets' => [
                 [
-                    'label' => 'Hodnota (' . $this->currency . ')',
+                    'label' => 'Hodnota (' . $this->getCurrency() . ')',
                     'data' => array_values($aggregatedData),
                     'backgroundColor' => [
                         '#3b82f6', // blue-500
@@ -110,6 +112,6 @@ class InvestmentDiversificationChart extends ChartWidget
 
     public static function canView(): bool
     {
-        return false;
+        return true;
     }
 }

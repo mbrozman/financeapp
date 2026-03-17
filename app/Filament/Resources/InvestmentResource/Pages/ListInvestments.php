@@ -24,9 +24,7 @@ class ListInvestments extends ListRecords
 
     protected function getHeaderWidgets(): array
     {
-        return [
-            \App\Filament\Widgets\CurrencySwitcher::class,
-        ];
+        return [];
     }
 
     public function getHeaderWidgetsColumns(): int | string | array

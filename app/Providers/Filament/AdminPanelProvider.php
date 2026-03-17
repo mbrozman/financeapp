@@ -40,6 +40,10 @@ class AdminPanelProvider extends PanelProvider
             ->widgets([
 
             ])
+            ->renderHook(
+                \Filament\View\PanelsRenderHook::GLOBAL_SEARCH_BEFORE,
+                fn (): string => \Illuminate\Support\Facades\Blade::render('@livewire(\'global-currency-switcher\')'),
+            )
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

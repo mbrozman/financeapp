@@ -24,6 +24,7 @@ class InvestmentTransaction extends Model
         'currency_id',
         'exchange_rate',
         'transaction_date',
+        'investment_plan_id',
         'notes',
     ];
 
@@ -43,6 +44,11 @@ class InvestmentTransaction extends Model
     public function currency(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Currency::class);
+    }
+
+    public function investmentPlan(): BelongsTo
+    {
+        return $this->belongsTo(InvestmentPlan::class);
     }
     /*
     protected static function booted(): void

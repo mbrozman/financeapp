@@ -211,12 +211,14 @@ class InvestmentResource extends Resource
                 Tables\Columns\TextColumn::make('broker')
                     ->label('Broker')
                     ->icon('heroicon-m-building-office-2')
-                    ->color('gray'),
+                    ->color('gray')
+                    ->searchable(),
 
                 Tables\Columns\TextColumn::make('category.name')
                     ->label('Typ')
                     ->weight('bold')
-                    ->extraAttributes(fn($record) => ['style' => 'color: ' . ($record->category?->color ?? '#808080')]),
+                    ->extraAttributes(fn($record) => ['style' => 'color: ' . ($record->category?->color ?? '#808080')])
+                    ->searchable(),
 
                 Tables\Columns\TextColumn::make('total_quantity')
                     ->label('Ks')
@@ -245,9 +247,9 @@ class InvestmentResource extends Resource
                 Tables\Columns\TextColumn::make('total_invested_base')
                     ->label('Investované')
                     ->alignEnd()
-                    ->state(fn($record) => $record->getInvestedForCurrency(request()->query('table_currency')))
+                    ->state(fn($record) => $record->getInvestedForCurrency(session('global_currency')))
                     ->formatStateUsing(function ($state, $record) {
-                        $currencyCode = request()->query('table_currency');
+                        $currencyCode = session('global_currency');
                         $symbol = $currencyCode 
                             ? (\App\Models\Currency::where('code', $currencyCode)->first()?->symbol ?? $currencyCode)
                             : ($record->currency?->symbol ?? '');
@@ -259,10 +261,10 @@ class InvestmentResource extends Resource
                     ->label('Zisk/Strata')
                     ->alignEnd()
                     ->weight('bold')
-                    ->state(fn($record) => $record->getGainForCurrency(request()->query('table_currency')))
+                    ->state(fn($record) => $record->getGainForCurrency(session('global_currency')))
                     ->color(fn($state) => (float)$state < 0 ? 'danger' : ((float)$state > 0 ? 'success' : 'gray'))
                     ->formatStateUsing(function ($state, $record) {
-                        $currencyCode = request()->query('table_currency');
+                        $currencyCode = session('global_currency');
                         $symbol = $currencyCode 
                             ? (\App\Models\Currency::where('code', $currencyCode)->first()?->symbol ?? $currencyCode)
                             : ($record->currency?->symbol ?? '');
@@ -277,9 +279,9 @@ class InvestmentResource extends Resource
                     ->alignEnd()
                     ->weight('black')
                     ->color(fn($record) => $record->is_archived ? 'gray' : 'info')
-                    ->state(fn($record) => $record->getCurrentValueForCurrency(request()->query('table_currency')))
+                    ->state(fn($record) => $record->getCurrentValueForCurrency(session('global_currency')))
                     ->formatStateUsing(function ($state, $record) {
-                        $currencyCode = request()->query('table_currency');
+                        $currencyCode = session('global_currency');
                         $symbol = $currencyCode 
                             ? (\App\Models\Currency::where('code', $currencyCode)->first()?->symbol ?? $currencyCode)
                             : ($record->currency?->symbol ?? '');
@@ -291,7 +293,7 @@ class InvestmentResource extends Resource
                     ->label('Výnos (%)')
                     ->alignEnd()
                     ->state(function ($record) {
-                        $currencyCode = request()->query('table_currency');
+                        $currencyCode = session('global_currency');
                         if (!$currencyCode || $currencyCode === $record->currency?->code) {
                             return $record->total_gain_percent;
                         }
@@ -317,7 +319,9 @@ class InvestmentResource extends Resource
             ])
             ->recordUrl(fn($record) => static::getUrl('view', ['record' => $record]))
             ->defaultSort('ticker', 'asc')
-            ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent);
+            ->filters([
+                // Filtre odstránené na žiadosť používateľa, nahrádza ich vyhľadávanie
+            ]);
     }
 
     public static function infolist(Infolist $infolist): Infolist
@@ -340,13 +344,13 @@ class InvestmentResource extends Resource
 
                         Infolists\Components\TextEntry::make('market_value')
                             ->label(function ($record) {
-                                $currencyCode = request()->query('currency');
+                                $currencyCode = session('global_currency');
                                 $suffix = $currencyCode ? " ({$currencyCode})" : '';
                                 return ($record->is_archived ? 'Realizované tržby' : 'Trhová hodnota') . $suffix;
                             })
-                            ->state(fn($record) => $record->getCurrentValueForCurrency(request()->query('currency')))
+                            ->state(fn($record) => $record->getCurrentValueForCurrency(session('global_currency')))
                             ->formatStateUsing(function ($state, $record) {
-                                $currencyCode = request()->query('currency');
+                                $currencyCode = session('global_currency');
                                 $symbol = $currencyCode 
                                     ? (\App\Models\Currency::where('code', $currencyCode)->first()?->symbol ?? $currencyCode)
                                     : ($record->currency?->symbol ?? '');
@@ -356,12 +360,12 @@ class InvestmentResource extends Resource
 
                         Infolists\Components\TextEntry::make('total_invested_base')
                             ->label(function() {
-                                $currencyCode = request()->query('currency');
+                                $currencyCode = session('global_currency');
                                 return $currencyCode ? "Celková investícia ({$currencyCode})" : 'Celková investícia';
                             })
-                            ->state(fn($record) => $record->getInvestedForCurrency(request()->query('currency')))
+                            ->state(fn($record) => $record->getInvestedForCurrency(session('global_currency')))
                             ->formatStateUsing(function ($state, $record) {
-                                $currencyCode = request()->query('currency');
+                                $currencyCode = session('global_currency');
                                 $symbol = $currencyCode 
                                     ? (\App\Models\Currency::where('code', $currencyCode)->first()?->symbol ?? $currencyCode)
                                     : ($record->currency?->symbol ?? '');
@@ -375,11 +379,11 @@ class InvestmentResource extends Resource
 
                         Infolists\Components\TextEntry::make('current_price')
                             ->label(function() {
-                                $currencyCode = request()->query('currency');
+                                $currencyCode = session('global_currency');
                                 return $currencyCode ? "Aktuálna cena ({$currencyCode} / ks)" : 'Aktuálna cena (ks)';
                             })
                             ->state(function ($record) {
-                                $currencyCode = request()->query('currency');
+                                $currencyCode = session('global_currency');
                                 if ($currencyCode === 'EUR') {
                                     return \App\Services\CurrencyService::convertToEur($record->current_price, $record->currency_id);
                                 }
@@ -390,7 +394,7 @@ class InvestmentResource extends Resource
                                 return $record->current_price;
                             })
                             ->formatStateUsing(function ($state, $record) {
-                                $currencyCode = request()->query('currency');
+                                $currencyCode = session('global_currency');
                                 $symbol = $currencyCode 
                                     ? (\App\Models\Currency::where('code', $currencyCode)->first()?->symbol ?? $currencyCode)
                                     : ($record->currency?->symbol ?? '');
@@ -401,11 +405,11 @@ class InvestmentResource extends Resource
 
                         Infolists\Components\TextEntry::make('average_buy_price_base')
                             ->label(function() {
-                                $currencyCode = request()->query('currency');
+                                $currencyCode = session('global_currency');
                                 return $currencyCode ? "Priemerná nákupka ({$currencyCode})" : 'Priemerná nákupka';
                             })
                             ->state(function($record) {
-                                $currencyCode = request()->query('currency') ?? $record->currency?->code;
+                                $currencyCode = session('global_currency') ?? $record->currency?->code;
                                 if ($currencyCode === 'EUR') return $record->average_buy_price_eur;
                                 
                                 // Pre natívnu menu (USD) vrátime priamo nákupku
@@ -418,7 +422,7 @@ class InvestmentResource extends Resource
                                 return \App\Services\CurrencyService::convert($record->average_buy_price_eur, null, $targetCurrency?->id);
                             })
                             ->formatStateUsing(function ($state, $record) {
-                                $currencyCode = request()->query('currency');
+                                $currencyCode = session('global_currency');
                                 $symbol = $currencyCode 
                                     ? (\App\Models\Currency::where('code', $currencyCode)->first()?->symbol ?? $currencyCode)
                                     : ($record->currency?->symbol ?? '');
@@ -427,12 +431,12 @@ class InvestmentResource extends Resource
 
                         Infolists\Components\TextEntry::make('gain_base')
                             ->label(function() {
-                                $currencyCode = request()->query('currency');
+                                $currencyCode = session('global_currency');
                                 return $currencyCode ? "Výsledok P/L ({$currencyCode})" : 'Výsledok P/L';
                             })
-                            ->state(fn($record) => $record->getGainForCurrency(request()->query('currency')))
+                            ->state(fn($record) => $record->getGainForCurrency(session('global_currency')))
                             ->formatStateUsing(function ($state, $record) {
-                                $currencyCode = request()->query('currency');
+                                $currencyCode = session('global_currency');
                                 $symbol = $currencyCode 
                                     ? (\App\Models\Currency::where('code', $currencyCode)->first()?->symbol ?? $currencyCode)
                                     : ($record->currency?->symbol ?? '');

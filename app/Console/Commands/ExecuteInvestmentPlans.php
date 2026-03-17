@@ -84,10 +84,12 @@ class ExecuteInvestmentPlans extends Command
                 'currency_id' => $plan->investment->currency_id,
                 'exchange_rate' => CurrencyService::getLiveRateById($plan->investment->currency_id),
                 'transaction_date' => now(),
+                'investment_plan_id' => $plan->id,
                 'notes' => 'Automatický nákup (Autoinvest)',
             ]);
 
-            // 5. UPDATE BALANCE NA ÚČTE
+            // 5. UPDATE BALANCE NA ÚČTE - Odstránené (Observer sa o to postará automaticky)
+            /*
             $account = $plan->account;
             $amountInAccountCurrency = CurrencyService::convert(
                 $plan->amount,
@@ -96,6 +98,7 @@ class ExecuteInvestmentPlans extends Command
             );
 
             $account->decrement('balance', (string) $amountInAccountCurrency);
+            */
 
             // 6. UPDATE PLÁNU (Next Run Date)
             $nextDate = match ($plan->frequency) {

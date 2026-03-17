@@ -78,7 +78,6 @@ class ViewInvestment extends ViewRecord
     protected function getHeaderWidgets(): array
     {
         return [
-            \App\Filament\Widgets\CurrencySwitcher::class,
             InvestmentProfitStats::class,
             IndividualInvestmentChart::class,
         ];

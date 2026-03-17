@@ -30,20 +30,54 @@ class InvestmentPlanResource extends Resource
             ->schema([
                 Forms\Components\Section::make('Základné nastavenia')
                     ->schema([
-                        Forms\Components\Select::make('investment_id')
-                            ->label('Investícia (ETF/Akcia)')
-                            ->relationship('investment', 'ticker', fn (Builder $query) => $query->where('user_id', auth()->id()))
-                            ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->ticker} - {$record->name}")
+                        Forms\Components\Select::make('ticker')
+                            ->label('Symbol (Yahoo Finance)')
                             ->searchable()
-                            ->preload()
-                            ->required(),
+                            ->getSearchResultsUsing(fn(string $search) => app(\App\Services\StockApiService::class)->searchSymbols($search))
+                            ->getOptionLabelUsing(fn($value) => $value)
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                if (!$state) return;
+                                $data = app(\App\Services\StockApiService::class)->getLiveQuote($state);
+                                if ($data) {
+                                    $set('currency_id', \App\Models\Currency::where('code', $data['currency'])->first()?->id);
+                                }
+                            }),
                         Forms\Components\Select::make('account_id')
-                            ->label('Zdrojový účet (Hotovosť)')
+                            ->label('Zdrojový účet / Broker')
                             ->relationship('account', 'name', fn (Builder $query) => $query->where('user_id', auth()->id()))
                             ->searchable()
                             ->preload()
                             ->required(),
                     ])->columns(2),
+
+                Forms\Components\Section::make('Počiatočný stav (nepovinné)')
+                    ->description('Ak už plán nejaký čas beží, zadajte aktuálny stav pre korektné započítanie zisku.')
+                    ->collapsed()
+                    ->schema([
+                        Forms\Components\Toggle::make('use_initial_state')
+                            ->label('Zadať počiatočný stav')
+                            ->live(),
+                        Forms\Components\Grid::make(3)
+                            ->visible(fn(Forms\Get $get) => $get('use_initial_state'))
+                            ->schema([
+                                Forms\Components\TextInput::make('initial_total_value')
+                                    ->label('Aktuálna hodnota plánu')
+                                    ->helperText('Napr. 10235 €')
+                                    ->numeric()
+                                    ->required(fn(Forms\Get $get) => $get('use_initial_state')),
+                                Forms\Components\TextInput::make('initial_invested_amount')
+                                    ->label('Celková investovaná suma')
+                                    ->helperText('Napr. 10000 €')
+                                    ->numeric()
+                                    ->required(fn(Forms\Get $get) => $get('use_initial_state')),
+                                Forms\Components\DatePicker::make('start_date')
+                                    ->label('Dátum prvého nákupu')
+                                    ->default(now()->subYear())
+                                    ->required(fn(Forms\Get $get) => $get('use_initial_state')),
+                            ]),
+                    ]),
 
                 Forms\Components\Section::make('Detaily nákupu')
                     ->schema([
@@ -134,6 +168,13 @@ class InvestmentPlanResource extends Resource
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            RelationManagers\TransactionsRelationManager::class,
+        ];
     }
 
     public static function getPages(): array

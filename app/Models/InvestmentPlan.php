@@ -20,6 +20,12 @@ class InvestmentPlan extends Model
         'frequency',
         'next_run_date',
         'is_active',
+        // Tieto polia nie sú v DB, slúžia na spracovanie pri vytváraní
+        'ticker',
+        'use_initial_state',
+        'initial_total_value',
+        'initial_invested_amount',
+        'start_date',
     ];
 
     protected $casts = [
@@ -40,5 +46,10 @@ class InvestmentPlan extends Model
     public function currency(): BelongsTo
     {
         return $this->belongsTo(Currency::class);
+    }
+
+    public function transactions(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(InvestmentTransaction::class);
     }
 }

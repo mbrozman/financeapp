@@ -34,7 +34,7 @@ class InvestmentProfitStats extends BaseWidget
         $record = $this->record;
         
         // --- 1. URČENIE MENY ---
-        $currencyCode = request()->query('currency') ?: request()->query('table_currency') ?: $record->currency?->code;
+        $currencyCode = session('global_currency') ?: $record->currency?->code;
         $targetCurrency = \App\Models\Currency::where('code', $currencyCode)->first();
         $symbol = $targetCurrency->symbol ?? $currencyCode;
 
