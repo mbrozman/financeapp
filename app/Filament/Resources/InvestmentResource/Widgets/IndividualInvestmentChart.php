@@ -16,21 +16,51 @@ class IndividualInvestmentChart extends BaseWidget
     {
         if (!$this->record) return ['datasets' => [], 'labels' => []];
 
-        // 1. ZÍSKANIE CIEĽOVEJ MENY - Používame natívnu menu investície
-        $targetCurrency = $this->record->currency;
-        $symbol = $targetCurrency->symbol ?? '$';
+        // 1. ZÍSKANIE CIEĽOVEJ MENY
+        $currencyCode = request()->query('currency') ?: request()->query('table_currency') ?: $this->record->currency?->code;
+        $targetCurrency = \App\Models\Currency::where('code', $currencyCode)->first();
+        $symbol = $targetCurrency->symbol ?? $currencyCode;
 
         // 2. ZÍSKANIE HISTÓRIE CIEN
         $history = InvestmentPriceHistory::where('investment_id', $this->record->id)
             ->orderBy('recorded_at', 'asc')
             ->get();
 
-        $priceData = $history->pluck('price')->toArray();
+        $priceData = [];
+        foreach ($history as $h) {
+            $price = (float) $h->price;
+            if ($currencyCode !== $this->record->currency?->code) {
+                // Prepočet historickej ceny (používame aktuálny kurz pre porovnateľnosť v čase, 
+                // alternatívne by sme potrebovali historickú tabuľku kurzov)
+                $price = (float) \App\Services\CurrencyService::convert(
+                    (string)$price, 
+                    $this->record->currency_id, 
+                    $targetCurrency?->id
+                );
+            }
+            $priceData[] = $price;
+        }
+
         $labels = $history->pluck('recorded_at')->map(fn($date) => $date->format('d.M'))->toArray();
 
-        // 3. PRIEMERNÁ NÁKUPKA
-        $avgPrice = (float) $this->record->average_buy_price_base;
-        $avgPriceLine = array_fill(0, count($priceData), $avgPrice);
+        // 3. PRIEMERNÁ NÁKUPKA (Prepočítaná)
+        $avgPriceBase = $this->record->average_buy_price_base;
+        $avgPriceDisplay = (float)$avgPriceBase;
+
+        if ($currencyCode !== $this->record->currency?->code) {
+            // Použijeme modelovú metódu pre EUR alebo convert pre ostatné
+            if ($currencyCode === 'EUR') {
+                $avgPriceDisplay = (float)$this->record->average_buy_price_eur;
+            } else {
+                $avgPriceDisplay = (float) \App\Services\CurrencyService::convert(
+                    (string)$avgPriceBase, 
+                    $this->record->currency_id, 
+                    $targetCurrency?->id
+                );
+            }
+        }
+
+        $avgPriceLine = array_fill(0, count($priceData), $avgPriceDisplay);
 
         return [
             'datasets' => [
@@ -43,7 +73,7 @@ class IndividualInvestmentChart extends BaseWidget
                     'tension' => 0.4,
                 ],
                 [
-                    'label' => "Nákupný priemer: " . number_format($avgPrice, 2, '.', ' ') . " {$symbol}",
+                    'label' => "Nákupný priemer: " . number_format($avgPriceDisplay, 2, '.', ' ') . " {$symbol}",
                     'data' => $avgPriceLine,
                     'borderColor' => '#3b82f6',
                     'borderDash' => [5, 5],

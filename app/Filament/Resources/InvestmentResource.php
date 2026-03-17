@@ -325,28 +325,6 @@ class InvestmentResource extends Resource
         return $infolist
             ->schema([
                 Infolists\Components\Section::make('Prehľad pozície')
-                    ->headerActions([
-                        Infolists\Components\Actions\Action::make('set_view_currency')
-                            ->label(function() {
-                                $code = request()->query('currency');
-                                return $code ? "Mena zobrazenia: {$code}" : 'Pôvodná mena';
-                            })
-                            ->icon('heroicon-o-currency-dollar')
-                            ->color('gray')
-                            ->form([
-                                Forms\Components\Select::make('currency')
-                                    ->label('Zobraziť detail v mene:')
-                                    ->options(\App\Models\Currency::pluck('code', 'code')->prepend('Pôvodná mena', '')->toArray())
-                                    ->default(request()->query('currency'))
-                            ])
-                            ->action(function (array $data, $record) {
-                                $params = ['record' => $record];
-                                if ($data['currency']) {
-                                    $params['currency'] = $data['currency'];
-                                }
-                                return redirect()->to(InvestmentResource::getUrl('view', $params));
-                            })
-                    ])
                     ->schema([
                         Infolists\Components\TextEntry::make('ticker')->label('Ticker')->badge(),
                         Infolists\Components\TextEntry::make('name')->label('Názov spoločnosti'),

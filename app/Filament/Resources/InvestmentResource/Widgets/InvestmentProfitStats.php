@@ -32,30 +32,38 @@ class InvestmentProfitStats extends BaseWidget
         }
 
         $record = $this->record;
-        $currencyCode = $record->currency?->code;
-        $symbol = $record->currency?->symbol ?? '$';
+        
+        // --- 1. URČENIE MENY ---
+        $currencyCode = request()->query('currency') ?: request()->query('table_currency') ?: $record->currency?->code;
+        $targetCurrency = \App\Models\Currency::where('code', $currencyCode)->first();
+        $symbol = $targetCurrency->symbol ?? $currencyCode;
 
-        // 3. VÝPOČET HODNÔT CEZ MODEL
-        $investedTarget = BigDecimal::of($record->total_invested_base);
-        $gainBase = BigDecimal::of($record->total_gain_base);
+        // --- 2. VÝPOČET HODNÔT (Cez univerzálne metódy modelu) ---
+        $investedVal = $record->getInvestedForCurrency($currencyCode);
+        $gainVal = $record->getGainForCurrency($currencyCode);
 
-        // 4. VÝPOČET PERCENT
+        $investedTarget = BigDecimal::of($investedVal);
+        $gainBase = BigDecimal::of($gainVal);
+
+        // --- 3. VÝPOČET PERCENT (Zisk / Investícia) ---
         $gainPercent = $investedTarget->isGreaterThan(0)
             ? $gainBase->dividedBy($investedTarget, 4, RoundingMode::HALF_UP)->multipliedBy(100)
             : BigDecimal::zero();
 
-        // 5. VÝPOČET POPLATKOV A DIVIDEND
+        // --- 4. DIVIDENDY A POPLATKY (Prepočítané) ---
         $totalFees = BigDecimal::of(0);
         $totalDividends = BigDecimal::of(0);
 
         foreach ($record->transactions as $tx) {
             if ($tx->type === TransactionType::DIVIDEND) {
-                $divVal = BigDecimal::of($tx->quantity)->multipliedBy($tx->price_per_unit);
-                $totalDividends = $totalDividends->plus($divVal);
+                $divValBase = BigDecimal::of($tx->quantity)->multipliedBy($tx->price_per_unit);
+                $divValTarget = CurrencyService::convert((string)$divValBase, $record->currency_id, $targetCurrency?->id);
+                $totalDividends = $totalDividends->plus($divValTarget);
             }
 
             if (BigDecimal::of($tx->commission ?? 0)->isGreaterThan(0)) {
-                $totalFees = $totalFees->plus($tx->commission);
+                $feeTarget = CurrencyService::convert((string)$tx->commission, $record->currency_id, $targetCurrency?->id);
+                $totalFees = $totalFees->plus($feeTarget);
             }
         }
 
