@@ -43,20 +43,25 @@ class CurrencyService
     /**
      * Flexibilný prepočet medzi ľubovoľnými menami cez EUR ako základňu.
      */
-    public static function convert(string|float|null $amount, ?int $fromCurrencyId, ?int $toCurrencyId): string
+    public static function convert(string|float|null $amount, ?int $fromCurrencyId, ?int $toCurrencyId, ?float $historicalRate = null): string
     {
         if (!$amount || $amount == 0) return '0.0000';
         if ($fromCurrencyId === $toCurrencyId) return (string) BigDecimal::of($amount)->toScale(4, RoundingMode::HALF_UP);
 
         // 1. Prevedieme "Z meny" do EUR (násobením)
-        $eurValue = self::convertToEur($amount, $fromCurrencyId);
+        // Ak ideme EUR -> USD, tak $fromCurrencyId je 1 (EUR), $toCurrencyId je napr. 3 (USD)
+        // convertToEur pri $currencyId = 1 len vráti pôvodnú sumu.
+        $eurValue = self::convertToEur($amount, $fromCurrencyId, $historicalRate);
 
         // 2. Ak cieľová mena je EUR, končíme
         if ($toCurrencyId === 1) return $eurValue;
 
         // 3. Prevedieme z EUR do "Cieľovej meny" (DELENÍM kurzom, keďže kurz je k EUR)
-        // Ak 1 USD = 0.92 EUR, tak 1 EUR = 1 / 0.92 USD
-        $rate = self::getLiveRateById($toCurrencyId);
+        // Ak ideme EUR -> USD a vieme historický kurz (napr. 0.92), tak suma_eur / 0.92 = suma_usd
+        $rate = ($historicalRate && $historicalRate > 0 && $fromCurrencyId === 1) 
+            ? $historicalRate 
+            : self::getLiveRateById($toCurrencyId);
+
         if ($rate <= 0) return $eurValue;
 
         return (string) BigDecimal::of($eurValue)->dividedBy($rate, 4, RoundingMode::HALF_UP);

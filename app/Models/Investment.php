@@ -99,6 +99,11 @@ class Investment extends Model
         return Attribute::make(get: fn() => $this->getInvestmentStats()['realized_gain_base']);
     }
 
+    protected function unrealizedGainBase(): Attribute
+    {
+        return Attribute::make(get: fn() => $this->getInvestmentStats()['unrealized_gain_base']);
+    }
+
     // --- OSTATNÉ VÝPOČTY (Stále v modeli kvôli jednoduchosti) ---
 
     protected function currentMarketValueBase(): Attribute
@@ -113,12 +118,14 @@ class Investment extends Model
         return Attribute::make(
             get: function () {
                 $invested = BigDecimal::of($this->total_invested_base);
-                // Ak je archivované, porovnávame tržby, inak trhovú hodnotu
-                $current = $this->is_archived 
-                    ? BigDecimal::of($this->total_sales_base) 
+                $sales = BigDecimal::of($this->total_sales_base);
+                $dividends = BigDecimal::of($this->total_dividends_base);
+                $currentValue = $this->is_archived 
+                    ? BigDecimal::zero() 
                     : BigDecimal::of($this->current_market_value_base);
                 
-                return (string) $current->minus($invested);
+                // Zisk = To čo mám teraz + To čo som už vybral (predaje + dividendy) - To čo som vložil
+                return (string) $currentValue->plus($sales)->plus($dividends)->minus($invested);
             }
         );
     }
@@ -129,11 +136,15 @@ class Investment extends Model
             get: function () {
                 $invested = BigDecimal::of($this->total_invested_base);
                 if ($invested->isZero()) return '0';
+                
+                // Pre percentuálny zisk celého portfólia ( lifecycle) používame celkovú investíciu
                 $gain = BigDecimal::of($this->total_gain_base);
                 return (string) $gain->dividedBy($invested, 4, RoundingMode::HALF_UP)->multipliedBy(100)->toScale(2, RoundingMode::HALF_UP);
             }
         );
     }
+
+    // --- VÝPOČTY V EUR (Cez CurrencyService) ---
 
     // --- VÝPOČTY V EUR (Cez CurrencyService) ---
 
@@ -149,16 +160,6 @@ class Investment extends Model
         );
     }
 
-    protected function currentMarketValueEur(): Attribute
-    {
-        return Attribute::make(
-            get: function () {
-                if ($this->is_archived) return $this->total_sales_eur;
-                return CurrencyService::convertToEur($this->current_market_value_base, $this->currency_id);
-            }
-        );
-    }
-
     protected function totalSalesEur(): Attribute
     {
         return Attribute::make(
@@ -171,6 +172,45 @@ class Investment extends Model
         );
     }
 
+    protected function totalDividendsEur(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => (string) $this->transactions->where('type', TransactionType::DIVIDEND)->reduce(function ($carry, $tx) {
+                $carry = $carry ?? BigDecimal::of(0);
+                $amountBase = BigDecimal::of($tx->quantity)->multipliedBy($tx->price_per_unit)->minus($tx->commission ?? 0);
+                $amountEur = CurrencyService::convertToEur((string)$amountBase, $tx->currency_id, $tx->exchange_rate);
+                return $carry->plus($amountEur);
+            }, BigDecimal::of(0))
+        );
+    }
+
+    protected function currentMarketValueEur(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                if ($this->is_archived) return $this->total_sales_eur;
+                return CurrencyService::convertToEur($this->current_market_value_base, $this->currency_id);
+            }
+        );
+    }
+
+    protected function gainEur(): Attribute
+    {
+        return Attribute::make(get: fn() => $this->getGainForCurrency('EUR'));
+    }
+
+    protected function totalDividendsBase(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => (string) $this->transactions->where('type', TransactionType::DIVIDEND)->reduce(function ($carry, $tx) {
+                $carry = $carry ?? BigDecimal::of(0);
+                // Dividenda je čistý príjem (predpokladáme že Price je suma dividendy, Qty môže byť 1 alebo počet kusov)
+                $amountBase = BigDecimal::of($tx->quantity)->multipliedBy($tx->price_per_unit)->minus($tx->commission ?? 0);
+                return $carry->plus($amountBase);
+            }, BigDecimal::of(0))
+        );
+    }
+
     // --- UNIVERZÁLNE METÓDY PRE PREPOČTY (Zohľadňujú celkový zisk vrátane meny) ---
 
     public function getCurrentValueForCurrency(?string $code = null): string
@@ -178,12 +218,11 @@ class Investment extends Model
         if (!$code || $code === $this->currency?->code) {
             return $this->is_archived ? $this->total_sales_base : $this->current_market_value_base;
         }
-        
-        if ($code === 'EUR') {
-            return $this->is_archived ? $this->total_sales_eur : $this->current_market_value_eur;
-        }
 
-        // Pre ostatné meny prepočítame základnú hodnotu (USD) do cieľovej (CZK...)
+        if ($code === 'EUR') {
+            return $this->current_market_value_eur;
+        }
+        
         $targetCurrency = Currency::where('code', $code)->first();
         return CurrencyService::convert(
             $this->is_archived ? $this->total_sales_base : $this->current_market_value_base,
@@ -202,25 +241,31 @@ class Investment extends Model
             return $this->total_invested_eur;
         }
 
-        // Pre ostatné (CZK) prepočítame EUR základ do cieľovej meny aktuálnym kurzom
-        // (Najlepšia aproximácia historických nákladov pre iné meny)
         $targetCurrency = Currency::where('code', $code)->first();
-        return CurrencyService::convert($this->total_invested_eur, null, $targetCurrency?->id);
+        return CurrencyService::convert($this->total_invested_base, $this->currency_id, $targetCurrency?->id);
     }
 
     public function getGainForCurrency(?string $code = null): string
     {
-        $current = BigDecimal::of($this->getCurrentValueForCurrency($code));
-        $invested = BigDecimal::of($this->getInvestedForCurrency($code));
-        return (string) $current->minus($invested);
+        if (!$code || $code === $this->currency?->code) {
+            return $this->total_gain_base;
+        }
+
+        if ($code === 'EUR') {
+            $invested = BigDecimal::of($this->total_invested_eur);
+            $sales = BigDecimal::of($this->total_sales_eur);
+            $dividends = BigDecimal::of($this->total_dividends_eur);
+            $currentValue = $this->is_archived 
+                ? BigDecimal::zero() 
+                : BigDecimal::of($this->current_market_value_eur);
+
+            return (string) $currentValue->plus($sales)->plus($dividends)->minus($invested);
+        }
+
+        $targetCurrency = Currency::where('code', $code)->first();
+        return CurrencyService::convert($this->total_gain_base, $this->currency_id, $targetCurrency?->id);
     }
 
-    protected function gainEur(): Attribute
-    {
-        return Attribute::make(get: fn() => $this->getGainForCurrency('EUR'));
-    }
-
-    // --- DAŇOVÝ TEST ---
     protected function taxFreeQuantity(): Attribute
     {
         return Attribute::make(

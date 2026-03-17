@@ -1,3 +1,5 @@
+<?php
+
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
@@ -57,7 +59,6 @@ class ExecuteInvestmentPlans extends Command
             $currentPrice = BigDecimal::of($quote['price']);
             
             // 2. PREPOČET SUMY DO MENY INVESTÍCIE (ak je iná)
-            // Ak plan->amount je v EUR a investícia v USD, musíme vedieť, koľko USD ideme investovať
             $investedAmountInNative = CurrencyService::convert(
                 $plan->amount,
                 $plan->currency_id,
@@ -79,15 +80,14 @@ class ExecuteInvestmentPlans extends Command
                 'type' => TransactionType::BUY,
                 'quantity' => (string) $quantity,
                 'price_per_unit' => (string) $currentPrice,
-                'commission' => '0', // TODO: Možnosť pridať poplatok do plánu
+                'commission' => '0',
                 'currency_id' => $plan->investment->currency_id,
-                'exchange_rate' => CurrencyService::getRateById($plan->investment->currency_id),
+                'exchange_rate' => CurrencyService::getLiveRateById($plan->investment->currency_id),
                 'transaction_date' => now(),
                 'notes' => 'Automatický nákup (Autoinvest)',
             ]);
 
             // 5. UPDATE BALANCE NA ÚČTE
-            // Musíme odpočítať plan->amount v mene účtu
             $account = $plan->account;
             $amountInAccountCurrency = CurrencyService::convert(
                 $plan->amount,

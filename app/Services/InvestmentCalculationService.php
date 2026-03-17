@@ -28,9 +28,9 @@ class InvestmentCalculationService
         $totalCommissionBase = BigDecimal::of(0);
 
         foreach ($transactions as $tx) {
-            // Prepočítame cenu a poplatok do NAtívnej meny aktíva (napr. z EUR do USD)
-            $priceInBase = CurrencyService::convert($tx->price_per_unit, $tx->currency_id, $baseCurrencyId);
-            $commInBase = CurrencyService::convert($tx->commission ?? 0, $tx->currency_id, $baseCurrencyId);
+            // Prepočítame cenu a poplatok do NAtívnej meny aktíva (napr. z EUR do USD) pomocou HISTORICKÉHO kurzu
+            $priceInBase = CurrencyService::convert($tx->price_per_unit, $tx->currency_id, $baseCurrencyId, $tx->exchange_rate);
+            $commInBase = CurrencyService::convert($tx->commission ?? 0, $tx->currency_id, $baseCurrencyId, $tx->exchange_rate);
 
             $qty = BigDecimal::of($tx->quantity);
             $price = BigDecimal::of($priceInBase);
@@ -45,9 +45,17 @@ class InvestmentCalculationService
                 $totalInvestedBase = $totalInvestedBase->plus($costWithComm);
 
                 // Pridáme nákupný balík do "skladu" pre FIFO
+                // NÁKLAD NA KUS = (Suma + Poplatok) / Počet kusov (Pre presný zisk)
+                $lotPriceWithComm = $qty->isGreaterThan(0) 
+                    ? $costWithComm->dividedBy($qty, 8, RoundingMode::HALF_UP)
+                    : $price;
+
                 $remainingLots[] = [
                     'qty' => $qty,
-                    'price' => $price,
+                    'qty_orig' => $qty, // Uložíme pôvodný počet pre neskorší prepočet poplatku
+                    'price' => $price, // CLEAN market price
+                    'comm' => $comm,   // Celý poplatok za tento lot
+                    'comm_orig' => $comm,
                     'date' => $tx->transaction_date,
                 ];
             } 
@@ -66,8 +74,20 @@ class InvestmentCalculationService
                     
                     $take = $sellQty->isLessThanOrEqualTo($oldestLot['qty']) ? $sellQty : $oldestLot['qty'];
 
-                    // Realizovaný zisk = (Predajná cena - Pôvodná nákupná cena balíka) * počet kusov
-                    $lotGain = $price->minus($oldestLot['price'])->multipliedBy($take);
+                    // Realizovaný zisk = (Čistá predajná cena - Nákupná cena s alikvótnym poplatkom)
+                    // Pôvodný poplatok na kus v tomto lot-e
+                    $lotPurchaseCommPerUnit = $oldestLot['qty_orig'] && $oldestLot['qty_orig']->isGreaterThan(0)
+                        ? $oldestLot['comm_orig']->dividedBy($oldestLot['qty_orig'], 8, RoundingMode::HALF_UP)
+                        : BigDecimal::zero();
+                    
+                    $purchasePriceWithComm = $oldestLot['price']->plus($lotPurchaseCommPerUnit);
+
+                    // Čistá predajná cena na kus pre túto transakciu
+                    $netSellPricePerUnit = $qty->isGreaterThan(0)
+                        ? $qty->multipliedBy($price)->minus($comm)->dividedBy($qty, 8, RoundingMode::HALF_UP)
+                        : $price;
+
+                    $lotGain = $netSellPricePerUnit->minus($purchasePriceWithComm)->multipliedBy($take);
                     $realizedGainBase = $realizedGainBase->plus($lotGain);
 
                     $oldestLot['qty'] = $oldestLot['qty']->minus($take);
@@ -77,30 +97,42 @@ class InvestmentCalculationService
                         array_shift($remainingLots);
                     }
                 }
-                // Od celkového realizovaného zisku odpočítame poplatok za tento konkrétny predaj
-                $realizedGainBase = $realizedGainBase->minus($comm);
             }
         }
 
         // 3. VÝPOČET PRE ZVYŠNÉ KUSY (To, čo dnes držíš)
         $currentQty = BigDecimal::of(0);
-        $totalCostOfRemaining = BigDecimal::of(0);
+        $totalCleanCostOfRemaining = BigDecimal::of(0);
+        $totalRemainingComm = BigDecimal::of(0);
 
         foreach ($remainingLots as $lot) {
             $currentQty = $currentQty->plus($lot['qty']);
-            $totalCostOfRemaining = $totalCostOfRemaining->plus($lot['qty']->multipliedBy($lot['price']));
+            $totalCleanCostOfRemaining = $totalCleanCostOfRemaining->plus($lot['qty']->multipliedBy($lot['price']));
+            
+            // Alikvótna časť pôvodného poplatku, ktorá zostáva
+            $lotCommPerUnit = (isset($lot['qty_orig']) && $lot['qty_orig']->isGreaterThan(0))
+                ? $lot['comm_orig']->dividedBy($lot['qty_orig'], 8, RoundingMode::HALF_UP)
+                : BigDecimal::zero();
+            $totalRemainingComm = $totalRemainingComm->plus($lot['qty']->multipliedBy($lotCommPerUnit));
         }
 
-        // Priemerná nákupná cena aktuálne držaných kusov
+        // Priemerná nákupná cena (ČISTÁ - ako chce užívateľ podľa XTB)
         $avgPrice = $currentQty->isGreaterThan(0) 
-            ? $totalCostOfRemaining->dividedBy($currentQty, 4, RoundingMode::HALF_UP)
+            ? $totalCleanCostOfRemaining->dividedBy($currentQty, 4, RoundingMode::HALF_UP)
             : BigDecimal::zero();
+
+        // Nerealizovaný zisk = (Aktuálna hodnota) - (Čistá nákupná cena + Zostávajúce poplatky)
+        $currentPrice = BigDecimal::of($investment->current_price ?? 0);
+        $unrealizedGainBase = $currentQty->multipliedBy($currentPrice)
+            ->minus($totalCleanCostOfRemaining)
+            ->minus($totalRemainingComm);
 
         // 4. VRACIAME VÝSLEDKY AKO STRINGY
         return [
             'current_quantity' => (string) $currentQty,
             'average_buy_price' => (string) $avgPrice,
             'realized_gain_base' => (string) $realizedGainBase,
+            'unrealized_gain_base' => (string) $unrealizedGainBase,
             'total_invested_base' => (string) $totalInvestedBase,
             'total_sales_base' => (string) $totalSalesBase,
             'remaining_lots' => $remainingLots,

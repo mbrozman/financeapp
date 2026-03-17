@@ -60,6 +60,9 @@ class TransactionsRelationManager extends RelationManager
                             ->relationship('currency', 'code')
                             ->required()
                             ->live()
+                            ->afterStateUpdated(function (Forms\Set $set, $state) {
+                                $set('exchange_rate', CurrencyService::getLiveRateById($state));
+                            })
                             ->default(fn() => $this->getOwnerRecord()->currency_id),
 
                         Forms\Components\DatePicker::make('transaction_date')
@@ -119,6 +122,7 @@ class TransactionsRelationManager extends RelationManager
                     ->label(fn(Forms\Get $get) => "Kurz (1 " . (\App\Models\Currency::find($get('currency_id'))?->code ?? 'USD') . " = X EUR)")
                     ->numeric()
                     ->required()
+                    ->live(onBlur: true)
                     ->default(fn(Forms\Get $get) => CurrencyService::getLiveRateById($get('currency_id')))
                     ->helperText(fn(Forms\Get $get) => "Zadajte kurz pre menu " . (\App\Models\Currency::find($get('currency_id'))?->code ?? 'USD') . " voči EUR."),
             ]);

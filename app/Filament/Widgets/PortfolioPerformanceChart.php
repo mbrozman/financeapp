@@ -122,6 +122,6 @@ class PortfolioPerformanceChart extends ChartWidget
 
     public static function canView(): bool
     {
-        return false;
+        return true;
     }
 }
