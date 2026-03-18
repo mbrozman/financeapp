@@ -34,7 +34,7 @@ class HideWidgetsFromSuperadmin extends Command
                     $className = $matches[1];
                     
                     // Nahradenie class definície
-                    $replacement = "class {$className} extends \\$2\n{\n    public static function canView(): bool\n    {\n        return !auth()->user() || !auth()->user()->is_superadmin;\n    }\n";
+                    $replacement = "class {$className} extends \\$2\n{\n    public static function canView(): bool\n    {\n        return !auth()->user() || !auth()->user()->isSuperAdmin();\n    }\n";
                     $newContent = preg_replace('/class '.$className.' extends ([a-zA-Z0-9_\\\\]+)\s*\{/', $replacement, $content);
                     
                     file_put_contents($file->getRealPath(), $newContent);
@@ -53,7 +53,7 @@ class HideWidgetsFromSuperadmin extends Command
             if (!str_contains($content, 'public static function canAccess(): bool')) {
                 if (preg_match('/class ([A-Za-z]+) extends/', $content, $matches)) {
                     $className = $matches[1];
-                     $replacement = "class {$className} extends \\$2\n{\n    public static function canAccess(): bool\n    {\n        return !auth()->user() || !auth()->user()->is_superadmin;\n    }\n";
+                     $replacement = "class {$className} extends \\$2\n{\n    public static function canAccess(): bool\n    {\n        return !auth()->user() || !auth()->user()->isSuperAdmin();\n    }\n";
                     $newContent = preg_replace('/class '.$className.' extends ([a-zA-Z0-9_\\\\]+)\s*\{/', $replacement, $content);
                     file_put_contents($file->getRealPath(), $newContent);
                     $this->info('Updated page: ' . $className);

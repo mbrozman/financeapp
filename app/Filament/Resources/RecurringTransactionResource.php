@@ -39,7 +39,7 @@ class RecurringTransactionResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return (bool) auth()->user()?->is_superadmin === false;
+        return (bool) auth()->user()?->isSuperAdmin() === false;
     }
     public static function form(Form $form): Form
     {

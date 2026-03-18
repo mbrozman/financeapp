@@ -72,7 +72,8 @@ class CreateInvestment extends CreateRecord
 
             if ($initialQty->isGreaterThan(0)) {
                 $initialCurrencyId = $data['initial_currency_id'] ?? $record->currency_id;
-                $rate = $data['exchange_rate'] ?? CurrencyService::getLiveRateById($initialCurrencyId);
+                $inputRate = (float) ($data['exchange_rate'] ?? 0);
+                $rate = $inputRate > 0 ? $inputRate : CurrencyService::getLiveRateById($initialCurrencyId);
 
                 InvestmentTransaction::create([
                     'user_id' => auth()->id(),

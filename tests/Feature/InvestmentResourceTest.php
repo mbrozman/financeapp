@@ -4,19 +4,18 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Models\Investment;
-use App\Models\InvestmentTransaction;
-use App\Filament\Resources\InvestmentResource;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 use Livewire\Livewire;
 use App\Filament\Resources\InvestmentResource\Pages\ListInvestments;
 use App\Filament\Resources\InvestmentResource\Pages\ViewInvestment;
+use PHPUnit\Framework\Attributes\Test;
 
 class InvestmentResourceTest extends TestCase
 {
     use RefreshDatabase;
 
-    /** @test */
+    #[Test]
     public function it_can_list_investments()
     {
         $user = User::factory()->create(['is_admin' => true, 'is_active' => true]);
@@ -28,7 +27,7 @@ class InvestmentResourceTest extends TestCase
             ->assertCanSeeTableRecords($investments);
     }
 
-    /** @test */
+    #[Test]
     public function it_can_view_investment_details()
     {
         $user = User::factory()->create(['is_admin' => true, 'is_active' => true]);
@@ -43,7 +42,7 @@ class InvestmentResourceTest extends TestCase
         ->assertSee($investment->name);
     }
 
-    /** @test */
+    #[Test]
     public function it_can_only_view_own_investments()
     {
         $user = User::factory()->create(['is_admin' => true, 'is_active' => true]);

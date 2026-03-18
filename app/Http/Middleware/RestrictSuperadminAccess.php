@@ -17,7 +17,7 @@ class RestrictSuperadminAccess
     {
         $user = auth()->user();
 
-        if ($user && $user->is_superadmin) {
+        if ($user && $user->isSuperAdmin()) {
             // Povolené cesty pre superadmina
             $allowedPaths = [
                 'admin/users',

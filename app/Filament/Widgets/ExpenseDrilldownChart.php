@@ -11,7 +11,7 @@ class ExpenseDrilldownChart extends Component
 {
     public static function canView(): bool
     {
-        return !auth()->user() || !auth()->user()->is_superadmin;
+        return !auth()->user()?->isSuperAdmin();
     }
 
     public string $period = '1'; // mesiacov späť

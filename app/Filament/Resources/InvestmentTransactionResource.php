@@ -10,6 +10,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use App\Enums\TransactionType;
+use App\Services\CurrencyService;
 
 class InvestmentTransactionResource extends Resource
 {
@@ -79,14 +80,17 @@ class InvestmentTransactionResource extends Resource
                             ->relationship('currency', 'code')
                             ->searchable()
                             ->preload()
+                            ->live()
+                            ->afterStateUpdated(fn (Forms\Set $set, $state) => $set('exchange_rate', CurrencyService::getLiveRateById($state)))
                             ->default(fn() => \App\Models\Currency::where('code', 'USD')->value('id') ?? 1)
                             ->required(),
 
                         Forms\Components\TextInput::make('exchange_rate')
-                            ->label('Kurz voči EUR (v čase nákupu)')
+                            ->label('Kurz (1 mena = X EUR)')
                             ->numeric()
-                            ->default(1.0)
-                            ->helperText('Ak ste nakúpili v USD, zadajte kurz napr. 1.08'),
+                            ->default(fn (Forms\Get $get) => CurrencyService::getLiveRateById($get('currency_id')))
+                            ->required()
+                            ->helperText('Príklad pre USD: 0.92 znamená, že 1 USD = 0.92 EUR'),
                     ])->columns(3),
             ]);
     }

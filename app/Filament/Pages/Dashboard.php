@@ -8,7 +8,7 @@ class Dashboard extends BaseDashboard
 {
     public static function canAccess(): bool
     {
-        return ! auth()->user() || ! auth()->user()->is_superadmin;
+        return true;
     }
 
     public function getWidgets(): array

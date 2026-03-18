@@ -23,7 +23,7 @@ class ManageInvestmentPlans extends ManageRecords
     {
         return [
             Actions\CreateAction::make()
-                ->handleRecordCreation(function (array $data): InvestmentPlan {
+                ->using(function (array $data, string $model): InvestmentPlan {
                     $ticker = $data['ticker'] ?? null;
                     $userId = auth()->id();
 

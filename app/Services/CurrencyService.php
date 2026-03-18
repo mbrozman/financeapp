@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Currency;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
-use Illuminate\Support\Facades\Log;
 
 class CurrencyService
 {
@@ -27,9 +26,7 @@ class CurrencyService
         $amountBD = BigDecimal::of($amount);
         
         // 3. Zistíme kurz (historický alebo aktuálny)
-        $rawRate = ($historicalRate && $historicalRate > 0) 
-            ? $historicalRate 
-            : self::getLiveRateById($currencyId);
+        $rawRate = self::resolveRateById($currencyId, $historicalRate);
 
         if ($rawRate <= 0) return (string) $amountBD->toScale(4, RoundingMode::HALF_UP);
 
@@ -58,9 +55,7 @@ class CurrencyService
 
         // 3. Prevedieme z EUR do "Cieľovej meny" (DELENÍM kurzom, keďže kurz je k EUR)
         // Ak ideme EUR -> USD a vieme historický kurz (napr. 0.92), tak suma_eur / 0.92 = suma_usd
-        $rate = ($historicalRate && $historicalRate > 0 && $fromCurrencyId === 1) 
-            ? $historicalRate 
-            : self::getLiveRateById($toCurrencyId);
+        $rate = self::getLiveRateById($toCurrencyId);
 
         if ($rate <= 0) return $eurValue;
 
@@ -76,7 +71,7 @@ class CurrencyService
 
         $currency = Currency::find($id);
         
-        return ($currency && $currency->exchange_rate > 0) ? (float)$currency->exchange_rate : 1.0;
+        return self::normalizeRate($currency?->exchange_rate);
     }
 
     /**
@@ -88,7 +83,7 @@ class CurrencyService
 
         $currency = Currency::where('code', $code)->first();
         
-        return ($currency && $currency->exchange_rate > 0) ? (float)$currency->exchange_rate : 1.0;
+        return self::normalizeRate($currency?->exchange_rate);
     }
 
     /**
@@ -97,5 +92,23 @@ class CurrencyService
     public static function getLiveRate(?string $code): float
     {
         return self::getRate($code);
+    }
+
+    private static function resolveRateById(?int $currencyId, ?float $historicalRate = null): float
+    {
+        if ($historicalRate !== null) {
+            $normalizedHistorical = self::normalizeRate($historicalRate);
+            if ($normalizedHistorical > 0) {
+                return $normalizedHistorical;
+            }
+        }
+
+        return self::getLiveRateById($currencyId);
+    }
+
+    private static function normalizeRate(mixed $rate): float
+    {
+        $rateFloat = (float) ($rate ?? 0);
+        return $rateFloat > 0 ? $rateFloat : 1.0;
     }
 }

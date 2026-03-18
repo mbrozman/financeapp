@@ -2,13 +2,9 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\Account;
-use App\Models\Investment;
-use App\Services\CurrencyService;
+use App\Services\DashboardFinanceService;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
-use Brick\Math\BigDecimal;
-use Brick\Math\RoundingMode;
 
 class NetWorthOverview extends BaseWidget
 {
@@ -16,30 +12,10 @@ class NetWorthOverview extends BaseWidget
 
     protected function getStats(): array
     {
-        // 1. Bankové účty
-        $bankAccounts = Account::with('currency')
-            ->where('type', 'bank')
-            ->get();
-
-        $totalBank = 0.0;
-        foreach ($bankAccounts as $account) {
-            $rate = $account->currency->exchange_rate ?: 1;
-            $totalBank += $account->balance * $rate;
-        }
-
-        // 2. Hotovosť
-        $cashAccounts = Account::with('currency')
-            ->where('type', 'cash')
-            ->get();
-
-        $totalCash = 0.0;
-        foreach ($cashAccounts as $account) {
-            $rate = $account->currency->exchange_rate ?: 1;
-            $totalCash += $account->balance * $rate;
-        }
-
-        // 3. Celková likvidita
-        $totalLiquidity = $totalBank + $totalCash;
+        $stats = app(DashboardFinanceService::class)->getLiquidityStats((int) auth()->id());
+        $totalLiquidity = $stats['total_liquidity'];
+        $totalBank = $stats['total_bank'];
+        $totalCash = $stats['total_cash'];
 
         return [
             Stat::make('Celková likvidita', number_format($totalLiquidity, 2, ',', ' ') . ' €')

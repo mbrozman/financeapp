@@ -56,8 +56,16 @@ class User extends Authenticatable implements FilamentUser
     }
     public function canAccessPanel(Panel $panel): bool
     {
-        // Zatiaľ vrátime true, aby si sa vedel prihlásiť.
-        // Neskôr sem dáme: return $this->is_admin && $this->is_active;
-        return true;
+        return ($this->is_admin || $this->is_superadmin) && $this->is_active;
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return (bool) $this->is_superadmin;
+    }
+
+    public function isActive(): bool
+    {
+        return (bool) $this->is_active;
     }
 }

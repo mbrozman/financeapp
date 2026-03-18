@@ -48,75 +48,71 @@ class ExecuteInvestmentPlans extends Command
         $this->info("Spracovávam plán pre: {$plan->investment->ticker} ({$plan->amount} {$plan->currency->code})");
 
         try {
-            DB::beginTransaction();
+            DB::transaction(function () use ($plan, $apiService) {
+                // 0. ZÍSKANIE ZÁMKU A OVERENIE (Idempotencia)
+                $lockedPlan = InvestmentPlan::where('id', $plan->id)
+                    ->lockForUpdate()
+                    ->first();
 
-            // 1. ZÍSKANIE CENY
-            $quote = $apiService->getLiveQuote($plan->investment->ticker);
-            if (!$quote || !isset($quote['price'])) {
-                throw new \Exception("Nepodarilo sa získať cenu pre {$plan->investment->ticker}");
-            }
+                if (!$lockedPlan || $lockedPlan->next_run_date->gt(now())) {
+                    $this->warn("Plán {$plan->id} už bol pravdepodobne spracovaný súbežným procesom. Preskakujem.");
+                    return;
+                }
 
-            $currentPrice = BigDecimal::of($quote['price']);
-            
-            // 2. PREPOČET SUMY DO MENY INVESTÍCIE (ak je iná)
-            $investedAmountInNative = CurrencyService::convert(
-                $plan->amount,
-                $plan->currency_id,
-                $plan->investment->currency_id
-            );
+                // 1. ZÍSKANIE CENY
+                $quote = $apiService->getLiveQuote($plan->investment->ticker);
+                if (!$quote || !isset($quote['price'])) {
+                    throw new \Exception("Nepodarilo sa získať cenu pre {$plan->investment->ticker}");
+                }
 
-            // 3. VÝPOČET KUSOV
-            $quantity = BigDecimal::of($investedAmountInNative)
-                ->dividedBy($currentPrice, 8, RoundingMode::DOWN);
+                $currentPrice = BigDecimal::of($quote['price']);
+                
+                // 2. PREPOČET SUMY DO MENY INVESTÍCIE (ak je iná)
+                $investedAmountInNative = CurrencyService::convert(
+                    $plan->amount,
+                    $plan->currency_id,
+                    $plan->investment->currency_id
+                );
 
-            if ($quantity->isZero()) {
-                throw new \Exception("Suma je príliš nízka na nákup aspoň malej časti.");
-            }
+                // 3. VÝPOČET KUSOV
+                $quantity = BigDecimal::of($investedAmountInNative)
+                    ->dividedBy($currentPrice, 8, RoundingMode::DOWN);
 
-            // 4. VYTVORENIE TRANSAKCIE
-            $tx = InvestmentTransaction::create([
-                'user_id' => $plan->user_id,
-                'investment_id' => $plan->investment_id,
-                'type' => TransactionType::BUY,
-                'quantity' => (string) $quantity,
-                'price_per_unit' => (string) $currentPrice,
-                'commission' => '0',
-                'currency_id' => $plan->investment->currency_id,
-                'exchange_rate' => CurrencyService::getLiveRateById($plan->investment->currency_id),
-                'transaction_date' => now(),
-                'investment_plan_id' => $plan->id,
-                'notes' => 'Automatický nákup (Autoinvest)',
-            ]);
+                if ($quantity->isZero()) {
+                    throw new \Exception("Suma je príliš nízka na nákup aspoň malej časti.");
+                }
 
-            // 5. UPDATE BALANCE NA ÚČTE - Odstránené (Observer sa o to postará automaticky)
-            /*
-            $account = $plan->account;
-            $amountInAccountCurrency = CurrencyService::convert(
-                $plan->amount,
-                $plan->currency_id,
-                $account->currency_id
-            );
+                // 4. VYTVORENIE TRANSAKCIE
+                $tx = InvestmentTransaction::create([
+                    'user_id' => $plan->user_id,
+                    'investment_id' => $plan->investment_id,
+                    'type' => TransactionType::BUY,
+                    'quantity' => (string) $quantity,
+                    'price_per_unit' => (string) $currentPrice,
+                    'commission' => '0',
+                    'currency_id' => $plan->investment->currency_id,
+                    'exchange_rate' => CurrencyService::getLiveRateById($plan->investment->currency_id),
+                    'transaction_date' => now(),
+                    'investment_plan_id' => $plan->id,
+                    'notes' => 'Automatický nákup (Autoinvest)',
+                ]);
 
-            $account->decrement('balance', (string) $amountInAccountCurrency);
-            */
+                // 5. UPDATE PLÁNU (Next Run Date)
+                $nextDate = match ($plan->frequency) {
+                    'daily' => $plan->next_run_date->addDay(),
+                    'weekly' => $plan->next_run_date->addWeek(),
+                    'monthly' => $plan->next_run_date->addMonth(),
+                    default => $plan->next_run_date->addMonth(),
+                };
 
-            // 6. UPDATE PLÁNU (Next Run Date)
-            $nextDate = match ($plan->frequency) {
-                'daily' => $plan->next_run_date->addDay(),
-                'weekly' => $plan->next_run_date->addWeek(),
-                'monthly' => $plan->next_run_date->addMonth(),
-                default => $plan->next_run_date->addMonth(),
-            };
+                $plan->update([
+                    'next_run_date' => $nextDate,
+                ]);
 
-            $plan->update([
-                'next_run_date' => $nextDate,
-            ]);
-
-            DB::commit();
-            $this->info("✅ Úspešne nakúpené: {$quantity} ks za {$currentPrice}");
+                $this->info("✅ Úspešne nakúpené: {$quantity} ks za {$currentPrice}");
+            });
 
         } catch (\Exception $e) {
-            DB::rollBack();
             $this->error("❌ Chyba pri spracovaní plánu ID {$plan->id}: " . $e->getMessage());
             Log::error("Autoinvest Error [Plan {$plan->id}]: " . $e->getMessage());
         }

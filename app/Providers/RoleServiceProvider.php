@@ -24,7 +24,7 @@ class RoleServiceProvider extends ServiceProvider
         \Filament\Facades\Filament::serving(function () {
             $user = auth()->user();
 
-            if ($user && $user->is_superadmin) {
+            if ($user && $user->isSuperAdmin()) {
                 // Skryjeme všetko, čo by inak registrovali iné Resources
                 \Filament\Facades\Filament::registerNavigationGroups([
                     \Filament\Navigation\NavigationGroup::make('Systém'),

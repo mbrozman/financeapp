@@ -29,8 +29,8 @@ class FixNullSafeAuthorization extends Command
         $files = \Illuminate\Support\Facades\File::allFiles($resourcesPath);
         
         // Fix for all other resources
-        $targetResource = 'return ! auth()->user()->is_superadmin;';
-        $replacementResource = 'return (bool) auth()->user()?->is_superadmin === false;';
+        $targetResource = 'return ! auth()->user()->isSuperAdmin();';
+        $replacementResource = 'return (bool) auth()->user()?->isSuperAdmin() === false;';
         
         foreach ($files as $file) {
             $content = file_get_contents($file->getRealPath());
@@ -38,8 +38,8 @@ class FixNullSafeAuthorization extends Command
             // Fix for UserResource
             if ($file->getFilename() === 'UserResource.php') {
                 $newContent = str_replace(
-                    'return auth()->user()->is_superadmin;',
-                    'return (bool) auth()->user()?->is_superadmin;',
+                    'return auth()->user()->isSuperAdmin();',
+                    'return (bool) auth()->user()?->isSuperAdmin();',
                     $content
                 );
                 if ($newContent !== $content) {
@@ -62,7 +62,7 @@ class FixNullSafeAuthorization extends Command
             $files = \Illuminate\Support\Facades\File::allFiles($policiesPath);
             foreach ($files as $file) {
                 $content = file_get_contents($file->getRealPath());
-                $newContent = str_replace('!auth()->user()->is_superadmin', '!$user->is_superadmin', $content);
+                $newContent = str_replace('!auth()->user()->isSuperAdmin()', '!$user->isSuperAdmin()', $content);
                 if ($newContent !== $content) {
                     file_put_contents($file->getRealPath(), $newContent);
                     $this->info('Fixed Policy: ' . $file->getFilename());

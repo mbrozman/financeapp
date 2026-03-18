@@ -41,7 +41,7 @@ class HideResourcesFromSuperadmin extends Command
             }
 
             $content = file_get_contents($policyPath);
-            $content = str_replace('return false;', 'return !auth()->user()->is_superadmin;', $content);
+            $content = str_replace('return false;', 'return !auth()->user()->isSuperAdmin();', $content);
             file_put_contents($policyPath, $content);
             $this->info("Updated policy for {$model}");
         }

@@ -9,12 +9,13 @@ use App\Services\InvestmentCalculationService;
 use App\Enums\TransactionType;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Carbon\Carbon;
+use PHPUnit\Framework\Attributes\Test;
 
 class InvestmentCalculationServiceTest extends TestCase
 {
     use RefreshDatabase;
 
-    /** @test */
+    #[Test]
     public function it_calculates_fifo_stats_for_simple_buy_and_sell()
     {
         // 1. Setup Investment
@@ -50,17 +51,20 @@ class InvestmentCalculationServiceTest extends TestCase
         // Avg Buy Price: Original price was 100
         $this->assertEquals('100.0000', $stats['average_buy_price']);
 
-        // Realized Gain: (150 - 100) * 5 - 10 (commission) = 250 - 10 = 240
-        $this->assertEquals('240', $stats['realized_gain_base']);
+        // Realized Gain:
+        // Nákup mal poplatok 5 na 10 ks => 0.5/ks, pre predaných 5 ks je to 2.5
+        // Predajný poplatok je 10 celkom => 2.0/ks, čistá predajná cena je 148/ks
+        // Zisk = (148 - 100.5) * 5 = 237.5
+        $this->assertEqualsWithDelta(237.5, (float) $stats['realized_gain_base'], 0.0001);
 
         // Total Invested: (10 * 100) + 5 = 1005
-        $this->assertEquals('1005', $stats['total_invested_base']);
+        $this->assertEqualsWithDelta(1005.0, (float) $stats['total_invested_base'], 0.0001);
 
         // Total Sales: (5 * 150) - 10 = 740
-        $this->assertEquals('740', $stats['total_sales_base']);
+        $this->assertEqualsWithDelta(740.0, (float) $stats['total_sales_base'], 0.0001);
     }
 
-    /** @test */
+    #[Test]
     public function it_calculates_fifo_stats_with_multiple_buy_lots()
     {
         $investment = Investment::factory()->create(['ticker' => 'TSLA']);
@@ -108,6 +112,6 @@ class InvestmentCalculationServiceTest extends TestCase
         // From Lot 1: (400 - 200) * 10 = 2000
         // From Lot 2: (400 - 300) * 5 = 500
         // Total = 2500
-        $this->assertEquals('2500', $stats['realized_gain_base']);
+        $this->assertEqualsWithDelta(2500.0, (float) $stats['realized_gain_base'], 0.0001);
     }
 }

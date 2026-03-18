@@ -13,7 +13,7 @@ class MonthlyIncomePolicy
      */
     public function viewAny(User $user): bool
     {
-        return !$user->is_superadmin;
+        return !$user->isSuperAdmin();
     }
 
     /**
@@ -21,7 +21,7 @@ class MonthlyIncomePolicy
      */
     public function view(User $user, MonthlyIncome $monthlyIncome): bool
     {
-        return !$user->is_superadmin;
+        return !$user->isSuperAdmin();
     }
 
     /**
@@ -29,7 +29,7 @@ class MonthlyIncomePolicy
      */
     public function create(User $user): bool
     {
-        return !$user->is_superadmin;
+        return !$user->isSuperAdmin();
     }
 
     /**
@@ -37,7 +37,7 @@ class MonthlyIncomePolicy
      */
     public function update(User $user, MonthlyIncome $monthlyIncome): bool
     {
-        return !$user->is_superadmin;
+        return !$user->isSuperAdmin();
     }
 
     /**
@@ -45,7 +45,7 @@ class MonthlyIncomePolicy
      */
     public function delete(User $user, MonthlyIncome $monthlyIncome): bool
     {
-        return !$user->is_superadmin;
+        return !$user->isSuperAdmin();
     }
 
     /**
@@ -53,7 +53,7 @@ class MonthlyIncomePolicy
      */
     public function restore(User $user, MonthlyIncome $monthlyIncome): bool
     {
-        return !$user->is_superadmin;
+        return !$user->isSuperAdmin();
     }
 
     /**
@@ -61,6 +61,6 @@ class MonthlyIncomePolicy
      */
     public function forceDelete(User $user, MonthlyIncome $monthlyIncome): bool
     {
-        return !$user->is_superadmin;
+        return !$user->isSuperAdmin();
     }
 }
