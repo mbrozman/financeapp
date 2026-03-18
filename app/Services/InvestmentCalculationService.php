@@ -32,6 +32,10 @@ class InvestmentCalculationService
             $priceInBase = CurrencyService::convert($tx->price_per_unit, $tx->currency_id, $baseCurrencyId, $tx->exchange_rate);
             $commInBase = CurrencyService::convert($tx->commission ?? 0, $tx->currency_id, $baseCurrencyId, $tx->exchange_rate);
 
+            // Taktiež si spočítame priamo hodnoty v EUR pre presnú FIFO nákupku
+            $priceInEur = CurrencyService::convertToEur($tx->price_per_unit, $tx->currency_id, $tx->exchange_rate);
+            $commInEur = CurrencyService::convertToEur($tx->commission ?? 0, $tx->currency_id, $tx->exchange_rate);
+
             $qty = BigDecimal::of($tx->quantity);
             $price = BigDecimal::of($priceInBase);
             $comm = BigDecimal::of($commInBase);
@@ -53,9 +57,11 @@ class InvestmentCalculationService
                 $remainingLots[] = [
                     'qty' => $qty,
                     'qty_orig' => $qty, // Uložíme pôvodný počet pre neskorší prepočet poplatku
-                    'price' => $price, // CLEAN market price
-                    'comm' => $comm,   // Celý poplatok za tento lot
+                    'price' => $price, // CLEAN market price v BASE
+                    'comm' => $comm,   // Celý poplatok za tento lot v BASE
                     'comm_orig' => $comm,
+                    'price_eur' => BigDecimal::of($priceInEur), // CLEAN market price v EUR
+                    'comm_eur' => BigDecimal::of($commInEur),   // Celý poplatok v EUR
                     'date' => $tx->transaction_date,
                 ];
             } 
@@ -103,11 +109,13 @@ class InvestmentCalculationService
         // 3. VÝPOČET PRE ZVYŠNÉ KUSY (To, čo dnes držíš)
         $currentQty = BigDecimal::of(0);
         $totalCleanCostOfRemaining = BigDecimal::of(0);
+        $totalCleanCostOfRemainingEur = BigDecimal::of(0);
         $totalRemainingComm = BigDecimal::of(0);
 
         foreach ($remainingLots as $lot) {
             $currentQty = $currentQty->plus($lot['qty']);
             $totalCleanCostOfRemaining = $totalCleanCostOfRemaining->plus($lot['qty']->multipliedBy($lot['price']));
+            $totalCleanCostOfRemainingEur = $totalCleanCostOfRemainingEur->plus($lot['qty']->multipliedBy($lot['price_eur']));
             
             // Alikvótna časť pôvodného poplatku, ktorá zostáva
             $lotCommPerUnit = (isset($lot['qty_orig']) && $lot['qty_orig']->isGreaterThan(0))
@@ -121,6 +129,10 @@ class InvestmentCalculationService
             ? $totalCleanCostOfRemaining->dividedBy($currentQty, 4, RoundingMode::HALF_UP)
             : BigDecimal::zero();
 
+        $avgPriceEur = $currentQty->isGreaterThan(0)
+            ? $totalCleanCostOfRemainingEur->dividedBy($currentQty, 4, RoundingMode::HALF_UP)
+            : BigDecimal::zero();
+
         // Nerealizovaný zisk = (Aktuálna hodnota) - (Čistá nákupná cena + Zostávajúce poplatky)
         $currentPrice = BigDecimal::of($investment->current_price ?? 0);
         $unrealizedGainBase = $currentQty->multipliedBy($currentPrice)
@@ -131,6 +143,7 @@ class InvestmentCalculationService
         return [
             'current_quantity' => (string) $currentQty,
             'average_buy_price' => (string) $avgPrice,
+            'average_buy_price_eur' => (string) $avgPriceEur,
             'realized_gain_base' => (string) $realizedGainBase,
             'unrealized_gain_base' => (string) $unrealizedGainBase,
             'total_invested_base' => (string) $totalInvestedBase,
@@ -138,4 +151,26 @@ class InvestmentCalculationService
             'remaining_lots' => $remainingLots,
         ];
     }
-}
+
+    /**
+     * Prepočíta a PLNE uloží štatistiky do databázy (Denormalizácia pre výkon)
+     */
+    public static function refreshStats(Investment $investment): void
+    {
+        $stats = self::getStats($investment);
+
+        $investment->updateQuietly([
+            'total_quantity' => $stats['current_quantity'],
+            'average_buy_price' => $stats['average_buy_price'],
+            'average_buy_price_eur' => $stats['average_buy_price_eur'],
+            'total_invested_base' => $stats['total_invested_base'],
+            'total_sales_base' => $stats['total_sales_base'],
+            'realized_gain_base' => $stats['realized_gain_base'],
+            'is_archived' => (\Brick\Math\BigDecimal::of($stats['current_quantity'] ?? 0)->isZero()),
+        ]);
+        
+        if (method_exists($investment, 'clearStatsCache')) {
+            $investment->clearStatsCache();
+        }
+    }
+}

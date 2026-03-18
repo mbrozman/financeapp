@@ -23,6 +23,8 @@ class Investment extends Model
         'user_id', 'account_id', 'investment_category_id', 'currency_id',
         'ticker', 'name', 'broker', 'sector', 'industry', 'country', 'asset_type',
         'current_price', 'is_archived', 'last_price_update',
+        'total_quantity', 'average_buy_price', 'average_buy_price_eur',
+        'total_invested_base', 'total_sales_base', 'realized_gain_base',
     ];
 
     protected $casts = [
@@ -63,40 +65,32 @@ class Investment extends Model
 
     protected function totalQuantity(): Attribute
     {
-        return Attribute::make(get: fn() => $this->getInvestmentStats()['current_quantity']);
+        return Attribute::make(get: fn($value, $attributes) => (string) ($attributes['total_quantity'] ?? 0));
     }
 
     protected function averageBuyPriceBase(): Attribute
     {
-        return Attribute::make(get: fn() => $this->getInvestmentStats()['average_buy_price']);
+        return Attribute::make(get: fn($value, $attributes) => (string) ($attributes['average_buy_price'] ?? 0));
     }
 
     protected function averageBuyPriceEur(): Attribute
     {
-        return Attribute::make(
-            get: function () {
-                $qty = BigDecimal::of($this->total_quantity);
-                if ($qty->isZero()) return '0.0000';
-                
-                return (string) BigDecimal::of($this->total_invested_eur)
-                    ->dividedBy($qty, 4, RoundingMode::HALF_UP);
-            }
-        );
+        return Attribute::make(get: fn($value, $attributes) => (string) ($attributes['average_buy_price_eur'] ?? 0));
     }
 
     protected function totalInvestedBase(): Attribute
     {
-        return Attribute::make(get: fn() => $this->getInvestmentStats()['total_invested_base']);
+        return Attribute::make(get: fn($value, $attributes) => (string) ($attributes['total_invested_base'] ?? 0));
     }
 
     protected function totalSalesBase(): Attribute
     {
-        return Attribute::make(get: fn() => $this->getInvestmentStats()['total_sales_base']);
+        return Attribute::make(get: fn($value, $attributes) => (string) ($attributes['total_sales_base'] ?? 0));
     }
 
     protected function realizedGainBase(): Attribute
     {
-        return Attribute::make(get: fn() => $this->getInvestmentStats()['realized_gain_base']);
+        return Attribute::make(get: fn($value, $attributes) => (string) ($attributes['realized_gain_base'] ?? 0));
     }
 
     protected function unrealizedGainBase(): Attribute

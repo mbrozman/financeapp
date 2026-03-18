@@ -50,42 +50,71 @@ class InvestmentTransaction extends Model
     {
         return $this->belongsTo(InvestmentPlan::class);
     }
-    /*
     protected static function booted(): void
-{
-    static::saved(function (InvestmentTransaction $tx) {
-        $investment = $tx->investment;
+    {
+        static::created(function (InvestmentTransaction $tx) {
+            DB::transaction(function () use ($tx) {
+                InvestmentCalculationService::refreshStats($tx->investment);
+                self::adjustBrokerBalance($tx, 'apply');
+            });
+        });
 
-        // 1. Logika peňazí u brokera (táto ti pravdepodobne funguje)
-        $brokerAccount = $investment->account;
-        $amountEur = ($tx->quantity * ($tx->price_per_unit / $tx->exchange_rate));
+        static::updating(function (InvestmentTransaction $tx) {
+            DB::transaction(function () use ($tx) {
+                // Odčítame starý stav (rollback) pred uložením nového
+                // Použijeme kópiu modelu s pôvodnými dátami
+                $oldTx = $tx->replicate();
+                $oldTx->setRawAttributes($tx->getOriginal());
+                self::adjustBrokerBalance($oldTx, 'rollback');
+            });
+        });
+
+        static::updated(function (InvestmentTransaction $tx) {
+            DB::transaction(function () use ($tx) {
+                InvestmentCalculationService::refreshStats($tx->investment);
+                self::adjustBrokerBalance($tx, 'apply');
+            });
+        });
+
+        static::deleted(function (InvestmentTransaction $tx) {
+            DB::transaction(function () use ($tx) {
+                InvestmentCalculationService::refreshStats($tx->investment);
+                self::adjustBrokerBalance($tx, 'rollback');
+            });
+        });
+    }
+
+    private static function adjustBrokerBalance(InvestmentTransaction $tx, string $mode): void
+    {
+        $account = $tx->investment->account;
+        if (!$account) return;
+
+        // Výpočet dopadu transakcie v EUR (všetky účty v tejto appke majú zostatok v EUR)
+        // Ak je transakcia v inej mene, prepočítame ju historickým kurzom
+        $amountBase = (float)$tx->quantity * (float)$tx->price_per_unit;
+        $commBase = (float)$tx->commission;
         
-        if ($tx->type === 'sell') {
-            $brokerAccount->increment('balance', $amountEur - $tx->commission);
-        } elseif ($tx->type === 'buy') {
-            $brokerAccount->decrement('balance', $amountEur + $tx->commission);
+        // Celkový dopad v mene transakcie
+        // Buy: - (Cena + Poplatok)
+        // Sell: + (Cena - Poplatok)
+        // Dividend: + (Cena - Poplatok)
+        
+        $impactInBase = 0;
+        if ($tx->type === TransactionType::BUY) {
+            $impactInBase = -($amountBase + $commBase);
+        } elseif ($tx->type === TransactionType::SELL || $tx->type === TransactionType::DIVIDEND) {
+            $impactInBase = ($amountBase - $commBase);
         }
 
-        // 2. LOGIKA ARCHIVÁCIE (Opravená)
-        $totalBuys = \App\Models\InvestmentTransaction::where('investment_id', $investment->id)->where('type', 'buy')->sum('quantity');
-        $totalSells = \App\Models\InvestmentTransaction::where('investment_id', $investment->id)->where('type', 'sell')->sum('quantity');
-        
-        $currentQty = (float)$totalBuys - (float)$totalSells;
+        // Prepočet na EUR (vždy používame historický kurz transakcie pre zostatok na účte)
+        $impactInEur = $impactInBase * (float)$tx->exchange_rate;
 
-        // Ak je zostatok 0 alebo menej, archivujeme. Ak je viac, vrátime z archívu.
-        $investment->updateQuietly([
-            'is_archived' => ($currentQty <= 0.000001)
-        ]);
-    });
+        if ($mode === 'rollback') {
+            $impactInEur = -$impactInEur;
+        }
 
-    static::deleted(function (InvestmentTransaction $tx) {
-        $investment = $tx->investment;
-        $totalBuys = \App\Models\InvestmentTransaction::where('investment_id', $investment->id)->where('type', 'buy')->sum('quantity');
-        $totalSells = \App\Models\InvestmentTransaction::where('investment_id', $investment->id)->where('type', 'sell')->sum('quantity');
-        
-        $investment->updateQuietly([
-            'is_archived' => (($totalBuys - $totalSells) <= 0.000001)
-        ]);
-    });
-}*/
+        // Aktualizácia zostatku (Account balance je uložený ako string/decimal)
+        $newBalance = \Brick\Math\BigDecimal::of($account->balance)->plus($impactInEur);
+        $account->updateQuietly(['balance' => (string)$newBalance]);
+    }
 }
