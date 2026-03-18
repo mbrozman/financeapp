@@ -21,11 +21,9 @@ steps:
     entrypoint: gcloud
     args:
       - 'run'
-      - 'services'
-      - 'update'
-      - 'finance-service'
-      - '--command'
-      - 'php,artisan,migrate,--force'
+      - 'jobs'
+      - 'execute'
+      - 'finance-service-migrate'
       - '--region'
       - 'europe-west3'
 
