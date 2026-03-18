@@ -68,6 +68,9 @@ class InvestmentTransactionObserver
             $brokerAccount->increment('balance', (string) $newAmountEur);
         }
 
+        // AKTUALIZÁCIA ŠTATISTÍK (FIFO persistence)
+        \App\Services\InvestmentCalculationService::refreshStats($investment);
+        
         $this->syncInvestmentStatus($investment);
     }
 
@@ -97,6 +100,9 @@ class InvestmentTransactionObserver
         } else {
             $brokerAccount->decrement('balance', (string) $amountEur);
         }
+
+        // AKTUALIZÁCIA ŠTATISTÍK (FIFO persistence)
+        \App\Services\InvestmentCalculationService::refreshStats($investment);
 
         $this->syncInvestmentStatus($investment);
     }

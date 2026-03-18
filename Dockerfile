@@ -6,15 +6,18 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     libicu-dev \
     libzip-dev \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
     git \
     unzip \
     && curl -sL https://deb.nodesource.com/setup_22.x | bash - && \
     apt-get install -y nodejs && \
     rm -rf /var/lib/apt/lists/*
 
-# 3. Konfigurácia a inštalácia PHP rozšírení (všetko v jednom kroku)
-RUN docker-php-ext-configure intl \
-    && docker-php-ext-install pdo pdo_pgsql intl zip
+# 3. Konfigurácia a inštalácia PHP rozšírení
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install pdo pdo_pgsql intl zip bcmath gd exif
 
 # 4. Povolíme Apache rewrite module (potrebné pre pekné Laravel URL)
 RUN a2enmod rewrite
