@@ -46,8 +46,14 @@ return new class extends Migration
             if (!Schema::hasColumn('investments', 'total_dividends_base')) {
                 $table->decimal('total_dividends_base', 19, 4)->default(0)->after('total_sales_eur');
             }
+            if (!Schema::hasColumn('investments', 'total_dividends_eur')) {
+                $table->decimal('total_dividends_eur', 19, 4)->default(0)->after('total_dividends_base');
+            }
             if (!Schema::hasColumn('investments', 'realized_gain_base')) {
-                $table->decimal('realized_gain_base', 19, 4)->default(0)->after('total_dividends_base');
+                $table->decimal('realized_gain_base', 19, 4)->default(0)->after('total_dividends_eur');
+            }
+            if (!Schema::hasColumn('investments', 'realized_gain_eur')) {
+                $table->decimal('realized_gain_eur', 19, 4)->default(0)->after('realized_gain_base');
             }
         });
     }
