@@ -74,8 +74,8 @@ class Investment extends Model
                 $qty = BigDecimal::of($this->total_quantity);
                 if ($qty->isZero()) return '0';
                 
-                $price = BigDecimal::of($this->current_price ?? 0);
-                $avgBuyPrice = BigDecimal::of($this->average_buy_price);
+                $price = BigDecimal::of($this->current_price ?? '0');
+                $avgBuyPrice = BigDecimal::of($this->average_buy_price ?? '0');
                 
                 // Unrealized Gain = (Current Price - Avg Buy Price) * Quantity
                 return (string) $price->minus($avgBuyPrice)->multipliedBy($qty);
@@ -94,12 +94,12 @@ class Investment extends Model
     {
         return Attribute::make(
             get: function () {
-                $invested = BigDecimal::of($this->total_invested_base);
-                $sales = BigDecimal::of($this->total_sales_base);
-                $dividends = BigDecimal::of($this->total_dividends_base);
+                $invested = BigDecimal::of($this->total_invested_base ?? '0');
+                $sales = BigDecimal::of($this->total_sales_base ?? '0');
+                $dividends = BigDecimal::of($this->total_dividends_base ?? '0');
                 $currentValue = $this->is_archived 
                     ? BigDecimal::zero() 
-                    : BigDecimal::of($this->current_market_value_base);
+                    : BigDecimal::of($this->current_market_value_base ?? '0');
                 
                 return (string) $currentValue->plus($sales)->plus($dividends)->minus($invested);
             }
@@ -125,8 +125,8 @@ class Investment extends Model
     {
         return Attribute::make(
             get: function () {
-                if ($this->is_archived) return $this->total_sales_eur;
-                return CurrencyService::convertToEur($this->current_market_value_base, $this->currency_id);
+                if ($this->is_archived) return $this->total_sales_eur ?? '0';
+                return CurrencyService::convertToEur($this->current_market_value_base ?? '0', $this->currency_id);
             }
         );
     }
@@ -177,12 +177,12 @@ class Investment extends Model
         }
 
         if ($code === 'EUR') {
-            $invested = BigDecimal::of($this->total_invested_eur);
-            $sales = BigDecimal::of($this->total_sales_eur);
-            $dividends = BigDecimal::of($this->total_dividends_eur);
+            $invested = BigDecimal::of($this->total_invested_eur ?? '0');
+            $sales = BigDecimal::of($this->total_sales_eur ?? '0');
+            $dividends = BigDecimal::of($this->total_dividends_eur ?? '0');
             $currentValue = $this->is_archived 
                 ? BigDecimal::zero() 
-                : BigDecimal::of($this->current_market_value_eur);
+                : BigDecimal::of($this->current_market_value_eur ?? '0');
 
             return (string) $currentValue->plus($sales)->plus($dividends)->minus($invested);
         }

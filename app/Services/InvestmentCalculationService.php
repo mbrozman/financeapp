@@ -39,12 +39,12 @@ class InvestmentCalculationService
             $priceInBase = CurrencyService::convert($tx->price_per_unit, $tx->currency_id, $baseCurrencyId, $tx->exchange_rate);
             $commInBase = CurrencyService::convert($tx->commission ?? 0, $tx->currency_id, $baseCurrencyId, $tx->exchange_rate);
             
-            $priceInEur = CurrencyService::convertToEur($tx->price_per_unit, $tx->currency_id, $tx->exchange_rate);
+            $priceInEur = CurrencyService::convertToEur($tx->price_per_unit ?? 0, $tx->currency_id, $tx->exchange_rate);
             $commInEur = CurrencyService::convertToEur($tx->commission ?? 0, $tx->currency_id, $tx->exchange_rate);
 
-            $qty = BigDecimal::of($tx->quantity);
-            $price = BigDecimal::of($priceInBase);
-            $comm = BigDecimal::of($commInBase);
+            $qty = BigDecimal::of($tx->quantity ?? 0);
+            $price = BigDecimal::of($priceInBase ?? 0);
+            $comm = BigDecimal::of($commInBase ?? 0);
 
             // --- LOGIKA NÁKUPU ---
             if ($tx->type === TransactionType::BUY) {
@@ -143,7 +143,7 @@ class InvestmentCalculationService
             ? $totalCleanCostOfRemainingEur->dividedBy($currentQty, 4, RoundingMode::HALF_UP)
             : BigDecimal::zero();
 
-        $currentPrice = BigDecimal::of($investment->current_price ?? 0);
+        $currentPrice = BigDecimal::of($investment->current_price ?? '0');
         $unrealizedGainBase = $currentQty->multipliedBy($currentPrice)
             ->minus($totalCleanCostOfRemaining)
             ->minus($totalRemainingComm);
