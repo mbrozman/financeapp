@@ -1,19 +1,22 @@
 #!/bin/bash
-set -e
 
-# Dynamicky nastavíme port pre Apache podľa Cloud Run prostredia
+echo "=== ŠTART KONTAJNERA ==="
 PORT="${PORT:-8080}"
+echo "Cieľový port: ${PORT}"
 
-# Nahradíme predvolený port 80 v Apache konfigurácii
+# Nastav Apache port
 sed -i "s/Listen 80$/Listen ${PORT}/" /etc/apache2/ports.conf
 sed -i "s/<VirtualHost \*:80>/<VirtualHost *:${PORT}>/" /etc/apache2/sites-available/000-default.conf
 
-echo "Apache sa spustí na porte: ${PORT}"
+echo "Apache port nastavený na: ${PORT}"
 
-# Spustíme cache príkazy (Laravelu pomôžu s rýchlym štartom)
-php artisan config:cache --no-ansi || true
-php artisan route:cache --no-ansi || true
-php artisan view:cache --no-ansi || true
+# Skontroluj Apache konfiguráciu
+apache2ctl configtest 2>&1 || echo "VAROVANIE: Chyba v Apache konfigurácii"
 
-# Start Apache v popredí
+# Optim. Laravel cache (chyby sú nekritické)
+php artisan config:cache --no-ansi 2>&1 && echo "config:cache OK" || echo "config:cache zlyhalo"
+php artisan route:cache --no-ansi 2>&1 && echo "route:cache OK" || echo "route:cache zlyhalo"
+php artisan view:cache --no-ansi 2>&1 && echo "view:cache OK" || echo "view:cache zlyhalo"
+
+echo "=== SPÚŠŤAM APACHE NA PORTE ${PORT} ==="
 exec apache2-foreground

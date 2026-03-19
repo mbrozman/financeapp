@@ -13,15 +13,23 @@ return new class extends Migration
     {
         Schema::table('investments', function (Blueprint $table) {
             // Premenujeme staré quantity na total_quantity pre konzistenciu s kódom
-            if (Schema::hasColumn('investments', 'quantity')) {
+            if (Schema::hasColumn('investments', 'quantity') && !Schema::hasColumn('investments', 'total_quantity')) {
                 $table->renameColumn('quantity', 'total_quantity');
             }
             
-            // Pridáme zvyšné štatistické polia
-            $table->decimal('average_buy_price_eur', 19, 4)->default(0)->after('average_buy_price');
-            $table->decimal('total_invested_base', 19, 4)->default(0)->after('average_buy_price_eur');
-            $table->decimal('total_sales_base', 19, 4)->default(0)->after('total_invested_base');
-            $table->decimal('realized_gain_base', 19, 4)->default(0)->after('total_sales_base');
+            // Pridáme zvyšné štatistické polia (idempotentne)
+            if (!Schema::hasColumn('investments', 'average_buy_price_eur')) {
+                $table->decimal('average_buy_price_eur', 19, 4)->default(0)->after('average_buy_price');
+            }
+            if (!Schema::hasColumn('investments', 'total_invested_base')) {
+                $table->decimal('total_invested_base', 19, 4)->default(0)->after('average_buy_price_eur');
+            }
+            if (!Schema::hasColumn('investments', 'total_sales_base')) {
+                $table->decimal('total_sales_base', 19, 4)->default(0)->after('total_invested_base');
+            }
+            if (!Schema::hasColumn('investments', 'realized_gain_base')) {
+                $table->decimal('realized_gain_base', 19, 4)->default(0)->after('total_sales_base');
+            }
         });
     }
 
