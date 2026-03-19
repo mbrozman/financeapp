@@ -50,8 +50,4 @@ class InvestmentTransaction extends Model
     {
         return $this->belongsTo(InvestmentPlan::class);
     }
-    public function investmentPlan(): BelongsTo
-    {
-        return $this->belongsTo(InvestmentPlan::class);
-    }
 }
