@@ -64,51 +64,8 @@ class Investment extends Model
     }
 
     // --- VÝPOČTY ODVODENÉ Z DATABÁZY (Rýchle accessory) ---
-
-    protected function totalQuantity(): Attribute
-    {
-        return Attribute::make(get: fn($value, $attributes) => (string) ($attributes['total_quantity'] ?? 0));
-    }
-
-    protected function averageBuyPriceBase(): Attribute
-    {
-        return Attribute::make(get: fn($value, $attributes) => (string) ($attributes['average_buy_price'] ?? 0));
-    }
-
-    protected function averageBuyPriceEur(): Attribute
-    {
-        return Attribute::make(get: fn($value, $attributes) => (string) ($attributes['average_buy_price_eur'] ?? 0));
-    }
-
-    protected function totalInvestedBase(): Attribute
-    {
-        return Attribute::make(get: fn($value, $attributes) => (string) ($attributes['total_invested_base'] ?? 0));
-    }
-
-    protected function totalInvestedEur(): Attribute
-    {
-        return Attribute::make(get: fn($value, $attributes) => (string) ($attributes['total_invested_eur'] ?? 0));
-    }
-
-    protected function totalSalesBase(): Attribute
-    {
-        return Attribute::make(get: fn($value, $attributes) => (string) ($attributes['total_sales_base'] ?? 0));
-    }
-
-    protected function totalSalesEur(): Attribute
-    {
-        return Attribute::make(get: fn($value, $attributes) => (string) ($attributes['total_sales_eur'] ?? 0));
-    }
-
-    protected function totalDividendsBase(): Attribute
-    {
-        return Attribute::make(get: fn($value, $attributes) => (string) ($attributes['total_dividends_base'] ?? 0));
-    }
-
-    protected function realizedGainBase(): Attribute
-    {
-        return Attribute::make(get: fn($value, $attributes) => (string) ($attributes['realized_gain_base'] ?? 0));
-    }
+    // Atribúty sa načítavajú priamo zo stĺpcov tabuľky:
+    // total_quantity, average_buy_price, total_invested_base, atď.
 
     protected function unrealizedGainBase(): Attribute
     {
@@ -162,18 +119,7 @@ class Investment extends Model
         );
     }
 
-    // --- EUR ŠPECIFICKÉ ---
-
-    protected function totalDividendsEur(): Attribute
-    {
-        return Attribute::make(
-            get: function () {
-                // Pre jednoduchosť predpokladáme, že pomer Dividendy / Celkový zisk v EUR je podobný ako v BASE
-                // Alebo lepšie: persistujeme to. Keďže to nemáme v DB, convertujeme aspoň BASE
-                return CurrencyService::convertToEur($this->total_dividends_base, $this->currency_id);
-            }
-        );
-    }
+    // --- EUR ŠPECIFICKÉ (Dynamické) ---
 
     protected function currentMarketValueEur(): Attribute
     {
