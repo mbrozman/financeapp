@@ -23,15 +23,5 @@ steps:
       - '--args'
       - ''
 
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    entrypoint: gcloud
-    args:
-      - 'run'
-      - 'jobs'
-      - 'execute'
-      - 'finance-service-migrate'
-      - '--region'
-      - 'europe-west3'
-
 options:
   logging: CLOUD_LOGGING_ONLY

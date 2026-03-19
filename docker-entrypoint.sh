@@ -13,6 +13,9 @@ echo "Apache port nastavený na: ${PORT}"
 # Skontroluj Apache konfiguráciu
 apache2ctl configtest 2>&1 || echo "VAROVANIE: Chyba v Apache konfigurácii"
 
+echo "Spúšťam migrácie databázy..."
+php artisan migrate --force --no-ansi 2>&1 && echo "migrate OK" || echo "VAROVANIE: migrate zlyhalo"
+
 # Optim. Laravel cache (chyby sú nekritické)
 php artisan config:cache --no-ansi 2>&1 && echo "config:cache OK" || echo "config:cache zlyhalo"
 php artisan route:cache --no-ansi 2>&1 && echo "route:cache OK" || echo "route:cache zlyhalo"
