@@ -56,8 +56,12 @@ ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/000-default.conf \
     && sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
 
-# 13. Konkurarácia portov pre Cloud Run (dynamicky z prostredia)
+# 13. Skopírujeme a nastavíme entrypoint skript
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# 14. Exponujeme výchylý port
 EXPOSE 8080
-CMD sed -i "s/Listen 80/Listen ${PORT:-8080}/g" /etc/apache2/ports.conf && \
-    sed -i "s/*:80/*:${PORT:-8080}/g" /etc/apache2/sites-available/000-default.conf && \
-    apache2-foreground
+
+# 15. Spustíme aplikáciu cez entrypoint skript
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
