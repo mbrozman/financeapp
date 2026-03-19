@@ -56,10 +56,8 @@ ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/000-default.conf \
     && sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
 
-# 13. Otvoríme port definovaný prostredníctvom prostredia (pre Cloud Run)
-ENV PORT=8080
-RUN sed -i "s/80/${PORT}/g" /etc/apache2/ports.conf /etc/apache2/sites-available/000-default.conf
+# 13. Konkurarácia portov pre Cloud Run (dynamicky z prostredia)
 EXPOSE 8080
-
-# 14. Spustíme Apache server
-CMD ["apache2-foreground"]
+CMD sed -i "s/Listen 80/Listen ${PORT:-8080}/g" /etc/apache2/ports.conf && \
+    sed -i "s/*:80/*:${PORT:-8080}/g" /etc/apache2/sites-available/000-default.conf && \
+    apache2-foreground

@@ -130,7 +130,7 @@ class InvestmentTransactionObserver
         $totalQty = BigDecimal::of($totalQtyRaw ?? 0);
 
         $investment->updateQuietly([
-            'is_archived' => $totalQty->isLessThanOrEqualTo(0.00000001)
+            'is_archived' => $totalQty->isLessThanOrEqualTo('0.00000001')
         ]);
 
         // Vymažeme cache, aby sa pri ďalšom prístupe k atribútom (napr. total_quantity) 
