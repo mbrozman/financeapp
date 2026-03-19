@@ -44,6 +44,9 @@ class ViewInvestment extends ViewRecord
                         ]);
                     }
 
+                    // Prepočítame všetky štatistiky (Self-heal)
+                    \App\Services\InvestmentCalculationService::refreshStats($record);
+
                     // Stiahneme históriu pre graf
                     $api->downloadHistory($record, 30);
 

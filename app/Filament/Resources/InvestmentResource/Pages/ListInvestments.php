@@ -17,8 +17,26 @@ class ListInvestments extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            // 1. NOVÁ POZÍCIA
             Actions\CreateAction::make()
                 ->label('Pridať novú pozíciu (Ticker)'),
+
+            // 2. PREPOČET VŠETKÉHO (Fix pre synchronizáciu)
+            Actions\Action::make('sync_all')
+                ->label('Prepočítať všetko')
+                ->icon('heroicon-o-arrow-path')
+                ->color('warning')
+                ->requiresConfirmation()
+                ->action(function () {
+                    \App\Models\Investment::all()->each(function ($inv) {
+                        \App\Services\InvestmentCalculationService::refreshStats($inv);
+                    });
+
+                    \Filament\Notifications\Notification::make()
+                        ->title('Všetky štatistiky boli úspešne prepočítané')
+                        ->success()
+                        ->send();
+                }),
         ];
     }
 

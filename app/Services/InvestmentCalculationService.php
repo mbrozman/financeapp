@@ -16,8 +16,12 @@ class InvestmentCalculationService
      */
     public static function getStats(Investment $investment): array
     {
-        // 1. ZÍSKAME TRANSACKIE (zoradené podľa dátumu)
-        $transactions = $investment->transactions->sortBy('transaction_date');
+        // 1. ZÍSKAME TRANSACKIE (vždy čerstvé z DB a zoradené)
+        $transactions = $investment->transactions()
+            ->orderBy('transaction_date', 'asc')
+            ->orderBy('created_at', 'asc')
+            ->get();
+            
         $baseCurrencyId = $investment->currency_id;
 
         // 2. INICIALIZÁCIA PREMENNÝCH
@@ -151,7 +155,7 @@ class InvestmentCalculationService
     {
         $stats = self::getStats($investment);
 
-        $investment->updateQuietly([
+        $investment->update([
             'total_quantity'        => $stats['current_quantity'],
             'average_buy_price'     => $stats['average_buy_price'],
             'average_buy_price_eur' => $stats['average_buy_price_eur'],

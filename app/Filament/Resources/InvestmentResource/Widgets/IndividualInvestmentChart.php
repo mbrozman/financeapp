@@ -68,7 +68,7 @@ class IndividualInvestmentChart extends BaseWidget
                 );
             } elseif ($currencyCode === 'EUR' && $this->record->currency?->code !== 'EUR') {
                 // Konverzia do EUR (base currency)
-                 $price = (float) \App\Services\CurrencyService::convertToBase((string)$price, $this->record->currency_id);
+                 $price = (float) \App\Services\CurrencyService::convertToEur((string)$price, $this->record->currency_id);
             }
             $priceData[] = (float) number_format($price, 2, '.', '');
         }
@@ -99,15 +99,22 @@ class IndividualInvestmentChart extends BaseWidget
         $avgPriceLine = array_fill(0, count($priceData), (float) number_format($avgPriceDisplay, 2, '.', ''));
 
         // Vypočítame minimum a maximum pre os Y, aby sa vždy vykreslili čiary
-        $minPrice = min(array_merge($priceData, [$avgPriceDisplay]));
-        $maxPrice = max(array_merge($priceData, [$avgPriceDisplay]));
+        $allValues = array_merge($priceData, [(float)$avgPriceDisplay]);
+        $minPrice = count($allValues) > 0 ? min($allValues) : 0;
+        $maxPrice = count($allValues) > 0 ? max($allValues) : 100;
         
         // Pridáme 5% padding zhora aj zdola
         $padding = ($maxPrice - $minPrice) * 0.05;
-        if ($padding == 0) $padding = $maxPrice * 0.05; // Ak je min == max
+        if ($padding <= 0) $padding = ($maxPrice > 0 ? $maxPrice * 0.05 : 10); // Ak je min == max, alebo všetko je 0
         
         $yMin = max(0, $minPrice - $padding);
         $yMax = $maxPrice + $padding;
+        
+        // Zaistíme, aby min a max neboli rovnaké pre Chart.js
+        if ($yMin === $yMax) {
+            $yMin -= 1;
+            $yMax += 1;
+        }
 
         return [
             'datasets' => [
