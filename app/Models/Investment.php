@@ -24,7 +24,9 @@ class Investment extends Model
         'ticker', 'name', 'broker', 'sector', 'industry', 'country', 'asset_type',
         'current_price', 'is_archived', 'last_price_update',
         'total_quantity', 'average_buy_price', 'average_buy_price_eur',
-        'total_invested_base', 'total_sales_base', 'realized_gain_base',
+        'total_invested_base', 'total_invested_eur',
+        'total_sales_base', 'total_sales_eur',
+        'total_dividends_base', 'realized_gain_base',
     ];
 
     protected $casts = [
@@ -44,7 +46,7 @@ class Investment extends Model
 
     /**
      * CENTRÁLNY MOZOG VÝPOČTOV
-     * Táto metóda zavolá službu a výsledok si zapamätá počas jedného načítania stránky.
+     * Poznámka: Snažíme sa mu vyhýbať a používať denormalizované stĺpce.
      */
     public function getInvestmentStats(): array
     {
@@ -52,7 +54,6 @@ class Investment extends Model
             return $this->statsCache[$this->id];
         }
 
-        // Služba vráti: current_quantity, average_buy_price, realized_gain_base, total_invested_base, total_sales_base
         return $this->statsCache[$this->id] = InvestmentCalculationService::getStats($this);
     }
 
@@ -61,7 +62,7 @@ class Investment extends Model
         $this->statsCache = [];
     }
 
-    // --- VÝPOČTY ODVODENÉ ZO SLUŽBY (Domovská mena) ---
+    // --- VÝPOČTY ODVODENÉ Z DATABÁZY (Rýchle accessory) ---
 
     protected function totalQuantity(): Attribute
     {
@@ -83,9 +84,24 @@ class Investment extends Model
         return Attribute::make(get: fn($value, $attributes) => (string) ($attributes['total_invested_base'] ?? 0));
     }
 
+    protected function totalInvestedEur(): Attribute
+    {
+        return Attribute::make(get: fn($value, $attributes) => (string) ($attributes['total_invested_eur'] ?? 0));
+    }
+
     protected function totalSalesBase(): Attribute
     {
         return Attribute::make(get: fn($value, $attributes) => (string) ($attributes['total_sales_base'] ?? 0));
+    }
+
+    protected function totalSalesEur(): Attribute
+    {
+        return Attribute::make(get: fn($value, $attributes) => (string) ($attributes['total_sales_eur'] ?? 0));
+    }
+
+    protected function totalDividendsBase(): Attribute
+    {
+        return Attribute::make(get: fn($value, $attributes) => (string) ($attributes['total_dividends_base'] ?? 0));
     }
 
     protected function realizedGainBase(): Attribute
@@ -95,10 +111,19 @@ class Investment extends Model
 
     protected function unrealizedGainBase(): Attribute
     {
-        return Attribute::make(get: fn() => $this->getInvestmentStats()['unrealized_gain_base']);
+        return Attribute::make(
+            get: function () {
+                $qty = BigDecimal::of($this->total_quantity);
+                if ($qty->isZero()) return '0';
+                
+                $price = BigDecimal::of($this->current_price ?? 0);
+                $avgBuyPrice = BigDecimal::of($this->average_buy_price);
+                
+                // Unrealized Gain = (Current Price - Avg Buy Price) * Quantity
+                return (string) $price->minus($avgBuyPrice)->multipliedBy($qty);
+            }
+        );
     }
-
-    // --- OSTATNÉ VÝPOČTY (Stále v modeli kvôli jednoduchosti) ---
 
     protected function currentMarketValueBase(): Attribute
     {
@@ -118,7 +143,6 @@ class Investment extends Model
                     ? BigDecimal::zero() 
                     : BigDecimal::of($this->current_market_value_base);
                 
-                // Zisk = To čo mám teraz + To čo som už vybral (predaje + dividendy) - To čo som vložil
                 return (string) $currentValue->plus($sales)->plus($dividends)->minus($invested);
             }
         );
@@ -131,50 +155,22 @@ class Investment extends Model
                 $invested = BigDecimal::of($this->total_invested_base);
                 if ($invested->isZero()) return '0';
                 
-                // Pre percentuálny zisk celého portfólia ( lifecycle) používame celkovú investíciu
                 $gain = BigDecimal::of($this->total_gain_base);
                 return (string) $gain->dividedBy($invested, 4, RoundingMode::HALF_UP)->multipliedBy(100)->toScale(2, RoundingMode::HALF_UP);
             }
         );
     }
 
-    // --- VÝPOČTY V EUR (Cez CurrencyService) ---
-
-    // --- VÝPOČTY V EUR (Cez CurrencyService) ---
-
-    protected function totalInvestedEur(): Attribute
-    {
-        return Attribute::make(
-            get: fn () => (string) $this->transactions->where('type', TransactionType::BUY)->reduce(function ($carry, $tx) {
-                $carry = $carry ?? BigDecimal::of(0);
-                $costBase = BigDecimal::of($tx->quantity)->multipliedBy($tx->price_per_unit)->plus($tx->commission ?? 0);
-                $costEur = CurrencyService::convertToEur((string)$costBase, $tx->currency_id, $tx->exchange_rate);
-                return $carry->plus($costEur);
-            }, BigDecimal::of(0))
-        );
-    }
-
-    protected function totalSalesEur(): Attribute
-    {
-        return Attribute::make(
-            get: fn () => (string) $this->transactions->where('type', TransactionType::SELL)->reduce(function ($carry, $tx) {
-                $carry = $carry ?? BigDecimal::of(0);
-                $revBase = BigDecimal::of($tx->quantity)->multipliedBy($tx->price_per_unit)->minus($tx->commission ?? 0);
-                $revEur = CurrencyService::convertToEur((string)$revBase, $tx->currency_id, $tx->exchange_rate);
-                return $carry->plus($revEur);
-            }, BigDecimal::of(0))
-        );
-    }
+    // --- EUR ŠPECIFICKÉ ---
 
     protected function totalDividendsEur(): Attribute
     {
         return Attribute::make(
-            get: fn () => (string) $this->transactions->where('type', TransactionType::DIVIDEND)->reduce(function ($carry, $tx) {
-                $carry = $carry ?? BigDecimal::of(0);
-                $amountBase = BigDecimal::of($tx->quantity)->multipliedBy($tx->price_per_unit)->minus($tx->commission ?? 0);
-                $amountEur = CurrencyService::convertToEur((string)$amountBase, $tx->currency_id, $tx->exchange_rate);
-                return $carry->plus($amountEur);
-            }, BigDecimal::of(0))
+            get: function () {
+                // Pre jednoduchosť predpokladáme, že pomer Dividendy / Celkový zisk v EUR je podobný ako v BASE
+                // Alebo lepšie: persistujeme to. Keďže to nemáme v DB, convertujeme aspoň BASE
+                return CurrencyService::convertToEur($this->total_dividends_base, $this->currency_id);
+            }
         );
     }
 
@@ -191,18 +187,6 @@ class Investment extends Model
     protected function gainEur(): Attribute
     {
         return Attribute::make(get: fn() => $this->getGainForCurrency('EUR'));
-    }
-
-    protected function totalDividendsBase(): Attribute
-    {
-        return Attribute::make(
-            get: fn () => (string) $this->transactions->where('type', TransactionType::DIVIDEND)->reduce(function ($carry, $tx) {
-                $carry = $carry ?? BigDecimal::of(0);
-                // Dividenda je čistý príjem (predpokladáme že Price je suma dividendy, Qty môže byť 1 alebo počet kusov)
-                $amountBase = BigDecimal::of($tx->quantity)->multipliedBy($tx->price_per_unit)->minus($tx->commission ?? 0);
-                return $carry->plus($amountBase);
-            }, BigDecimal::of(0))
-        );
     }
 
     // --- UNIVERZÁLNE METÓDY PRE PREPOČTY (Zohľadňujú celkový zisk vrátane meny) ---
