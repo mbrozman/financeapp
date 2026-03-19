@@ -17,8 +17,13 @@ class CurrencyService
     {
         if (!$amount || $amount == 0) return '0.0000';
         
-        // 1. Ak je mena EUR (ID 1), vrátime sumu s presnosťou na 4 miesta
-        if ($currencyId === 1) {
+        // 1. Ak je mena EUR, vrátime sumu
+        $isEur = false;
+        if ($currencyId) {
+            $isEur = Currency::where('id', $currencyId)->where('code', 'EUR')->exists();
+        }
+
+        if ($isEur) {
             return (string) BigDecimal::of($amount)->toScale(4, RoundingMode::HALF_UP);
         }
 
@@ -46,15 +51,13 @@ class CurrencyService
         if ($fromCurrencyId === $toCurrencyId) return (string) BigDecimal::of($amount)->toScale(4, RoundingMode::HALF_UP);
 
         // 1. Prevedieme "Z meny" do EUR (násobením)
-        // Ak ideme EUR -> USD, tak $fromCurrencyId je 1 (EUR), $toCurrencyId je napr. 3 (USD)
-        // convertToEur pri $currencyId = 1 len vráti pôvodnú sumu.
         $eurValue = self::convertToEur($amount, $fromCurrencyId, $historicalRate);
 
         // 2. Ak cieľová mena je EUR, končíme
-        if ($toCurrencyId === 1) return $eurValue;
+        $toIsEur = Currency::where('id', $toCurrencyId)->where('code', 'EUR')->exists();
+        if ($toIsEur) return $eurValue;
 
         // 3. Prevedieme z EUR do "Cieľovej meny" (DELENÍM kurzom, keďže kurz je k EUR)
-        // Ak ideme EUR -> USD a vieme historický kurz (napr. 0.92), tak suma_eur / 0.92 = suma_usd
         $rate = self::getLiveRateById($toCurrencyId);
 
         if ($rate <= 0) return $eurValue;
@@ -67,9 +70,10 @@ class CurrencyService
      */
     public static function getLiveRateById(?int $id): float
     {
-        if (!$id || $id === 1) return 1.0;
+        if (!$id) return 1.0;
 
         $currency = Currency::find($id);
+        if ($currency?->code === 'EUR') return 1.0;
         
         return self::normalizeRate($currency?->exchange_rate);
     }
