@@ -21,6 +21,9 @@ class MigrationController extends Controller
         }
 
         try {
+            // FORCE BYPASS LOGGING to avoid permission errors
+            config(['logging.default' => 'null']);
+
             Artisan::call('migrate', [
                 '--force' => true,
             ]);
