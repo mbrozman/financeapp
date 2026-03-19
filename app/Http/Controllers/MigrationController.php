@@ -34,7 +34,9 @@ class MigrationController extends Controller
                 'total_sales_base' => 'decimal(19,4) DEFAULT 0',
                 'total_sales_eur' => 'decimal(19,4) DEFAULT 0',
                 'total_dividends_base' => 'decimal(19,4) DEFAULT 0',
+                'total_dividends_eur' => 'decimal(19,4) DEFAULT 0',
                 'realized_gain_base' => 'decimal(19,4) DEFAULT 0',
+                'realized_gain_eur' => 'decimal(19,4) DEFAULT 0',
             ];
 
             foreach ($colsToAdd as $col => $definition) {
@@ -95,6 +97,39 @@ class MigrationController extends Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Chyba pri resete databázy.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Prepočíta štatistiky úplne všetkým investíciám.
+     * Užitočné po pridaní nových stĺpcov (napr. EUR stĺpce).
+     */
+    public function refreshAll(Request $request)
+    {
+        $inputKey = $request->query('key');
+        if (empty($inputKey) || $inputKey !== config('app.key')) {
+            abort(403);
+        }
+
+        try {
+            $investments = \App\Models\Investment::all();
+            $count = 0;
+            foreach ($investments as $inv) {
+                \App\Services\InvestmentCalculationService::refreshStats($inv);
+                $count++;
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'message' => "Prepočítaných $count investícií.",
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Chyba pri prepočte.',
                 'error' => $e->getMessage()
             ], 500);
         }

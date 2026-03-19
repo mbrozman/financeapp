@@ -27,6 +27,7 @@ class Investment extends Model
         'total_invested_base', 'total_invested_eur',
         'total_sales_base', 'total_sales_eur',
         'total_dividends_base', 'realized_gain_base',
+        'total_dividends_eur', 'realized_gain_eur', 'notes',
     ];
 
     protected $casts = [

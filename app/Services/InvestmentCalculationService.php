@@ -32,6 +32,8 @@ class InvestmentCalculationService
         $totalSalesBase = BigDecimal::of(0);
         $totalSalesEur = BigDecimal::of(0);
         $totalDividendsBase = BigDecimal::of(0);
+        $totalDividendsEur = BigDecimal::of(0);
+        $realizedGainEur = BigDecimal::of(0);
 
         foreach ($transactions as $tx) {
             $priceInBase = CurrencyService::convert($tx->price_per_unit, $tx->currency_id, $baseCurrencyId, $tx->exchange_rate);
@@ -88,6 +90,16 @@ class InvestmentCalculationService
                     $lotGain = $netSellPricePerUnit->minus($purchasePriceWithComm)->multipliedBy($take);
                     $realizedGainBase = $realizedGainBase->plus($lotGain);
 
+                    // EUR PREPOČET (Zisk v EUR na tomto lote)
+                    // (Suma za ktorú predávam v EUR / Celkové množstvo predaja) * Predávané množstvo z lotu - (Nákupná cena lotu v EUR + poplatok) * Predávané množstvo
+                    $sellPricePerUnitEur = $qty->isGreaterThan(0) ? $revenueMinusCommEur->dividedBy($qty, 8, RoundingMode::HALF_UP) : BigDecimal::zero();
+                    $buyPricePerUnitEurWithComm = $oldestLot['qty_orig']->isGreaterThan(0) 
+                        ? $oldestLot['price_eur']->plus($oldestLot['comm_eur']->dividedBy($oldestLot['qty_orig'], 8, RoundingMode::HALF_UP))
+                        : $oldestLot['price_eur'];
+                    
+                    $lotGainEur = $sellPricePerUnitEur->minus($buyPricePerUnitEurWithComm)->multipliedBy($take);
+                    $realizedGainEur = $realizedGainEur->plus($lotGainEur);
+
                     $oldestLot['qty'] = $oldestLot['qty']->minus($take);
                     $sellQty = $sellQty->minus($take);
 
@@ -100,6 +112,9 @@ class InvestmentCalculationService
             elseif ($tx->type === TransactionType::DIVIDEND) {
                 $netDividend = $qty->multipliedBy($price)->minus($comm);
                 $totalDividendsBase = $totalDividendsBase->plus($netDividend);
+                
+                $netDividendEur = $qty->multipliedBy($priceInEur)->minus($commInEur);
+                $totalDividendsEur = $totalDividendsEur->plus($netDividendEur);
             }
         }
 
@@ -144,6 +159,8 @@ class InvestmentCalculationService
             'total_sales_base'      => (string) $totalSalesBase,
             'total_sales_eur'       => (string) $totalSalesEur,
             'total_dividends_base'  => (string) $totalDividendsBase,
+            'total_dividends_eur'   => (string) $totalDividendsEur,
+            'realized_gain_eur'     => (string) $realizedGainEur,
             'remaining_lots'        => $remainingLots,
         ];
     }
@@ -164,7 +181,9 @@ class InvestmentCalculationService
             'total_sales_base'      => $stats['total_sales_base'],
             'total_sales_eur'       => $stats['total_sales_eur'],
             'total_dividends_base'  => $stats['total_dividends_base'],
+            'total_dividends_eur'   => $stats['total_dividends_eur'],
             'realized_gain_base'    => $stats['realized_gain_base'],
+            'realized_gain_eur'     => $stats['realized_gain_eur'],
             'is_archived'           => (\Brick\Math\BigDecimal::of($stats['current_quantity'] ?? 0)->isZero()),
         ]);
         
