@@ -13,6 +13,11 @@ echo "Apache port nastavený na: ${PORT}"
 # Skontroluj Apache konfiguráciu
 apache2ctl configtest 2>&1 || echo "VAROVANIE: Chyba v Apache konfigurácii"
 
+# Fix permissions pre Cloud Run (storage a cache)
+echo "Nastavujem práva pre storage a cache..."
+chmod -R 777 storage bootstrap/cache
+chown -R www-data:www-data storage bootstrap/cache
+
 echo "Spúšťam migrácie databázy..."
 php artisan migrate --force --no-ansi 2>&1 && echo "migrate OK" || echo "VAROVANIE: migrate zlyhalo"
 
