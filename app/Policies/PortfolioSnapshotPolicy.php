@@ -13,7 +13,7 @@ class PortfolioSnapshotPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->isSuperAdmin();
+        return $user->isSuperAdmin() || $user->isAdmin();
     }
 
     /**
@@ -21,7 +21,7 @@ class PortfolioSnapshotPolicy
      */
     public function view(User $user, PortfolioSnapshot $portfolioSnapshot): bool
     {
-        return $user->isSuperAdmin();
+        return $user->isSuperAdmin() || $user->isAdmin();
     }
 
     /**
@@ -29,7 +29,7 @@ class PortfolioSnapshotPolicy
      */
     public function create(User $user): bool
     {
-        return $user->isSuperAdmin();
+        return $user->isSuperAdmin() || $user->isAdmin();
     }
 
     /**
@@ -37,7 +37,7 @@ class PortfolioSnapshotPolicy
      */
     public function update(User $user, PortfolioSnapshot $portfolioSnapshot): bool
     {
-        return $user->isSuperAdmin();
+        return $user->isSuperAdmin() || $user->isAdmin();
     }
 
     /**
@@ -45,7 +45,7 @@ class PortfolioSnapshotPolicy
      */
     public function delete(User $user, PortfolioSnapshot $portfolioSnapshot): bool
     {
-        return $user->isSuperAdmin();
+        return $user->isSuperAdmin() || $user->isAdmin();
     }
 
     /**
@@ -53,7 +53,7 @@ class PortfolioSnapshotPolicy
      */
     public function restore(User $user, PortfolioSnapshot $portfolioSnapshot): bool
     {
-        return $user->isSuperAdmin();
+        return $user->isSuperAdmin() || $user->isAdmin();
     }
 
     /**
@@ -61,6 +61,6 @@ class PortfolioSnapshotPolicy
      */
     public function forceDelete(User $user, PortfolioSnapshot $portfolioSnapshot): bool
     {
-        return $user->isSuperAdmin();
+        return $user->isSuperAdmin() || $user->isAdmin();
     }
 }

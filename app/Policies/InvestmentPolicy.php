@@ -13,7 +13,7 @@ class InvestmentPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->isSuperAdmin();
+        return $user->isSuperAdmin() || $user->isAdmin();
     }
 
     /**
@@ -21,7 +21,7 @@ class InvestmentPolicy
      */
     public function view(User $user, Investment $investment): bool
     {
-        return $user->isSuperAdmin();
+        return $user->isSuperAdmin() || $user->isAdmin();
     }
 
     /**
@@ -29,7 +29,7 @@ class InvestmentPolicy
      */
     public function create(User $user): bool
     {
-        return $user->isSuperAdmin();
+        return $user->isSuperAdmin() || $user->isAdmin();
     }
 
     /**
@@ -37,7 +37,7 @@ class InvestmentPolicy
      */
     public function update(User $user, Investment $investment): bool
     {
-        return $user->isSuperAdmin();
+        return $user->isSuperAdmin() || $user->isAdmin();
     }
 
     /**
@@ -45,7 +45,7 @@ class InvestmentPolicy
      */
     public function delete(User $user, Investment $investment): bool
     {
-        return $user->isSuperAdmin();
+        return $user->isSuperAdmin() || $user->isAdmin();
     }
 
     /**
@@ -53,7 +53,7 @@ class InvestmentPolicy
      */
     public function restore(User $user, Investment $investment): bool
     {
-        return $user->isSuperAdmin();
+        return $user->isSuperAdmin() || $user->isAdmin();
     }
 
     /**
@@ -61,6 +61,6 @@ class InvestmentPolicy
      */
     public function forceDelete(User $user, Investment $investment): bool
     {
-        return $user->isSuperAdmin();
+        return $user->isSuperAdmin() || $user->isAdmin();
     }
 }
