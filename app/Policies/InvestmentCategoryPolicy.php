@@ -13,7 +13,7 @@ class InvestmentCategoryPolicy
      */
     public function viewAny(User $user): bool
     {
-        return !$user->isSuperAdmin();
+        return $user->isSuperAdmin();
     }
 
     /**
@@ -21,7 +21,7 @@ class InvestmentCategoryPolicy
      */
     public function view(User $user, InvestmentCategory $investmentCategory): bool
     {
-        return !$user->isSuperAdmin();
+        return $user->isSuperAdmin();
     }
 
     /**
@@ -29,7 +29,7 @@ class InvestmentCategoryPolicy
      */
     public function create(User $user): bool
     {
-        return !$user->isSuperAdmin();
+        return $user->isSuperAdmin();
     }
 
     /**
@@ -37,7 +37,7 @@ class InvestmentCategoryPolicy
      */
     public function update(User $user, InvestmentCategory $investmentCategory): bool
     {
-        return !$user->isSuperAdmin();
+        return $user->isSuperAdmin();
     }
 
     /**
@@ -45,7 +45,7 @@ class InvestmentCategoryPolicy
      */
     public function delete(User $user, InvestmentCategory $investmentCategory): bool
     {
-        return !$user->isSuperAdmin();
+        return $user->isSuperAdmin();
     }
 
     /**
@@ -53,7 +53,7 @@ class InvestmentCategoryPolicy
      */
     public function restore(User $user, InvestmentCategory $investmentCategory): bool
     {
-        return !$user->isSuperAdmin();
+        return $user->isSuperAdmin();
     }
 
     /**
@@ -61,6 +61,6 @@ class InvestmentCategoryPolicy
      */
     public function forceDelete(User $user, InvestmentCategory $investmentCategory): bool
     {
-        return !$user->isSuperAdmin();
+        return $user->isSuperAdmin();
     }
 }

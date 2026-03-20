@@ -13,7 +13,7 @@ class CurrencyPolicy
      */
     public function viewAny(User $user): bool
     {
-        return !$user->isSuperAdmin();
+        return $user->isSuperAdmin();
     }
 
     /**
@@ -21,7 +21,7 @@ class CurrencyPolicy
      */
     public function view(User $user, Currency $currency): bool
     {
-        return !$user->isSuperAdmin();
+        return $user->isSuperAdmin();
     }
 
     /**
@@ -29,7 +29,7 @@ class CurrencyPolicy
      */
     public function create(User $user): bool
     {
-        return !$user->isSuperAdmin();
+        return $user->isSuperAdmin();
     }
 
     /**
@@ -37,7 +37,7 @@ class CurrencyPolicy
      */
     public function update(User $user, Currency $currency): bool
     {
-        return !$user->isSuperAdmin();
+        return $user->isSuperAdmin();
     }
 
     /**
@@ -45,7 +45,7 @@ class CurrencyPolicy
      */
     public function delete(User $user, Currency $currency): bool
     {
-        return !$user->isSuperAdmin();
+        return $user->isSuperAdmin();
     }
 
     /**
@@ -53,7 +53,7 @@ class CurrencyPolicy
      */
     public function restore(User $user, Currency $currency): bool
     {
-        return !$user->isSuperAdmin();
+        return $user->isSuperAdmin();
     }
 
     /**
@@ -61,6 +61,6 @@ class CurrencyPolicy
      */
     public function forceDelete(User $user, Currency $currency): bool
     {
-        return !$user->isSuperAdmin();
+        return $user->isSuperAdmin();
     }
 }

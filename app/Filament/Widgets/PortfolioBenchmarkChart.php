@@ -98,7 +98,7 @@ class PortfolioBenchmarkChart extends ChartWidget
         ];
     }
 
-    private function getNormalizedHistory(int $investmentId, Carbon $startDate, ?Carbon $endDate = null): array
+    private function getNormalizedHistory($investmentId, Carbon $startDate, ?Carbon $endDate = null): array
     {
         $query = InvestmentPriceHistory::where('investment_id', $investmentId)
             ->where('recorded_at', '>=', $startDate);
@@ -125,7 +125,7 @@ class PortfolioBenchmarkChart extends ChartWidget
         return $normalized;
     }
 
-    private function getPortfolioNormalizedHistory(int $userId, Carbon $startDate, ?Carbon $endDate = null): array
+    private function getPortfolioNormalizedHistory($userId, Carbon $startDate, ?Carbon $endDate = null): array
     {
         $query = PortfolioSnapshot::where('user_id', $userId)
             ->where('recorded_at', '>=', $startDate);

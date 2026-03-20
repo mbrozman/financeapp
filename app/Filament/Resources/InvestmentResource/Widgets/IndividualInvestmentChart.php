@@ -81,7 +81,7 @@ class IndividualInvestmentChart extends BaseWidget
         })->toArray();
 
         // 3. PRIEMERNÁ NÁKUPKA (Prepočítaná)
-        $avgPriceBase = $this->record->average_buy_price_base;
+        $avgPriceBase = $this->record->average_buy_price;
         $avgPriceDisplay = (float)$avgPriceBase;
 
         if ($currencyCode !== $this->record->currency?->code) {
