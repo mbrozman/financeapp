@@ -11,7 +11,7 @@ use Carbon\Carbon;
 
 class MonthlyBudgetService
 {
-    public function getBudgetData(string $selectedMonth, int $userId): array
+    public function getBudgetData(string $selectedMonth, $userId): array
     {
         $date = Carbon::parse($selectedMonth . '-01');
 
@@ -45,7 +45,7 @@ class MonthlyBudgetService
         if ($plan) {
             foreach ($plan->items as $item) {
                 $pLimit = ($actualIncome * (float) $item->percentage) / 100;
-                $categoryBudgets = $this->getCategoryBudgets((int) $item->id, $date, $selectedMonth, $userId);
+                $categoryBudgets = $this->getCategoryBudgets($item->id, $date, $selectedMonth, $userId);
                 $pActualAbs = collect($categoryBudgets)->flatten(1)->sum('actual');
 
                 $pillarData[] = [
@@ -75,7 +75,7 @@ class MonthlyBudgetService
         ];
     }
 
-    private function getCategoryBudgets(int $pillarId, Carbon $date, string $selectedMonth, int $userId): array
+    private function getCategoryBudgets($pillarId, Carbon $date, string $selectedMonth, $userId): array
     {
         $categories = Category::with('parent')
             ->where('user_id', $userId)

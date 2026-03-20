@@ -16,7 +16,7 @@ class PortfolioPerformanceService
      * Calculates the Money-Weighted Return (MWR) using the XIRR approach.
      * XIRR is the discount rate that makes the NPV of all cash flows equal to zero.
      */
-    public static function calculateMWR(int $userId, string $targetCurrency = 'EUR'): float
+    public static function calculateMWR($userId, string $targetCurrency = 'EUR'): float
     {
         $transactions = InvestmentTransaction::where('user_id', $userId)
             ->with(['investment.currency'])
@@ -61,7 +61,7 @@ class PortfolioPerformanceService
      * TWR = [(1 + r1) * (1 + r2) * ... * (1 + rn)] - 1
      * where rn is the return for each sub-period divided by a cash flow.
      */
-    public static function calculateTWR(int $userId): float
+    public static function calculateTWR($userId): float
     {
         // For a true TWR, we need historical snapshots exactly when transactions happened.
         // If we don't have perfect snapshots, we approximate using periodic ones.

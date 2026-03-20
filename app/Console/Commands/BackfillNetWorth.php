@@ -15,9 +15,14 @@ class BackfillNetWorth extends Command
     {
         $amount = (float) $this->argument('start_amount');
         $months = (int) $this->argument('months');
-        $user_id = 1; // Tvoje ID
+        $userId = \App\Models\User::where('is_admin', true)->first()?->id ?? \App\Models\User::first()?->id;
 
-        $this->info("Generujem snapshoty za posledných {$months} mesiacov...");
+        if (!$userId) {
+            $this->error('No user found to backfill net worth.');
+            return;
+        }
+
+        $this->info("Generujem snapshoty za posledných {$months} mesiacov pre užívateľa {$userId}...");
 
         for ($i = ($months * 30); $i >= 0; $i--) {
             $date = now()->subDays($i);
@@ -26,7 +31,7 @@ class BackfillNetWorth extends Command
             $amount += rand(-10, 50); 
 
             \App\Models\PortfolioSnapshot::updateOrCreate(
-                ['user_id' => $user_id, 'recorded_at' => $date->toDateString()],
+                ['user_id' => $userId, 'recorded_at' => $date->toDateString()],
                 [
                     'total_invested_eur' => $amount * 0.7,
                     'total_liquid_cash_eur' => $amount * 0.3,

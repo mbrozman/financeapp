@@ -17,7 +17,7 @@ class StatsOverview extends BaseWidget
     protected function getStats(): array
     {
         // 1. Likvidita (Bank + Cash)
-        $accounts = Account::with('currency')->get();
+        $accounts = Account::with('currency')->where('user_id', auth()->id())->get();
         $totalLiquidity = 0.0;
         $totalBank = 0.0;
         $totalCash = 0.0;
@@ -32,7 +32,7 @@ class StatsOverview extends BaseWidget
         }
 
         // 2. Investície (Market Value)
-        $investments = \App\Models\Investment::all();
+        $investments = \App\Models\Investment::where('user_id', auth()->id())->get();
         $totalInvestments = 0.0;
         foreach ($investments as $inv) {
             $totalInvestments += (float) $inv->current_market_value_eur;

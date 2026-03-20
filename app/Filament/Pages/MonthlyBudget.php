@@ -33,7 +33,7 @@ class MonthlyBudget extends Page
      */
     public function getBudgetData(): array
     {
-        return app(MonthlyBudgetService::class)->getBudgetData($this->selectedMonth, (int) Auth::id());
+        return app(MonthlyBudgetService::class)->getBudgetData($this->selectedMonth, Auth::id());
     }
 
     // Navigačné metódy

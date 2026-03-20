@@ -11,7 +11,7 @@ class MonthlyCashflowChart extends ChartWidget
     {
         $year = now()->year;
         $userId = auth()->id();
-        $cashflow = app(DashboardFinanceService::class)->getYearlyCashflow((int) $userId, $year);
+        $cashflow = app(DashboardFinanceService::class)->getYearlyCashflow($userId, $year);
         $income = number_format($cashflow['total_income'], 0, ',', ' ');
         $expense = number_format($cashflow['total_expense'], 0, ',', ' ');
 
@@ -22,7 +22,7 @@ class MonthlyCashflowChart extends ChartWidget
     {
         $userId = auth()->id();
         $year = now()->year;
-        $cashflow = app(DashboardFinanceService::class)->getYearlyCashflow((int) $userId, $year);
+        $cashflow = app(DashboardFinanceService::class)->getYearlyCashflow($userId, $year);
         $labels = $cashflow['labels'];
         $incomeValues = $cashflow['income_values'];
         $expenseValues = $cashflow['expense_values'];

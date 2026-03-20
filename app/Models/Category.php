@@ -49,7 +49,8 @@ class Category extends Model
                 // Ak je to podkategória, vygenerujeme radikálne iný odtieň
                 if ($this->parent_id) {
                     // Použijeme ID na deterministický výber "štýlu" tieňovania
-                    $index = ($this->id % 5); // 0 až 4
+                    // Po konverzii na UUID musíme použiť hash pre modulo
+                    $index = (abs(crc32((string) $this->id)) % 5); // 0 až 4
                     
                     return self::generateHSLShade($baseColor, $index);
                 }
