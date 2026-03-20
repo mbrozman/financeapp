@@ -69,6 +69,11 @@ class User extends Authenticatable implements FilamentUser
         return (bool) $this->is_superadmin;
     }
 
+    public function isAdmin(): bool
+    {
+        return (bool) $this->is_admin;
+    }
+
     public function isActive(): bool
     {
         return (bool) $this->is_active;
