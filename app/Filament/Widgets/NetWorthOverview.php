@@ -12,7 +12,7 @@ class NetWorthOverview extends BaseWidget
 
     protected function getStats(): array
     {
-        $stats = app(DashboardFinanceService::class)->getLiquidityStats((int) auth()->id());
+        $stats = app(DashboardFinanceService::class)->getLiquidityStats(auth()->id());
         $totalLiquidity = $stats['total_liquidity'];
         $totalBank = $stats['total_bank'];
         $totalCash = $stats['total_cash'];

@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardFinanceService
 {
-    public function getLiquidityStats(int $userId): array
+    public function getLiquidityStats($userId): array
     {
         $bankAccounts = Account::with('currency')
             ->where('user_id', $userId)
@@ -35,7 +35,7 @@ class DashboardFinanceService
         ];
     }
 
-    public function getYearlyCashflow(int $userId, int $year): array
+    public function getYearlyCashflow($userId, int $year): array
     {
         $totals = Transaction::select(
             DB::raw("SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as total_income"),
@@ -77,7 +77,7 @@ class DashboardFinanceService
         ];
     }
 
-    public function getRealityVsPlanSeries(int $userId, string $filter = 'with_roi'): array
+    public function getRealityVsPlanSeries($userId, string $filter = 'with_roi'): array
     {
         $plan = FinancialPlan::with('items')->where('user_id', $userId)->first();
 

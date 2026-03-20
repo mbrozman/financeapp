@@ -23,7 +23,7 @@ class NetWorthRealityVsPlanChart extends ChartWidget
 
     protected function getData(): array
     {
-        $series = app(DashboardFinanceService::class)->getRealityVsPlanSeries((int) auth()->id(), $this->filter ?? 'with_roi');
+        $series = app(DashboardFinanceService::class)->getRealityVsPlanSeries(auth()->id(), $this->filter ?? 'with_roi');
         $labels = $series['labels'];
         $realityValues = $series['reality_values'];
         $modelValues = $series['model_values'];
