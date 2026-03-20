@@ -134,4 +134,46 @@ class MigrationController extends Controller
             ], 500);
         }
     }
+
+    public function debugInvestments(Request $request)
+    {
+        $inputKey = $request->query('key');
+        if (empty($inputKey) || $inputKey !== config('app.key')) {
+            abort(403);
+        }
+
+        $data = [];
+
+        // 1. Meny
+        $data['currencies'] = \App\Models\Currency::all()->toArray();
+
+        // 2. Investície a ich štatistiky
+        $investments = \App\Models\Investment::with(['currency', 'transactions'])->get();
+        $data['investments'] = $investments->map(function($inv) {
+            return [
+                'ticker' => $inv->ticker,
+                'name' => $inv->name,
+                'base_currency' => $inv->currency?->code,
+                'total_quantity' => $inv->total_quantity,
+                'total_invested_base' => $inv->total_invested_base,
+                'total_invested_eur' => $inv->total_invested_eur,
+                'total_gain_base' => $inv->total_gain_base,
+                'total_gain_eur_calc' => $inv->getGainForCurrency('EUR'),
+                'current_market_value_base' => $inv->current_market_value_base,
+                'current_market_value_eur' => $inv->current_market_value_eur,
+                'transactions_count' => $inv->transactions->count(),
+                'transactions' => $inv->transactions->map(function($tx) {
+                    return [
+                        'type' => $tx->type,
+                        'qty' => $tx->quantity,
+                        'price' => $tx->price_per_unit,
+                        'rate' => $tx->exchange_rate,
+                        'price_eur' => \App\Services\CurrencyService::convertToEur($tx->price_per_unit, $tx->currency_id, $tx->exchange_rate),
+                    ];
+                })
+            ];
+        });
+
+        return response()->json($data, 200, [], JSON_PRETTY_PRINT);
+    }
 }
