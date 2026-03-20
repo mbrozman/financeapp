@@ -13,6 +13,9 @@ class IndividualInvestmentChart extends BaseWidget
 
     protected int | string | array $columnSpan = 1;
 
+    // Cache pre výpočty - aby sme nevolali DB dvakrát
+    private ?array $cachedChartData = null;
+
     protected function getFilters(): ?array
     {
         return [
@@ -27,23 +30,26 @@ class IndividualInvestmentChart extends BaseWidget
         ];
     }
 
-    protected function getData(): array
+    private function buildChartData(): array
     {
-        if (!$this->record) return ['datasets' => [], 'labels' => []];
+        if ($this->cachedChartData !== null) {
+            return $this->cachedChartData;
+        }
+
+        if (!$this->record) {
+            return $this->cachedChartData = ['datasets' => [], 'labels' => [], 'yMin' => 0, 'yMax' => 100];
+        }
 
         $filter = $this->filter ?: 'all';
 
-        // 1. ZÍSKANIE CIEĽOVEJ MENY
+        // 1. CIEĽOVÁ MENA
         $currencyCode = session('global_currency') ?: $this->record->currency?->code ?: 'EUR';
-        
-        // Ak je mena EUR a nemáme ju v DB, použijeme default
         $targetCurrency = \App\Models\Currency::where('code', $currencyCode)->first();
         $symbol = $targetCurrency ? $targetCurrency->symbol : ($currencyCode === 'EUR' ? '€' : $currencyCode);
 
-        // 2. PRÍPRAVA DOTAZU NA HISTÓRIU
+        // 2. HISTÓRIA CEN
         $query = InvestmentPriceHistory::where('investment_id', $this->record->id);
 
-        // Aplikácia časového filtra
         switch ($filter) {
             case '1d': $query->where('recorded_at', '>=', now()->subDay()); break;
             case '1w': $query->where('recorded_at', '>=', now()->subWeek()); break;
@@ -55,68 +61,62 @@ class IndividualInvestmentChart extends BaseWidget
         }
 
         $history = $query->orderBy('recorded_at', 'asc')->get();
-
+        // dd($history->count());
         $priceData = [];
         foreach ($history as $h) {
             $price = (float) $h->price;
-            // Prepočet len ak sa mena líši a máme cieľovú menu
             if ($currencyCode !== $this->record->currency?->code && $targetCurrency) {
                 $price = (float) \App\Services\CurrencyService::convert(
-                    (string)$price, 
-                    $this->record->currency_id, 
+                    (string)$price,
+                    $this->record->currency_id,
                     $targetCurrency->id
                 );
             } elseif ($currencyCode === 'EUR' && $this->record->currency?->code !== 'EUR') {
-                // Konverzia do EUR (base currency)
-                 $price = (float) \App\Services\CurrencyService::convertToEur((string)$price, $this->record->currency_id);
+                $price = (float) \App\Services\CurrencyService::convertToEur((string)$price, $this->record->currency_id);
             }
-            $priceData[] = (float) number_format($price, 2, '.', '');
+            $priceData[] = round($price, 2);
         }
 
-        // Formátovanie labels podľa filtra
         $labels = $history->pluck('recorded_at')->map(function($date) use ($filter) {
             if (in_array($filter, ['1d', '1w'])) return $date->format('d.M H:i');
             if (in_array($filter, ['1m', '3m', '6m'])) return $date->format('d.M');
             return $date->format('M Y');
         })->toArray();
 
-        // 3. PRIEMERNÁ NÁKUPKA (Prepočítaná)
-        $avgPriceBase = $this->record->average_buy_price;
-        $avgPriceDisplay = (float)$avgPriceBase;
+        // 3. PRIEMERNÁ NÁKUPNÁ CENA
+        $avgPriceBase = (float)($this->record->average_buy_price ?? 0);
+        $avgPriceDisplay = $avgPriceBase;
 
         if ($currencyCode !== $this->record->currency?->code) {
             if ($currencyCode === 'EUR') {
-                $avgPriceDisplay = (float)$this->record->average_buy_price_eur;
+                $avgPriceDisplay = (float)($this->record->average_buy_price_eur ?? 0);
             } elseif ($targetCurrency) {
                 $avgPriceDisplay = (float) \App\Services\CurrencyService::convert(
-                    (string)$avgPriceBase, 
-                    $this->record->currency_id, 
+                    (string)$avgPriceBase,
+                    $this->record->currency_id,
                     $targetCurrency->id
                 );
             }
         }
 
-        $avgPriceLine = array_fill(0, count($priceData), (float) number_format($avgPriceDisplay, 2, '.', ''));
+        $avgPriceLine = array_fill(0, count($priceData), round($avgPriceDisplay, 2));
 
-        // Vypočítame minimum a maximum pre os Y, aby sa vždy vykreslili čiary
-        $allValues = array_merge($priceData, [(float)$avgPriceDisplay]);
-        $minPrice = count($allValues) > 0 ? min($allValues) : 0;
-        $maxPrice = count($allValues) > 0 ? max($allValues) : 100;
-        
-        // Pridáme 5% padding zhora aj zdola
-        $padding = ($maxPrice - $minPrice) * 0.05;
-        if ($padding <= 0) $padding = ($maxPrice > 0 ? $maxPrice * 0.05 : 10); // Ak je min == max, alebo všetko je 0
-        
-        $yMin = max(0, $minPrice - $padding);
-        $yMax = $maxPrice + $padding;
-        
-        // Zaistíme, aby min a max neboli rovnaké pre Chart.js
-        if ($yMin === $yMax) {
-            $yMin -= 1;
-            $yMax += 1;
+        // 4. Y-OS BOUNDS
+        $allValues = array_merge($priceData, $avgPriceDisplay > 0 ? [$avgPriceDisplay] : []);
+        if (empty($allValues)) {
+            $yMin = 0;
+            $yMax = 100;
+        } else {
+            $minPrice = min($allValues);
+            $maxPrice = max($allValues);
+            $padding = ($maxPrice - $minPrice) * 0.05;
+            if ($padding <= 0) $padding = $maxPrice > 0 ? $maxPrice * 0.05 : 10;
+            $yMin = max(0, $minPrice - $padding);
+            $yMax = $maxPrice + $padding;
+            if ($yMin >= $yMax) { $yMin -= 1; $yMax += 1; }
         }
 
-        return [
+        $this->cachedChartData = [
             'datasets' => [
                 [
                     'label' => "Trhová cena ({$symbol})",
@@ -134,11 +134,23 @@ class IndividualInvestmentChart extends BaseWidget
                     'borderDash' => [5, 5],
                     'pointRadius' => 0,
                     'fill' => false,
-                ]
+                ],
             ],
             'labels' => $labels,
             'yMin' => $yMin,
             'yMax' => $yMax,
+        ];
+
+        return $this->cachedChartData;
+    }
+
+    protected function getData(): array
+    {
+        $data = $this->buildChartData();
+        // Vraciame IBA datasets a labels - bez yMin/yMax
+        return [
+            'datasets' => $data['datasets'],
+            'labels' => $data['labels'],
         ];
     }
 
@@ -149,9 +161,9 @@ class IndividualInvestmentChart extends BaseWidget
 
     protected function getOptions(): array
     {
-        $data = $this->getData();
-        $yMin = $data['yMin'] ?? null;
-        $yMax = $data['yMax'] ?? null;
+        $data = $this->buildChartData();
+        $yMin = $data['yMin'];
+        $yMax = $data['yMax'];
 
         return [
             'plugins' => [
@@ -168,23 +180,18 @@ class IndividualInvestmentChart extends BaseWidget
                     'display' => true,
                     'grid' => [
                         'display' => true,
-                        'drawBorder' => true,
-                        'color' => 'rgba(156, 163, 175, 0.2)', // Jemné šedé čiary
+                        'color' => 'rgba(156, 163, 175, 0.2)',
                     ],
                     'ticks' => [
                         'display' => true,
-                        'callback' => RawJs::make("function(value) { return value.toLocaleString('sk-SK') + ' '; }"),
-                        'font' => [
-                            'size' => 11,
-                        ],
-                    ]
+                        // 'callback' => RawJs::make("function(value) { return value.toLocaleString('sk-SK') + ' '; }"),
+                        'font' => ['size' => 11],
+                    ],
                 ],
                 'x' => [
                     'display' => true,
-                    'grid' => [
-                        'display' => false,
-                    ],
-                ]
+                    'grid' => ['display' => false],
+                ],
             ],
         ];
     }
