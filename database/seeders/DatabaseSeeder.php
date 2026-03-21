@@ -15,11 +15,18 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        \App\Models\User::factory()->create([
-            'name' => 'Admin',
-            'email' => 'admin@admin.sk',
-            'password' => \Illuminate\Support\Facades\Hash::make('49492137'),
-            'is_superadmin' => true,
+        $user = \App\Models\User::firstOrCreate(
+            ['email' => 'admin@admin.sk'],
+            [
+                'name' => 'Admin',
+                'password' => \Illuminate\Support\Facades\Hash::make('49492137'),
+                'is_superadmin' => true,
+                'is_active' => true,
+            ]
+        );
+
+        $this->call([
+            DefaultDataSeeder::class,
         ]);
     }
 }

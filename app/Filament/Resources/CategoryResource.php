@@ -56,7 +56,18 @@ class CategoryResource extends Resource
                     ->numeric()
                     ->prefix('€')
                     ->helperText('Ak nastavíte limit pre hlavnú kategóriu, bude slúžiť ako globálny limit pre túto skupinu.')
-                    ->visible(fn (\Filament\Forms\Get $get) => $get('type') === 'expense'),
+                    ->visible(fn (\Filament\Forms\Get $get) => $get('type') === 'expense')
+                    ->suffixAction(
+                        Forms\Components\Actions\Action::make('recalculate_limit')
+                            ->icon('heroicon-m-arrow-path')
+                            ->tooltip('Prepočítať limit z podkategórií')
+                            ->action(function (\Filament\Forms\Set $set, ?Category $record) {
+                                if (!$record) return;
+                                
+                                $sum = $record->children()->sum('monthly_limit');
+                                $set('monthly_limit', $sum);
+                            })
+                    ),
 
                 Forms\Components\ViewField::make('color')
                     ->label('Farba kategórie')
