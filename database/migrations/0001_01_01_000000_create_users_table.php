@@ -12,7 +12,11 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('users', function (Blueprint $table) {
-            $table->id();
+            if (config('database.default') === 'sqlite') {
+                $table->uuid('id')->primary();
+            } else {
+                $table->id();
+            }
             $table->string('name');
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();

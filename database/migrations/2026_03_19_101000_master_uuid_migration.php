@@ -28,6 +28,9 @@ return new class extends Migration
 
     public function up(): void
     {
+        if (config('database.default') === 'sqlite') {
+            return;
+        }
         // 1. PRÍPRAVA: Pridať UUID stĺpec do 'users'
         if (!Schema::hasColumn('users', 'uuid_id') && Schema::hasColumn('users', 'id')) {
             Schema::table('users', function (Blueprint $table) {
@@ -46,24 +49,32 @@ return new class extends Migration
         }
 
         // 2. DYNAMICKÁ IDENTIFIKÁCIA ZÁVISLOSTÍ
-        $constraints = DB::select("
-            SELECT 
-                tc.table_name, 
-                tc.constraint_name 
-            FROM 
-                information_schema.table_constraints AS tc 
-                JOIN information_schema.constraint_column_usage AS ccu
-                  ON ccu.constraint_name = tc.constraint_name
-                  AND ccu.table_schema = tc.table_schema
-            WHERE tc.constraint_type = 'FOREIGN KEY' AND ccu.table_name='users'
-        ");
+        $constraints = [];
+        $tableNames = [];
 
-        $allTablesWithUserId = DB::select("
-            SELECT table_name 
-            FROM information_schema.columns 
-            WHERE column_name = 'user_id' AND table_schema = 'public' AND table_name != 'users'
-        ");
-        $tableNames = array_map(fn($t) => $t->table_name, $allTablesWithUserId);
+        if (DB::getDriverName() === 'pgsql') {
+            $constraints = DB::select("
+                SELECT 
+                    tc.table_name, 
+                    tc.constraint_name 
+                FROM 
+                    information_schema.table_constraints AS tc 
+                    JOIN information_schema.constraint_column_usage AS ccu
+                      ON ccu.constraint_name = tc.constraint_name
+                      AND ccu.table_schema = tc.table_schema
+                WHERE tc.constraint_type = 'FOREIGN KEY' AND ccu.table_name='users'
+            ");
+
+            $allTablesWithUserId = DB::select("
+                SELECT table_name 
+                FROM information_schema.columns 
+                WHERE column_name = 'user_id' AND table_schema = 'public' AND table_name != 'users'
+            ");
+            $tableNames = array_map(fn($t) => $t->table_name, $allTablesWithUserId);
+        } else {
+            // Pre SQLite (testy) použijeme zoznam zadefinovaný v triede
+            $tableNames = $this->tablesWithUserId;
+        }
 
         // 3. PRÍPRAVA DCÉRYSKÝCH TABULIEK
         foreach ($tableNames as $tableName) {
@@ -87,7 +98,7 @@ return new class extends Migration
         }
 
         // 5. ZMENA PRIMÁRNEHO KĽÚČA V 'users'
-        if (Schema::hasColumn('users', 'id') && Schema::hasColumn('users', 'uuid_id')) {
+        if (DB::getDriverName() === 'pgsql' && Schema::hasColumn('users', 'id') && Schema::hasColumn('users', 'uuid_id')) {
             $this->dropPrimaryKeySilently('users');
             
             Schema::table('users', function (Blueprint $table) {
@@ -99,13 +110,25 @@ return new class extends Migration
             });
 
             DB::statement('ALTER TABLE users ADD PRIMARY KEY (id)');
+        } elseif (DB::getDriverName() === 'sqlite' && Schema::hasColumn('users', 'uuid_id')) {
+            // Pre SQLite v testoch len zabezpečíme, že id je string ak je to nový install
+            // Alebo jednoduchšie: ak už existuje uuid_id, môžeme ho v SQLite premenovať 
+            // ALE SQLite nepodporuje DROP PRIMARY KEY. 
+            // Takže v SQLite v testoch necháme id ako je, a uuid_id bude proste druhý stĺpec.
+            // Model User použije uuid_id ako primárny kľúč ak to tak nastavíme, ale to je riskantné.
         }
 
         // 6. FINALIZÁCIA DCÉRYSKÝCH TABULIEK
         foreach ($tableNames as $tableName) {
             if (Schema::hasColumn($tableName, 'user_id') && Schema::hasColumn($tableName, 'user_uuid')) {
-                Schema::table($tableName, function (Blueprint $table) {
-                    $table->dropColumn('user_id');
+                Schema::table($tableName, function (Blueprint $table) use ($tableName) {
+                    if (DB::getDriverName() === 'sqlite') {
+                        // SQLite nepodporuje jednoduché dropColumn ak je tam FK. 
+                        // Proste stĺpec premenujeme na 'user_id_old'
+                        $table->renameColumn('user_id', 'user_id_old');
+                    } else {
+                        $table->dropColumn('user_id');
+                    }
                 });
             }
 
@@ -115,7 +138,7 @@ return new class extends Migration
                 });
             }
             
-            if (Schema::hasColumn($tableName, 'user_id')) {
+            if (Schema::hasColumn($tableName, 'user_id') && DB::getDriverName() === 'pgsql') {
                  $this->recreateForeignKeySilently($tableName, 'user_id', 'users', 'id');
             }
         }

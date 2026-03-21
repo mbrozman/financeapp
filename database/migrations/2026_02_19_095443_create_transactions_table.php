@@ -14,7 +14,11 @@ return new class extends Migration
         Schema::create('transactions', function (Blueprint $table) {
             $table->id();
             // Multi-tenancy
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            if (config('database.default') === 'sqlite') {
+                $table->foreignUuid('user_id')->constrained()->cascadeOnDelete();
+            } else {
+                $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            }
 
             // Na ktorom účte sa pohyb stal?
             $table->foreignId('account_id')->constrained()->cascadeOnDelete();

@@ -14,7 +14,11 @@ return new class extends Migration
         Schema::create('categories', function (Blueprint $table) {
             $table->id();
             // Prepojenie na užívateľa (Multi-tenancy)
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            if (config('database.default') === 'sqlite') {
+                $table->foreignUuid('user_id')->constrained()->cascadeOnDelete();
+            } else {
+                $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            }
 
             // Prepojenie na samú seba (Parent/Child vzťah)
             // nullable() znamená, že hlavná kategória nemusí mať nadradenú kategóriu.

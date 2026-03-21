@@ -13,7 +13,11 @@ return new class extends Migration
     {
         Schema::create('recurring_transactions', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            if (config('database.default') === 'sqlite') {
+                $table->foreignUuid('user_id')->constrained()->cascadeOnDelete();
+            } else {
+                $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            }
             $table->foreignId('account_id')->constrained()->cascadeOnDelete();
             $table->foreignId('category_id')->nullable()->constrained()->nullOnDelete();
 

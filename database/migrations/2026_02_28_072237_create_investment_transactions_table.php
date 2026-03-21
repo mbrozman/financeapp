@@ -15,7 +15,11 @@ return new class extends Migration
     {
         Schema::create('investment_transactions', function (Blueprint $table) {
         $table->id();
-        $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+        if (config('database.default') === 'sqlite') {
+            $table->foreignUuid('user_id')->constrained()->cascadeOnDelete();
+        } else {
+            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+        }
         $table->foreignId('investment_id')->constrained()->cascadeOnDelete();
         
         // Typ pohybu: buy (nákup), sell (predaj), dividend (dividenda)

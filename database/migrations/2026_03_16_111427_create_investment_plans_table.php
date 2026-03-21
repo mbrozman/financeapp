@@ -13,7 +13,11 @@ return new class extends Migration
     {
         Schema::create('investment_plans', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            if (config('database.default') === 'sqlite') {
+                $table->foreignUuid('user_id')->constrained()->cascadeOnDelete();
+            } else {
+                $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            }
             $table->foreignId('investment_id')->constrained()->cascadeOnDelete();
             $table->foreignId('account_id')->constrained()->cascadeOnDelete(); // Broker account to subtract cash from
             $table->string('amount'); // BigDecimal string

@@ -13,7 +13,11 @@ return new class extends Migration
     {
         Schema::create('goals', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            if (config('database.default') === 'sqlite') {
+                $table->foreignUuid('user_id')->constrained()->cascadeOnDelete();
+            } else {
+                $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            }
 
             $table->string('name'); // Názov: "Rezerva", "Nové auto", "Splatenie hypotéky"
 

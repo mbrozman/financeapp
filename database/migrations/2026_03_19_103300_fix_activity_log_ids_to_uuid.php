@@ -9,6 +9,9 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (config('database.default') === 'sqlite') {
+            return;
+        }
         if (!Schema::hasTable('activity_log')) {
             return;
         }

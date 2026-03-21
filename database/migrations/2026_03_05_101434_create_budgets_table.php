@@ -13,7 +13,11 @@ public function up(): void
 {
     Schema::create('budgets', function (Blueprint $table) {
         $table->id();
-        $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+        if (config('database.default') === 'sqlite') {
+            $table->foreignUuid('user_id')->constrained()->cascadeOnDelete();
+        } else {
+            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+        }
         
         // Na ktorú kategóriu (napr. Potraviny) je tento limit
         $table->foreignId('category_id')->constrained()->cascadeOnDelete();

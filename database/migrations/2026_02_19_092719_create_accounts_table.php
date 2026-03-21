@@ -16,7 +16,11 @@ return new class extends Migration
             // Cudzí kľúč na užívateľa. 
             // constrained() povie DB, že ak užívateľ neexistuje, nedovolí vytvoriť účet.
             // cascadeOnDelete() povie: ak zmažeš užívateľa, zmaž aj všetky jeho účty.
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            if (config('database.default') === 'sqlite') {
+                $table->foreignUuid('user_id')->constrained()->cascadeOnDelete();
+            } else {
+                $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            }
 
             // Cudzí kľúč na menu
             $table->foreignId('currency_id')->constrained();

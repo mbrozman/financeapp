@@ -10,7 +10,11 @@ return new class extends Migration
     {
         Schema::create('monthly_incomes', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            if (config('database.default') === 'sqlite') {
+                $table->foreignUuid('user_id')->constrained()->cascadeOnDelete();
+            } else {
+                $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            }
             
             // Suma výplaty
             $table->decimal('amount', 19, 4); 

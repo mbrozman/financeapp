@@ -13,7 +13,11 @@ return new class extends Migration
     {
         Schema::create('financial_plans', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            if (config('database.default') === 'sqlite') {
+                $table->foreignUuid('user_id')->constrained()->cascadeOnDelete();
+            } else {
+                $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            }
             $table->decimal('monthly_income', 19, 4); // Napr. 2200.00
             $table->decimal('expected_annual_return', 5, 2)->default(8.00); // Tých tvojich 8%
             $table->boolean('is_active')->default(true);

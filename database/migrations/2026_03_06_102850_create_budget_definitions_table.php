@@ -13,7 +13,11 @@ return new class extends Migration
     {
         Schema::create('budget_definitions', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            if (config('database.default') === 'sqlite') {
+                $table->foreignUuid('user_id')->constrained()->cascadeOnDelete();
+            } else {
+                $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            }
             $table->foreignId('category_id')->constrained()->cascadeOnDelete();
             $table->foreignId('financial_plan_item_id')->constrained()->cascadeOnDelete();
 
