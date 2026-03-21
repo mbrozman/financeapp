@@ -5,21 +5,28 @@ namespace App\Filament\Widgets;
 use App\Models\Category;
 use App\Models\Transaction;
 use Illuminate\Support\Facades\Auth;
-use Livewire\Component;
+use Filament\Widgets\Widget;
 
-class ExpenseDrilldownChart extends Component
+class ExpenseDrilldownChart extends Widget
 {
-    public static function canView(): bool
-    {
-        return !auth()->user()?->isSuperAdmin();
-    }
+    protected static string $view = 'filament.widgets.expense-drilldown-chart';
+
+    protected int | string | array $columnSpan = [
+        'md' => 1,
+        'xl' => 1,
+    ];
+
+    protected static ?int $sort = 3;
 
     public string $period = '1'; // mesiacov späť
     public ?int $drillCategoryId = null;
     public ?string $drillCategoryName = null;
     public ?string $drillCategoryColor = null;
 
-    protected static ?int $sort = 5;
+    public static function canView(): bool
+    {
+        return !auth()->user()?->isSuperAdmin();
+    }
 
     public function getPeriodOptions(): array
     {
@@ -283,7 +290,7 @@ class ExpenseDrilldownChart extends Component
         return '#' . $r_hex . $g_hex . $b_hex;
     }
 
-    public function render()
+    public function render(): \Illuminate\Contracts\View\View
     {
         $data = $this->getChartData();
         $activeValues = $this->drillCategoryId ? ($data['sub']['values'] ?? []) : ($data['main']['values'] ?? []);

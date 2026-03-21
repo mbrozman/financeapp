@@ -3,11 +3,27 @@
 namespace App\Filament\Widgets;
 
 use App\Services\DashboardFinanceService;
+use Filament\Actions\Contracts\HasActions;
+use Filament\Actions\Concerns\InteractsWithActions;
+use Filament\Forms\Contracts\HasForms;
+use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Widgets\ChartWidget;
+use Illuminate\Support\Carbon;
 
-class MonthlyCashflowChart extends ChartWidget
+class MonthlyCashflowChart extends ChartWidget implements HasActions, HasForms
 {
-    public function getHeading(): ?string
+    use InteractsWithActions;
+    use InteractsWithForms;
+
+    protected static ?int $sort = 4;
+
+    protected int | string | array $columnSpan = [
+        'md' => 1,
+        'xl' => 1,
+    ];
+
+
+    public function getHeading(): string|\Illuminate\Contracts\Support\Htmlable|null
     {
         $year = now()->year;
         $userId = auth()->id();
@@ -23,26 +39,23 @@ class MonthlyCashflowChart extends ChartWidget
         $userId = auth()->id();
         $year = now()->year;
         $cashflow = app(DashboardFinanceService::class)->getYearlyCashflow($userId, $year);
-        $labels = $cashflow['labels'];
-        $incomeValues = $cashflow['income_values'];
-        $expenseValues = $cashflow['expense_values'];
 
         return [
             'datasets' => [
                 [
                     'label' => 'Príjmy',
-                    'data' => $incomeValues,
+                    'data' => $cashflow['income_values'],
                     'backgroundColor' => '#22c55e',
                     'borderColor' => '#22c55e',
                 ],
                 [
                     'label' => 'Výdavky',
-                    'data' => $expenseValues,
+                    'data' => $cashflow['expense_values'],
                     'backgroundColor' => '#ef4444',
                     'borderColor' => '#ef4444',
                 ],
             ],
-            'labels' => $labels,
+            'labels' => $cashflow['labels'],
         ];
     }
 
@@ -56,12 +69,8 @@ class MonthlyCashflowChart extends ChartWidget
         return [
             'maintainAspectRatio' => false,
             'scales' => [
-                'x' => [
-                    'stacked' => false,
-                ],
-                'y' => [
-                    'stacked' => false,
-                ],
+                'x' => ['stacked' => false],
+                'y' => ['stacked' => false],
             ],
         ];
     }

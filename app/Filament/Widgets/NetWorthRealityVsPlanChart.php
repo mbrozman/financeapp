@@ -3,15 +3,24 @@
 namespace App\Filament\Widgets;
 
 use App\Services\DashboardFinanceService;
+use Brick\Math\BigDecimal;
+use Filament\Actions\Contracts\HasActions;
+use Filament\Actions\Concerns\InteractsWithActions;
+use Filament\Forms\Contracts\HasForms;
+use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Widgets\ChartWidget;
+use Illuminate\Support\Carbon;
 
-class NetWorthRealityVsPlanChart extends ChartWidget
+class NetWorthRealityVsPlanChart extends ChartWidget implements HasActions, HasForms
 {
-    protected static ?string $heading = 'Mesačný rast: Realita vs. Plán (€)';
-    protected static ?int $sort = 1;
-    protected static ?string $maxHeight = '800px';
-    
+    use InteractsWithActions;
+    use InteractsWithForms;
+
+    protected static ?int $sort = 5;
+    protected static ?string $maxHeight = '400px';
+
     public ?string $filter = 'with_roi';
+
 
     protected function getFilters(): ?array
     {
@@ -19,6 +28,11 @@ class NetWorthRealityVsPlanChart extends ChartWidget
             'with_roi' => 'S výnosom investícií (8%)',
             'pure_savings' => 'Iba čisté vklady z platu',
         ];
+    }
+
+    public function getHeading(): string|\Illuminate\Contracts\Support\Htmlable|null
+    {
+        return 'Mesačný rast: Realita vs. Plán (€)';
     }
 
     protected function getData(): array
@@ -29,30 +43,26 @@ class NetWorthRealityVsPlanChart extends ChartWidget
         $modelValues = $series['model_values'];
         $isAhead = $series['is_ahead'];
 
-        if (count($labels) === 0) {
-            return ['datasets' => [], 'labels' => []];
-        }
-
         return [
             'datasets' => [
                 [
-                    'label' => 'Skutočný majetok (Snapshot)',
+                    'label' => 'Realita (€)',
                     'data' => $realityValues,
                     'borderColor' => $isAhead ? '#22c55e' : '#ef4444',
-                    'backgroundColor' => $isAhead ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                    'fill' => 'start',
-                    'borderWidth' => 4,
-                    'tension' => 0.2,
-                    'spanGaps' => true,
+                    'backgroundColor' => $isAhead ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                    'tension' => 0.4,
+                    'fill' => true,
+                    'pointRadius' => 4,
                 ],
                 [
-                    'label' => 'Ideálna cesta (Tvoj plán)',
+                    'label' => 'Model / Plán (€)',
                     'data' => $modelValues,
                     'borderColor' => '#94a3b8',
-                    'borderDash' => [10, 5],
                     'backgroundColor' => 'transparent',
-                    'borderWidth' => 2,
-                    'tension' => 0.2,
+                    'borderDash' => [5, 5],
+                    'tension' => 0.4,
+                    'fill' => false,
+                    'pointRadius' => 3,
                 ],
             ],
             'labels' => $labels,
@@ -68,6 +78,12 @@ class NetWorthRealityVsPlanChart extends ChartWidget
     {
         return [
             'maintainAspectRatio' => false,
+            'plugins' => [
+                'legend' => ['display' => true, 'position' => 'bottom'],
+            ],
+            'scales' => [
+                'y' => ['beginAtZero' => false],
+            ],
         ];
     }
 
