@@ -47,10 +47,10 @@ class UserInitializationService
 
         // 4. Piliere (Šuflíky) - PRÉMIOVÉ FARBY
         $piliere = [
-            ['name' => '1. HLAVNÉ VÝDAVKY', 'percentage' => 50, 'color' => '#ff0000', 'contributes_to_net_worth' => false],
-            ['name' => '2. INVESTOVANIE', 'percentage' => 25, 'color' => '#87ceeb', 'contributes_to_net_worth' => true],
-            ['name' => '3. REZERVA', 'percentage' => 15, 'color' => '#228b22', 'contributes_to_net_worth' => true],
-            ['name' => '4. VRECKOVÉ', 'percentage' => 10, 'color' => '#ffbf00', 'contributes_to_net_worth' => false],
+            ['name' => 'HLAVNÉ VÝDAVKY', 'percentage' => 50, 'color' => '#ff0000', 'contributes_to_net_worth' => false],
+            ['name' => 'INVESTOVANIE', 'percentage' => 25, 'color' => '#87ceeb', 'contributes_to_net_worth' => true],
+            ['name' => 'REZERVA', 'percentage' => 15, 'color' => '#228b22', 'contributes_to_net_worth' => true],
+            ['name' => 'VRECKOVÉ', 'percentage' => 10, 'color' => '#ffbf00', 'contributes_to_net_worth' => false],
         ];
 
         $pillarModels = [];
@@ -80,14 +80,15 @@ class UserInitializationService
                 'user_id' => $user->id,
                 'name' => $subName,
                 'parent_id' => $catIncome->id,
-                'type' => 'income'
+                'type' => 'income',
+                'color' => '#10b981'
             ]);
         }
 
         // 6. Kategórie - VÝDAVKY
         
         // --- PILIER 1 ---
-        $p1 = $pillarModels['1. HLAVNÉ VÝDAVKY'];
+        $p1 = $pillarModels['HLAVNÉ VÝDAVKY'];
         $categoriesP1 = [
             'Bývanie a domácnosť' => ['Nájomné', 'Hypotéka'],
             'Energie' => ['Elektrina', 'Plyn', 'Voda'],
@@ -192,7 +193,29 @@ class UserInitializationService
             }
         }
 
-        // 7. Bankové Účty
+        // 7. Investičné Kategórie
+        $invCategories = [
+            ['name' => 'Akcie', 'color' => '#3b82f6', 'icon' => 'heroicon-o-chart-bar'],
+            ['name' => 'ETF / Fondy', 'color' => '#10b981', 'icon' => 'heroicon-o-building-library'],
+            ['name' => 'Kryptomeny', 'color' => '#f59e0b', 'icon' => 'heroicon-o-currency-dollar'],
+            ['name' => 'Dlhopisy', 'color' => '#6366f1', 'icon' => 'heroicon-o-document-text'],
+            ['name' => 'Komodity', 'color' => '#d97706', 'icon' => 'heroicon-o-cube'],
+            ['name' => 'Iné', 'color' => '#64748b', 'icon' => 'heroicon-o-question-mark-circle'],
+        ];
+
+        foreach ($invCategories as $ic) {
+            \App\Models\InvestmentCategory::firstOrCreate(
+                ['user_id' => $user->id, 'name' => $ic['name']],
+                [
+                    'color' => $ic['color'],
+                    'icon' => $ic['icon'],
+                    'is_active' => true,
+                    'slug' => \Illuminate\Support\Str::slug($ic['name']),
+                ]
+            );
+        }
+
+        // 8. Bankové Účty
         $banks = [
             ['name' => 'Prima banka', 'type' => 'bank'],
             ['name' => '365.bank', 'type' => 'bank'],

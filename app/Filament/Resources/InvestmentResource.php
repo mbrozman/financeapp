@@ -147,7 +147,13 @@ class InvestmentResource extends Resource
                             ->relationship('currency', 'code')
                             ->required()
                             ->live()
-                            ->default(fn(Forms\Get $get) => $get('currency_id')),
+                            ->default(fn(Forms\Get $get) => $get('currency_id'))
+                            ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                if ($state) {
+                                    $rate = \App\Services\CurrencyService::getLiveRateById($state);
+                                    $set('exchange_rate', (string)$rate);
+                                }
+                            }),
                         Forms\Components\TextInput::make('initial_quantity')
                             ->label('Počet kusov')
                             ->numeric()
@@ -206,6 +212,19 @@ class InvestmentResource extends Resource
                     ->label('Symbol')
                     ->badge()
                     ->color('warning')
+                    ->searchable(),
+
+                Tables\Columns\TextColumn::make('asset_type')
+                    ->label('Trieda')
+                    ->badge()
+                    ->color(fn($state) => match($state) {
+                        'Equity' => 'info',
+                        'ETF' => 'success',
+                        'Crypto' => 'warning',
+                        'Bond' => 'primary',
+                        'Commodity' => 'warning',
+                        default => 'gray',
+                    })
                     ->searchable(),
 
                 Tables\Columns\TextColumn::make('broker')
@@ -338,7 +357,17 @@ class InvestmentResource extends Resource
                             ->color(fn($state) => $state ? 'gray' : 'success'),
                         Infolists\Components\TextEntry::make('category.name')->label('Typ aktíva'),
                         Infolists\Components\TextEntry::make('broker')->label('Broker'),
-                        Infolists\Components\TextEntry::make('asset_type')->label('Trieda')->badge()->color('info'),
+                        Infolists\Components\TextEntry::make('asset_type')
+                            ->label('Trieda')
+                            ->badge()
+                            ->color(fn($state) => match($state) {
+                                'Equity' => 'info',
+                                'ETF' => 'success',
+                                'Crypto' => 'warning',
+                                'Bond' => 'primary',
+                                'Commodity' => 'warning',
+                                default => 'gray',
+                            }),
                         Infolists\Components\TextEntry::make('sector')->label('Sektor'),
                         Infolists\Components\TextEntry::make('country')->label('Región'),
 

@@ -52,7 +52,7 @@ class InvestmentCategoryResource extends Resource
                                 'heroicon-o-chart-bar' => 'Graf / Akcie',
                                 'heroicon-o-building-office' => 'Budova / Reality',
                                 'heroicon-o-banknotes' => 'Peniaze / Hotovosť',
-                                'heroicon-o-currency-bitcoin' => 'Krypto / Bitcoin',
+                                'heroicon-o-currency-dollar' => 'Krypto / Bitcoin',
                                 'heroicon-o-globe-alt' => 'Svet / ETF',
                                 'heroicon-o-academic-cap' => 'Vzdelanie / Iné',
                                 'heroicon-o-bolt' => 'Energia / Tech',

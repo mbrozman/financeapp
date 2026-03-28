@@ -34,8 +34,15 @@ class InvestmentProfitStats extends BaseWidget
         $record = $this->record;
         
         // --- 1. URČENIE MENY ---
-        $currencyCode = session('global_currency') ?: $record->currency?->code;
+        $currencyCode = session('global_currency') ?: 'EUR';
         $targetCurrency = \App\Models\Currency::where('code', $currencyCode)->first();
+        
+        // Fallback ak mena v DB neexistuje (napr. pri chybe session)
+        if (!$targetCurrency) {
+            $currencyCode = 'EUR';
+            $targetCurrency = \App\Models\Currency::where('code', 'EUR')->first();
+        }
+        
         $symbol = $targetCurrency->symbol ?? $currencyCode;
 
         // --- 2. VÝPOČET HODNÔT (Cez univerzálne metódy modelu) ---

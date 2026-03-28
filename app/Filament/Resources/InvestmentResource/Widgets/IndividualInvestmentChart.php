@@ -116,7 +116,7 @@ class IndividualInvestmentChart extends BaseWidget
             if ($yMin >= $yMax) { $yMin -= 1; $yMax += 1; }
         }
 
-        $this->cachedChartData = [
+        return [
             'datasets' => [
                 [
                     'label' => "Trhová cena ({$symbol})",
@@ -140,14 +140,11 @@ class IndividualInvestmentChart extends BaseWidget
             'yMin' => $yMin,
             'yMax' => $yMax,
         ];
-
-        return $this->cachedChartData;
     }
 
     protected function getData(): array
     {
         $data = $this->buildChartData();
-        // Vraciame IBA datasets a labels - bez yMin/yMax
         return [
             'datasets' => $data['datasets'],
             'labels' => $data['labels'],
