@@ -1,3 +1,4 @@
+<div>
 <x-filament-widgets::widget>
     <div wire:key="net-worth-chart-{{ $this->filter }}-{{ time() }}" class="h-full">
         <x-filament::section>
@@ -75,3 +76,4 @@
         };
     }
 </script>
+</div>

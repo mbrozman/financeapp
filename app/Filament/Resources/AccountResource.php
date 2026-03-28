@@ -37,7 +37,7 @@ class AccountResource extends Resource
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
     {
         return parent::getEloquentQuery()
-            ->whereIn('type', ['bank', 'cash']);
+            ->whereIn('type', ['bank', 'cash', 'reserve']);
     }
 
     public static function form(Form $form): Form
@@ -49,6 +49,7 @@ class AccountResource extends Resource
                 ->options([
                     'bank' => 'Bankový účet',
                     'cash' => 'Hotovosť',
+                    'reserve' => 'Rezerva (fond)',
                 ])->required(),
             Forms\Components\Select::make('currency_id')
                 ->label('Mena')->relationship('currency', 'code')->required(),
@@ -73,6 +74,7 @@ class AccountResource extends Resource
                         'crypto' => 'warning',
                         'investment' => 'success',
                         'cash' => 'gray',
+                        'reserve' => 'primary',
                         default => 'gray',
                     }),
 

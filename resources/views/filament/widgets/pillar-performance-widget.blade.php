@@ -1,146 +1,191 @@
+<div>
+@php
+    $pillars = $data['pillars'] ?? [];
+    $surplus = $data['surplus'] ?? ['total' => 0, 'extra_income' => 0, 'pillar_savings' => 0];
+@endphp
+
+{{-- Load ApexCharts eagerly in <head> --}}
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@3" defer></script>
+@endpush
+
 <x-filament-widgets::widget>
-        @php
-            $data = $this->getPillarData();
-            $pillars = $data['pillars'] ?? [];
-            $summary = $data['summary'] ?? [];
-        @endphp
-
     <x-filament::section>
-        <div class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-            <div class="flex items-center gap-3">
-                <div class="p-2 bg-primary-50 dark:bg-primary-950 rounded-lg shadow-sm">
-                    <x-heroicon-o-presentation-chart-line class="w-5 h-5 text-primary-600 dark:text-primary-400" />
-                </div>
+        {{-- Header --}}
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4" style="margin-bottom: 2rem;">
+            <div class="flex flex-col sm:flex-row sm:items-center gap-4">
                 <div>
-                    <h2 class="text-lg font-extrabold text-gray-900 dark:text-white leading-tight tracking-tight">Finančný Cockpit</h2>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">Monitoring pilierov a efektivita sporenia</p>
+                    <h2 class="text-base font-extrabold text-gray-900 dark:text-white tracking-tight">Finančný Cockpit</h2>
+                    <p class="text-xs text-gray-400 mt-0.5">Čerpanie alokácie v aktuálnom mesiaci</p>
                 </div>
-            </div>
-            
-            <div class="flex items-center gap-4 bg-gray-50 dark:bg-gray-900/50 p-1.5 rounded-xl border border-gray-100 dark:border-gray-800">
-                <div class="flex items-center gap-2 px-3">
-                    <span class="text-[10px] uppercase font-bold text-gray-400">Mesiac:</span>
-                    <input 
-                        type="month" 
-                        wire:model.live="period"
-                        class="block border-none bg-transparent p-0 text-sm font-bold focus:ring-0 dark:text-white"
-                    >
-                </div>
-            </div>
-        </div>
 
-        <!-- Savings Summary Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-10">
-            <div class="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-4 rounded-2xl shadow-sm">
-                <div class="text-[10px] font-bold text-gray-400 uppercase mb-1">Príjem</div>
-                <div class="text-xl font-black text-gray-900 dark:text-white">{{ number_format($summary['income'], 0, ',', ' ') }} €</div>
-            </div>
-            <div class="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-4 rounded-2xl shadow-sm">
-                <div class="text-[10px] font-bold text-gray-400 uppercase mb-1">Výdavky</div>
-                <div class="text-xl font-black text-danger-600">{{ number_format($summary['total_expenses'], 0, ',', ' ') }} €</div>
-            </div>
-            <div class="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 p-4 rounded-2xl shadow-sm">
-                <div class="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Plánované Sporenie</div>
-                <div class="text-xl font-black text-gray-700 dark:text-gray-200">{{ number_format($summary['target_savings'], 0, ',', ' ') }} €</div>
-            </div>
-            <div class="bg-success-50/50 dark:bg-success-900/10 border border-success-100 dark:border-success-900/30 p-4 rounded-2xl shadow-sm">
-                <div class="text-[10px] font-bold text-success-600 uppercase mb-1">Skutočné Sporenie</div>
-                <div class="text-xl font-black text-success-700 dark:text-success-400">{{ number_format($summary['actual_savings'], 0, ',', ' ') }} €</div>
-                @if($summary['savings_surplus'] > 0)
-                    <div class="text-[10px] font-bold text-success-600 mt-1 uppercase flex items-center gap-1">
-                        <x-heroicon-m-arrow-trending-up class="w-3 h-3" />
-                        Extra úspora: +{{ number_format($summary['savings_surplus'], 0, ',', ' ') }} €
-                    </div>
-                @elseif($summary['savings_surplus'] < 0)
-                    <div class="text-[10px] font-bold text-danger-600 mt-1 uppercase flex items-center gap-1">
-                        <x-heroicon-m-arrow-trending-down class="w-3 h-3" />
-                        Deficit voči plánu: {{ number_format($summary['savings_surplus'], 0, ',', ' ') }} €
-                    </div>
+                {{-- Surplus Badge --}}
+                @if($surplus['total'] > 0)
+                <div class="flex items-center gap-2 bg-success-50 dark:bg-success-900/20 border border-success-200 dark:border-success-800 rounded-full px-4 py-1.5 shadow-sm"
+                     title="Nadvýnos: {{ number_format($surplus['extra_income'], 2, ',', ' ') }} € + Úspora v pilieroch: {{ number_format($surplus['pillar_savings'], 2, ',', ' ') }} €">
+                    <x-heroicon-m-plus-circle class="w-4 h-4 text-success-600" />
+                    <span class="text-xs font-black text-success-700 dark:text-success-400">
+                        Plus {{ number_format($surplus['total'], 0, ',', ' ') }} €
+                    </span>
+                </div>
                 @endif
+            </div>
+
+            <div class="flex items-center gap-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2">
+                <span class="text-[10px] uppercase font-bold text-gray-400">Mesiac:</span>
+                <input type="month" wire:model.live="period"
+                    class="border-none bg-transparent p-0 text-sm font-semibold focus:ring-0 dark:text-white">
             </div>
         </div>
 
         @if(empty($pillars))
-            <div class="py-12 text-center">
-                <p class="text-sm text-gray-500">Žiadny aktívny finančný plán nenájdený.</p>
-            </div>
+            <div class="py-10 text-center text-sm text-gray-400">Žiadny aktívny finančný plán.</div>
         @else
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
-                @foreach($pillars as $pillar)
-                    @php
-                        $max = max($pillar['model_limit'], $pillar['configured_limit'], $pillar['actual_spent'], 1);
-                        
-                        $pctModel = ($pillar['model_limit'] / $max) * 100;
-                        $pctConfig = ($pillar['configured_limit'] / $max) * 100;
-                        $pctActual = ($pillar['actual_spent'] / $max) * 100;
-
-                        $isOverLimit = $pillar['actual_spent'] > $pillar['configured_limit'] && $pillar['configured_limit'] > 0;
-                        $isOverModel = $pillar['actual_spent'] > $pillar['model_limit'];
-                    @endphp
+        <div class="grid grid-cols-2 xl:grid-cols-4 gap-5">
+            @foreach($pillars as $i => $pillar)
+                @php
+                    $spent     = $pillar['actual_spent'];
+                    $alloc     = $pillar['allocated_limit'];
+                    $isSaving  = $pillar['is_saving'] ?? false;
+                    $remaining = max(0, $alloc - $spent);
+                    $pct       = $alloc > 0 ? round(min(100, ($spent / $alloc) * 100)) : 0;
                     
-                    <div class="space-y-4">
-                        <div class="flex items-center justify-between">
-                            <span class="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">{{ $pillar['name'] }}</span>
-                            <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
-                                {{ $pillar['percentage'] }}% Príjmu
+                    // Logic for colors: Use pillar color as base, change only for status feedback
+                    if ($isSaving) {
+                        $isSuccess = $spent >= $alloc;
+                        $arcColor  = $isSuccess ? '#228b22' : ($pillar['color'] ?? '#87ceeb');
+                    } else {
+                        $isOver    = $spent > $alloc;
+                        $arcColor  = $isOver ? '#ff0000' : ($pillar['color'] ?? '#ff0000');
+                    }
+                    
+                    $chartId   = 'pchart-' . $i . '-' . md5($this->period);
+                @endphp
+
+                <div class="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl p-4 flex flex-col items-center shadow-sm"
+                     wire:key="pillar-card-{{ $i }}-{{ $this->period }}"
+                     x-data="{
+                         chart: null,
+                         renderChart() {
+                             const el = document.getElementById('{{ $chartId }}');
+                             if (!el) return;
+                             if (this.chart) { try { this.chart.destroy(); } catch(e){} this.chart = null; }
+                             el.innerHTML = '';
+                             const isDark = document.documentElement.classList.contains('dark');
+                             const opts = {
+                                 series: [{{ $pct }}],
+                                 chart: {
+                                     type: 'radialBar',
+                                     height: 180,
+                                     background: 'transparent',
+                                     toolbar: { show: false },
+                                     sparkline: { enabled: true },
+                                     animations: { enabled: true, speed: 600 },
+                                 },
+                                 plotOptions: {
+                                     radialBar: {
+                                         startAngle: -130,
+                                         endAngle: 130,
+                                         hollow: { size: '60%', background: 'transparent' },
+                                         track: { background: isDark ? '#1f2937' : '#f3f4f6', strokeWidth: '100%' },
+                                         dataLabels: {
+                                             show: true,
+                                             name: {
+                                                 show: true, fontSize: '10px', fontWeight: 700,
+                                                 color: isDark ? '#9ca3af' : '#6b7280',
+                                                 offsetY: 20,
+                                                 formatter: () => 'ostáva'
+                                             },
+                                             value: {
+                                                 show: true, fontSize: '14px', fontWeight: 900,
+                                                 color: isDark ? '#ffffff' : '#111827',
+                                                 offsetY: -8,
+                                                 formatter: () => '{{ number_format($remaining, 0, ",", " ") }} €'
+                                             },
+                                         },
+                                     },
+                                 },
+                                 colors: ['{{ $arcColor }}'],
+                                 stroke: { lineCap: 'round' },
+                             };
+                             this.chart = new ApexCharts(el, opts);
+                             this.chart.render();
+                         },
+                         waitAndRender() {
+                             if (window.ApexCharts) {
+                                 this.renderChart();
+                             } else {
+                                 setTimeout(() => this.waitAndRender(), 100);
+                             }
+                         },
+                         init() { this.$nextTick(() => this.waitAndRender()); },
+                         destroy() { if (this.chart) { try { this.chart.destroy(); } catch(e){} this.chart = null; } }
+                     }" x-init="init()">
+
+                    {{-- Chart --}}
+                    <div id="{{ $chartId }}" class="w-full"></div>
+
+                    <div class="text-center mt-1 mb-3">
+                        <span class="text-[11px] font-black uppercase tracking-widest" style="color: {{ $pillar['color'] }}">
+                            {{ $loop->iteration }}. {{ $pillar['name'] }}
+                        </span>
+                        <p class="text-[10px] text-gray-400 mt-0.5">{{ $pillar['percentage'] }}% príjmu</p>
+                    </div>
+
+                    {{-- Mini stats --}}
+                    <div class="w-full border-t border-gray-100 dark:border-gray-800 pt-3 space-y-1.5">
+                        <div class="flex justify-between items-center">
+                            <span class="text-[10px] text-gray-400">Minuté</span>
+                            <span class="text-xs font-bold {{ $isOver ? 'text-danger-600' : 'text-gray-700 dark:text-gray-200' }}">
+                                {{ number_format($spent, 0, ',', ' ') }} €
                             </span>
                         </div>
-
-                        <div class="space-y-3">
-                            <!-- Modelová čiara -->
-                            <div class="space-y-1">
-                                <div class="flex justify-between text-[10px] uppercase font-bold text-gray-400 tracking-tighter">
-                                    <span>Model (Ideálne)</span>
-                                    <span>{{ number_format($pillar['model_limit'], 0, ',', ' ') }} €</span>
-                                </div>
-                                <div class="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 border border-gray-200 dark:border-gray-700">
-                                    <div class="h-full rounded-full bg-gray-400 dark:bg-gray-500 transition-all duration-500" style="width: {{ $pctModel }}%"></div>
-                                </div>
-                            </div>
-
-                            <!-- Konfigurovaná čiara -->
-                            <div class="space-y-1">
-                                <div class="flex justify-between text-[10px] uppercase font-bold text-blue-500 tracking-tighter">
-                                    <span>Váš Rozpočet</span>
-                                    <span>{{ number_format($pillar['configured_limit'], 0, ',', ' ') }} €</span>
-                                </div>
-                                <div class="w-full bg-blue-50 dark:bg-blue-950/30 rounded-full h-1.5 border border-blue-100 dark:border-blue-900/50">
-                                    <div class="h-full rounded-full bg-blue-500 transition-all duration-500" style="width: {{ $pctConfig }}%"></div>
-                                </div>
-                            </div>
-
-                            <!-- Reálna čiara -->
-                            <div class="space-y-1">
-                                <div class="flex justify-between text-[10px] uppercase font-bold tracking-tighter {{ $isOverLimit ? 'text-danger-600' : 'text-gray-700 dark:text-gray-200' }}">
-                                    <span>Skutočnosť (Realita)</span>
-                                    <span>{{ number_format($pillar['actual_spent'], 0, ',', ' ') }} €</span>
-                                </div>
-                                <div class="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2.5 overflow-hidden shadow-inner">
-                                    <div 
-                                        class="h-full rounded-full transition-all duration-700 relative" 
-                                        style="width: {{ $pctActual }}%; background-color: {{ $isOverLimit ? '#ef4444' : $pillar['color'] }}"
-                                    >
-                                        @if($isOverLimit)
-                                            <div class="absolute inset-0 bg-white/20 animate-pulse"></div>
-                                        @endif
-                                    </div>
-                                </div>
-                            </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-[10px] text-gray-400">Alokácia</span>
+                            <span class="text-xs font-semibold text-blue-500">{{ number_format($alloc, 0, ',', ' ') }} €</span>
                         </div>
+                    </div>
 
-                        @if($isOverLimit)
-                            <div class="flex items-center gap-1 text-[10px] text-danger-600 font-bold uppercase transition-all animate-bounce">
-                                <x-heroicon-m-exclamation-triangle class="w-3 h-3" />
-                                Prekročený rozpočet o {{ number_format($pillar['actual_spent'] - $pillar['configured_limit'], 0, ',', ' ') }} €
-                            </div>
-                        @elseif($pillar['configured_limit'] > 0 && $pillar['actual_spent'] < $pillar['configured_limit'] * 0.8)
-                             <div class="text-[10px] text-success-600 font-bold uppercase">
-                                Úspora voči rozpočtu: {{ number_format($pillar['configured_limit'] - $pillar['actual_spent'], 0, ',', ' ') }} €
-                             </div>
+                    {{-- Status badge --}}
+                    <div class="mt-3 w-full">
+                        @if($isSaving)
+                            @if($spent >= $alloc)
+                                <div class="text-center text-[10px] bg-success-50 dark:bg-success-900/20 text-success-700 font-bold uppercase px-2 py-1 rounded-lg">
+                                    🚀 Cieľ splnený (+{{ number_format($spent - $alloc, 0, ',', ' ') }} €)
+                                </div>
+                            @else
+                                <div class="text-center text-[10px] bg-warning-50 dark:bg-warning-900/20 text-warning-700 font-bold uppercase px-2 py-1 rounded-lg">
+                                    ⏳ Chýba {{ number_format($alloc - $spent, 0, ',', ' ') }} € do cieľa
+                                </div>
+                            @endif
+                        @else
+                            @if($spent > $alloc)
+                                <div class="text-center text-[10px] bg-danger-50 dark:bg-danger-900/20 text-danger-600 font-bold uppercase px-2 py-1 rounded-lg">
+                                    ⚠ Prečerpanie {{ number_format($spent - $alloc, 0, ',', ' ') }} €
+                                </div>
+                            @else
+                                <div class="text-center text-[10px] bg-success-50 dark:bg-success-900/20 text-success-700 font-bold uppercase px-2 py-1 rounded-lg">
+                                    ✓ Úspora {{ number_format($remaining, 0, ',', ' ') }} €
+                                </div>
+                            @endif
                         @endif
                     </div>
-                @endforeach
-            </div>
+                </div>
+            @endforeach
+        </div>
         @endif
+
+        {{-- Ensure ApexCharts is available --}}
+        <script>
+            (function() {
+                if (!window.ApexCharts && !document.querySelector('script[data-apexcharts]')) {
+                    const s = document.createElement('script');
+                    s.src = 'https://cdn.jsdelivr.net/npm/apexcharts@3';
+                    s.setAttribute('data-apexcharts', '1');
+                    document.head.appendChild(s);
+                }
+            })();
+        </script>
     </x-filament::section>
 </x-filament-widgets::widget>
+</div>

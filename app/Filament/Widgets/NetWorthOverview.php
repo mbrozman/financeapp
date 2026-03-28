@@ -16,20 +16,21 @@ class NetWorthOverview extends BaseWidget
         $totalLiquidity = $stats['total_liquidity'];
         $totalBank = $stats['total_bank'];
         $totalCash = $stats['total_cash'];
+        $totalReserve = $stats['total_reserve'];
 
         return [
             Stat::make('Celková likvidita', number_format($totalLiquidity, 2, ',', ' ') . ' €')
-                ->description('Bankové účty + hotovosť')
+                ->description('Bankové účty + Rezerva + Hotovosť')
                 ->descriptionIcon('heroicon-m-wallet')
                 ->color('success'),
 
-            Stat::make('Bankové účty', number_format($totalBank, 2, ',', ' ') . ' €')
-                ->description('Suma na bežných a sporiciach účtoch')
+            Stat::make('Bankové účty & Rezerva', number_format($totalBank + $totalReserve, 2, ',', ' ') . ' €')
+                ->description('Všetky digitálne prostriedky')
                 ->descriptionIcon('heroicon-m-building-library')
                 ->color('info'),
 
             Stat::make('Hotovosť', number_format($totalCash, 2, ',', ' ') . ' €')
-                ->description('Fyzická hotovosť a drobné')
+                ->description('Fyzická hotovosť v peňaženke')
                 ->descriptionIcon('heroicon-m-banknotes')
                 ->color('warning'),
         ];

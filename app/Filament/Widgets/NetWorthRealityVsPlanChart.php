@@ -19,15 +19,11 @@ class NetWorthRealityVsPlanChart extends ChartWidget implements HasActions, HasF
     protected static ?int $sort = 5;
     protected static ?string $maxHeight = '400px';
 
-    public ?string $filter = 'with_roi';
-
+    public ?string $filter = null;
 
     protected function getFilters(): ?array
     {
-        return [
-            'with_roi' => 'S výnosom investícií (8%)',
-            'pure_savings' => 'Iba čisté vklady z platu',
-        ];
+        return null;
     }
 
     public function getHeading(): string|\Illuminate\Contracts\Support\Htmlable|null

@@ -1,3 +1,4 @@
+<div>
 <div wire:key="expense-drilldown-{{ $period }}" class="h-full">
     <div class="flex items-center justify-between mb-4 gap-4">
         <div class="flex items-center gap-3">
@@ -10,8 +11,6 @@
                     <option value="{{ $key }}">{{ $label }}</option>
                 @endforeach
             </select>
-            
-            
         </div>
     </div>
 
@@ -122,3 +121,4 @@
         };
     }
 </script>
+</div>

@@ -30,8 +30,9 @@ class MonthlyCashflowChart extends ChartWidget implements HasActions, HasForms
         $cashflow = app(DashboardFinanceService::class)->getYearlyCashflow($userId, $year);
         $income = number_format($cashflow['total_income'], 0, ',', ' ');
         $expense = number_format($cashflow['total_expense'], 0, ',', ' ');
+        $surplus = number_format($cashflow['total_surplus'], 0, ',', ' ');
 
-        return "Cashflow {$year}: Príjmy {$income} € vs. Výdavky {$expense} €";
+        return "Cashflow {$year}: Príjmy {$income} € vs. Výdavky {$expense} € (Úspora {$surplus} €)";
     }
 
     protected function getData(): array
@@ -45,14 +46,20 @@ class MonthlyCashflowChart extends ChartWidget implements HasActions, HasForms
                 [
                     'label' => 'Príjmy',
                     'data' => $cashflow['income_values'],
-                    'backgroundColor' => '#22c55e',
-                    'borderColor' => '#22c55e',
+                    'backgroundColor' => '#228b22',
+                    'borderColor' => '#228b22',
                 ],
                 [
                     'label' => 'Výdavky',
                     'data' => $cashflow['expense_values'],
-                    'backgroundColor' => '#ef4444',
-                    'borderColor' => '#ef4444',
+                    'backgroundColor' => '#ff0000',
+                    'borderColor' => '#ff0000',
+                ],
+                [
+                    'label' => 'Odložené / Úspora',
+                    'data' => $cashflow['surplus_values'],
+                    'backgroundColor' => '#87ceeb',
+                    'borderColor' => '#87ceeb',
                 ],
             ],
             'labels' => $cashflow['labels'],

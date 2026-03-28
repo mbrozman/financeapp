@@ -9,7 +9,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class FinancialPlan extends Model
 {
     use BelongsToUser;
-    protected $fillable = ['user_id','monthly_income', 'expected_annual_return', 'is_active'];
+    protected $fillable = ['user_id','monthly_income', 'expected_annual_return', 'reserve_target', 'is_active'];
+
+    protected $casts = [
+        'monthly_income' => 'decimal:2',
+        'expected_annual_return' => 'decimal:2',
+        'reserve_target' => 'decimal:2',
+        'is_active' => 'boolean',
+    ];
+
 
     public function items(): HasMany
     {

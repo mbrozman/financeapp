@@ -68,7 +68,7 @@
             @foreach($data['pillars'] as $group)
                 @php
                     $pPercent = (float) $group['percent'];
-                    $pColor = $pPercent >= 101 ? '#dc2626' : ($pPercent >= 100 ? '#f59e0b' : '#22c55e');
+                    $pColor = $pPercent >= 101 ? '#ff0000' : ($pPercent >= 100 ? '#f59e0b' : '#228b22');
                 @endphp
 
                 <div x-data="{ isOpen: false }" 
@@ -112,7 +112,7 @@
                                 @foreach($subcategories as $item)
                                     @php
                                         $iPercent = (float) $item['percent'];
-                                        $iColor = $iPercent >= 101 ? '#dc2626' : ($iPercent >= 100 ? '#f59e0b' : '#22c55e');
+                                        $iColor = $iPercent >= 101 ? '#ff0000' : ($iPercent >= 100 ? '#f59e0b' : '#228b22');
                                     @endphp
                                     <div class="bg-white dark:bg-gray-900 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-800 border-l-4" style="border-left-color: {{ $iColor }};">
                                         <div class="flex justify-between mb-2">

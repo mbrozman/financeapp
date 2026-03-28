@@ -61,7 +61,7 @@ class OperationsCenterWidget extends Widget
                 'percentage' => min(100, $percentage),
                 'actual_spent' => $actualSpent,
                 'model_limit' => $modelLimit,
-                'color' => $this->getPillarColor($item->name),
+                'color' => $item->color ?? '#94a3b8',
                 'is_essential' => str_contains($item->name, 'HLAVNÉ'),
                 'is_reserve' => str_contains($item->name, 'REZERVA'),
             ];
@@ -93,14 +93,5 @@ class OperationsCenterWidget extends Widget
             'overflow' => $pillar1Remaining > 0 && $hasSavingsPillar,
             'month_name' => strtolower($now->translatedFormat('F')),
         ];
-    }
-
-    protected function getPillarColor(string $name): string
-    {
-        if (str_contains($name, 'HLAVNÉ')) return '#ef4444'; // Red
-        if (str_contains($name, 'INVESTOVANIE')) return '#3b82f6'; // Blue
-        if (str_contains($name, 'REZERVA')) return '#eab308'; // Yellow
-        if (str_contains($name, 'VRECKOVÉ')) return '#22c55e'; // Green
-        return '#94a3b8';
     }
 }

@@ -4,8 +4,8 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\TransactionResource\Pages;
 use App\Models\Transaction;
-use App\Models\Category; // PRIDANÉ
-use App\Models\FinancialPlanItem; // PRIDANÉ
+use App\Models\Category;
+use App\Models\FinancialPlanItem;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -58,11 +58,16 @@ class TransactionResource extends Resource
                         // 3. SELECT: HLAVNÁ KATEGÓRIA (RODIČ)
                         Forms\Components\Select::make('parent_category_id')
                             ->label('Hlavná skupina')
-                            ->options(fn(\Filament\Forms\Get $get) => Category::whereNull('parent_id')->where('type', $get('type') ?? 'expense')->pluck('name', 'id'))
+                            ->options(fn(\Filament\Forms\Get $get) => Category::whereNull('parent_id')
+                                ->where('type', match($get('type')) {
+                                    'income' => 'income',
+                                    default => 'expense', // Transfer uses expense categories for allocation tracking
+                                })
+                                ->pluck('name', 'id')
+                            )
                             ->live()
-                            ->dehydrated(false) // Toto pole sa neukladá do tabuľky Transactions
+                            ->dehydrated(false)
                             ->searchable()
-                            // MOŽNOSŤ VYTVORIŤ HLAVNÚ KATEGÓRIU PRIAMO TU
                             ->createOptionForm([
                                 Forms\Components\TextInput::make('name')
                                     ->label('Názov hlavnej skupiny')
@@ -70,25 +75,25 @@ class TransactionResource extends Resource
                                 Forms\Components\Select::make('financial_plan_item_id')
                                     ->label('Priradiť k pilieru')
                                     ->options(FinancialPlanItem::all()->pluck('name', 'id'))
-                                    ->required(fn (\Filament\Forms\Get $get) => $get('../../type') === 'expense')
-                                    ->visible(fn (\Filament\Forms\Get $get) => $get('../../type') === 'expense'),
+                                    ->required(fn (\Filament\Forms\Get $get) => in_array($get('../../type'), ['expense', 'transfer']))
+                                    ->visible(fn (\Filament\Forms\Get $get) => in_array($get('../../type'), ['expense', 'transfer'])),
                             ])
                             ->createOptionUsing(function (array $data, \Filament\Forms\Get $get) {
                                 return Category::create([
                                     'user_id' => auth()->id(),
                                     'name' => $data['name'],
-                                    'type' => $get('type') ?? 'expense',
-                                    'financial_plan_item_id' => $data['financial_plan_item_id'],
+                                    'type' => $get('type') === 'income' ? 'income' : 'expense',
+                                    'financial_plan_item_id' => $data['financial_plan_item_id'] ?? null,
                                 ])->id;
                             }),
 
-                        // 4. SELECT: PODKATEGÓRIA (ZÁVISLÝ SELECT, ALEBO VŠETKY ZOSKUUPENÉ AK NIE JE VYBRATÁ HLAVNÁ)
+                        // 4. SELECT: PODKATEGÓRIA
                         Forms\Components\Select::make('category_id')
                             ->label('Podkategória / Detail')
                             ->placeholder(fn ($get) => $get('parent_category_id') ? 'Vyberte detail...' : 'Alebo vyberte zo zoznamu')
                             ->options(function ($get) {
                                 $parentId = $get('parent_category_id');
-                                $type = $get('type') ?? 'expense';
+                                $type = $get('type') === 'income' ? 'income' : 'expense';
                                 
                                 $query = Category::whereNotNull('parent_id')
                                     ->where('type', $type);
@@ -103,9 +108,8 @@ class TransactionResource extends Resource
                                     ->map(fn($categories) => $categories->pluck('name', 'id'))
                                     ->toArray();
                             })
-                            ->required()
+                            ->required(fn ($get) => $get('type') !== 'transfer')
                             ->searchable()
-                            // MOŽNOSŤ VYTVORIŤ PODKATEGÓRIU PRIAMO TU
                             ->createOptionForm([
                                 Forms\Components\TextInput::make('name')
                                     ->label('Názov podkategórie')
@@ -116,7 +120,7 @@ class TransactionResource extends Resource
                                     'user_id' => auth()->id(),
                                     'parent_id' => $get('parent_category_id'),
                                     'name' => $data['name'],
-                                    'type' => $get('type') ?? 'expense',
+                                    'type' => $get('type') === 'income' ? 'income' : 'expense',
                                 ])->id;
                             }),
 
@@ -125,7 +129,11 @@ class TransactionResource extends Resource
                             ->label('Suma')
                             ->numeric()
                             ->required()
-                            ->prefixIcon(fn($get) => $get('type') === 'expense' ? 'heroicon-m-minus-circle' : 'heroicon-m-plus-circle')
+                            ->prefixIcon(fn($get) => match ($get('type')) {
+                                'expense' => 'heroicon-m-minus-circle',
+                                'income' => 'heroicon-m-plus-circle',
+                                default => 'heroicon-m-arrows-right-left',
+                            })
                             ->prefixIconColor(fn($get) => match ($get('type')) {
                                 'expense' => 'danger',
                                 'income' => 'success',
@@ -167,9 +175,9 @@ class TransactionResource extends Resource
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('account.name')
-                    ->label('Účet'),
+                    ->label('Účet')
+                    ->sortable(),
 
-                // ZOBRAZENIE KATEGÓRIE AKO: "Hlavná > Podkategória"
                 Tables\Columns\TextColumn::make('category.name')
                     ->label('Kategória')
                     ->formatStateUsing(function ($record) {
@@ -177,13 +185,14 @@ class TransactionResource extends Resource
                             ? $record->category->parent->name . ' > ' . $record->category->name 
                             : $record->category?->name;
                     })
-                    ->placeholder('Bez kategórie'),
+                    ->placeholder('Bez kategórie')
+                    ->searchable(),
 
                 Tables\Columns\TextColumn::make('amount')
                     ->label('Suma')
                     ->formatStateUsing(fn($state) => number_format(abs((float)$state), 2, ',', ' '))
                     ->money(fn($record) => $record->account->currency?->code ?? 'EUR')
-                    ->color(fn($record) => match ($record->type) {
+                    ->color(fn($record) => match ($record->type?->value ?? $record->type) {
                         'income' => 'success',
                         'expense' => 'danger',
                         'transfer' => 'gray',

@@ -1,8 +1,18 @@
 <x-filament-panels::page>
-    <div class="space-y-2 -mt-4">
-        {{-- 1. KPI Karty: Likvidita --}}
+    <div class="space-y-6 -mt-4">
+        {{-- 1. KPI Karty: Likvidita (bankové účty, hotovosť) --}}
         <div>
             @livewire(\App\Filament\Widgets\NetWorthOverview::class)
+        </div>
+
+        {{-- 2. Finančný Cockpit: Piliere --}}
+        <div>
+            @livewire(\App\Filament\Widgets\PillarPerformanceWidget::class)
+        </div>
+
+        {{-- 3. Rezervný fond: Progress --}}
+        <div>
+            @livewire(\App\Filament\Widgets\ReserveFundWidget::class)
         </div>
 
         {{-- 2. Grafy v mriežke pre úsporu miesta --}}
@@ -12,9 +22,9 @@
                 @livewire(\App\Filament\Widgets\MonthlyCashflowChart::class)
             </div>
 
-            {{-- Graf: Rozdelenie výdavkov --}}
+            {{-- Graf: Rozdelenie výdavkov (Treemap) --}}
             <div class="bg-white dark:bg-gray-800 p-2 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-                @livewire(\App\Filament\Widgets\ExpenseDrilldownChart::class)
+                @livewire(\App\Filament\Widgets\CategoryTreemapChart::class)
             </div>
         </div>
 

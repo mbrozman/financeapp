@@ -1,3 +1,4 @@
+<div>
 <x-filament-widgets::widget>
     <div wire:key="monthly-cashflow-chart-{{ time() }}" class="h-full">
         <x-filament::section>
@@ -66,3 +67,4 @@
         };
     }
 </script>
+</div>

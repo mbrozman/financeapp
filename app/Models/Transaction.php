@@ -23,7 +23,8 @@ class Transaction extends Model
         'transaction_date',
         'description',
         'attachment',
-        'type'
+        'type',
+        'linked_transaction_id'
     ];
 
     protected $casts = [
@@ -42,6 +43,11 @@ class Transaction extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
+    }
+
+    public function linkedTransaction(): BelongsTo
+    {
+        return $this->belongsTo(Transaction::class, 'linked_transaction_id');
     }
     public function getActivitylogOptions(): LogOptions
     {
@@ -90,6 +96,18 @@ class Transaction extends Model
             // Výpočet rozdielu medzi starou a novou sumou
             $diff = $transaction->amount - $transaction->getOriginal('amount');
             $transaction->account->increment('balance', $diff);
+        });
+
+        static::deleting(function (Transaction $transaction) {
+            if ($transaction->linked_transaction_id) {
+                // Použijeme withoutGlobalScopes, aby sme videli prepojenú transakciu bez obmedzení
+                $peer = Transaction::withoutGlobalScopes()->find($transaction->linked_transaction_id);
+                if ($peer) {
+                    // Odpojíme prepojenie na druhej strane, aby sme predišli nekonečnej slučke
+                    $peer->updateQuietly(['linked_transaction_id' => null]);
+                    $peer->delete();
+                }
+            }
         });
     }
 }

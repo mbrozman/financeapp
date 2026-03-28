@@ -8,6 +8,7 @@ use App\Models\FinancialPlanItem;
 use App\Models\Transaction;
 use Illuminate\Support\Facades\Auth;
 use Filament\Widgets\Widget;
+use Carbon\Carbon;
 
 class PillarPerformanceWidget extends Widget
 {
@@ -15,7 +16,7 @@ class PillarPerformanceWidget extends Widget
 
     public string $period;
 
-    protected static ?int $sort = 2; // Above the charts
+    protected static ?int $sort = 0; // Top
 
     protected int | string | array $columnSpan = 'full';
 
@@ -33,84 +34,68 @@ class PillarPerformanceWidget extends Widget
             return [];
         }
 
-        $income = $plan->monthly_income;
-        $items = FinancialPlanItem::where('financial_plan_id', $plan->id)->get();
+        $planIncome = (float) $plan->monthly_income;
+        $items = FinancialPlanItem::where('financial_plan_id', $plan->id)->orderBy('id')->get();
         
-        $year = substr($this->period, 0, 4);
-        $month = substr($this->period, 5, 2);
-        
-        // Pred-načítame transakcie za daný mesiac pre rýchlejší výpočet
-        $transactions = Transaction::where('user_id', $userId)
-            ->where('type', 'expense')
-            ->whereYear('transaction_date', $year)
-            ->whereMonth('transaction_date', $month)
-            ->with('category')
-            ->get();
+        $carbon = Carbon::parse($this->period . '-01');
 
-        $data = [];
-        $totalExpenses = 0;
-        $targetSavings = 0;
+        // Calculate actual total income for this period
+        $actualMonthIncome = Transaction::where('user_id', $userId)
+            ->where('type', 'income')
+            ->whereYear('transaction_date', $carbon->year)
+            ->whereMonth('transaction_date', $carbon->month)
+            ->sum('amount');
+        $actualMonthIncome = (float) $actualMonthIncome;
 
+        $extraIncome = max(0, $actualMonthIncome - $planIncome);
+        $pillarSavings = 0;
+
+        $pillars = [];
         foreach ($items as $item) {
-            $modelLimit = $income * ($item->percentage / 100);
+            $allocation = $planIncome * ($item->percentage / 100);
             
-            if ($item->contributes_to_net_worth) {
-                $targetSavings += $modelLimit;
-            }
+            // Get spent amount for this pillar (including subcategories)
+            $spent = Transaction::where('user_id', $userId)
+                ->where(function ($q) {
+                    $q->where('type', 'expense')
+                      ->orWhere(fn($q2) => $q2->where('type', 'transfer')->where('amount', '<', 0));
+                })
+                ->whereYear('transaction_date', $carbon->year)
+                ->whereMonth('transaction_date', $carbon->month)
+                ->whereHas('category', function ($q) use ($item) {
+                    $q->where('financial_plan_item_id', $item->id)
+                      ->orWhereHas('parent', fn($q2) => $q2->where('financial_plan_item_id', $item->id));
+                })
+                ->sum('amount');
+            $spent = abs((float) $spent);
 
-            // Konfigurovaný limit: súčet monthly_limit z root kategórií priradených k tomuto pilieru
-            $configuredLimit = Category::where('user_id', $userId)
-                ->where('financial_plan_item_id', $item->id)
-                ->whereNull('parent_id')
-                ->sum('monthly_limit');
+            $savings = max(0, $allocation - $spent);
+            $pillarSavings += $savings;
 
-            // Reálne minuté: suma transakcií v kategóriách patriacich pod tento pilier
-            $actualSpent = $transactions->filter(function ($t) use ($item) {
-                return $t->category && $t->category->financial_plan_item_id == $item->id;
-            })->sum('amount');
-
-            $actualSpentAbs = abs((float) $actualSpent);
-            $totalExpenses += $actualSpentAbs;
-
-            $data[] = [
+            $pillars[] = [
                 'name' => $item->name,
                 'percentage' => $item->percentage,
-                'model_limit' => (float) $modelLimit,
-                'configured_limit' => (float) $configuredLimit,
-                'actual_spent' => $actualSpentAbs,
-                'color' => $this->getPillarColor($item->name),
-                'is_savings' => $item->contributes_to_net_worth,
+                'allocated_limit' => $allocation,
+                'actual_spent' => $spent,
+                'is_saving' => (bool) $item->is_saving,
+                'color' => $item->color ?? '#94a3b8',
             ];
         }
 
-        $actualSavings = $income - $totalExpenses;
-        $savingsSurplus = $actualSavings - $targetSavings;
-
         return [
-            'pillars' => $data,
-            'summary' => [
-                'income' => (float) $income,
-                'total_expenses' => (float) $totalExpenses,
-                'target_savings' => (float) $targetSavings,
-                'actual_savings' => (float) $actualSavings,
-                'savings_surplus' => (float) $savingsSurplus,
-            ]
+            'pillars' => $pillars,
+            'surplus' => [
+                'total' => $extraIncome + $pillarSavings,
+                'extra_income' => $extraIncome,
+                'pillar_savings' => $pillarSavings,
+            ],
         ];
-    }
-
-    protected function getPillarColor(string $name): string
-    {
-        if (str_contains($name, 'HLAVNÉ')) return '#ef4444'; // Red
-        if (str_contains($name, 'INVESTOVANIE')) return '#3b82f6'; // Blue
-        if (str_contains($name, 'REZERVA')) return '#eab308'; // Yellow
-        if (str_contains($name, 'VRECKOVÉ')) return '#22c55e'; // Green
-        return '#94a3b8';
     }
 
     public function render(): \Illuminate\Contracts\View\View
     {
         return view('filament.widgets.pillar-performance-widget', [
-            'pillars' => $this->getPillarData(),
+            'data' => $this->getPillarData(),
         ]);
     }
 }

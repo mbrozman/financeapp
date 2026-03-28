@@ -45,12 +45,12 @@ class UserInitializationService
             ]
         );
 
-        // 4. Piliere (Šuflíky)
+        // 4. Piliere (Šuflíky) - PRÉMIOVÉ FARBY
         $piliere = [
-            ['name' => '1. HLAVNÉ VÝDAVKY', 'percentage' => 50, 'color' => '#ef4444', 'contributes_to_net_worth' => false],
-            ['name' => '2. INVESTOVANIE', 'percentage' => 25, 'color' => '#3b82f6', 'contributes_to_net_worth' => true],
-            ['name' => '3. REZERVA', 'percentage' => 15, 'color' => '#eab308', 'contributes_to_net_worth' => true],
-            ['name' => '4. VRECKOVÉ', 'percentage' => 10, 'color' => '#22c55e', 'contributes_to_net_worth' => false],
+            ['name' => '1. HLAVNÉ VÝDAVKY', 'percentage' => 50, 'color' => '#ff0000', 'contributes_to_net_worth' => false],
+            ['name' => '2. INVESTOVANIE', 'percentage' => 25, 'color' => '#87ceeb', 'contributes_to_net_worth' => true],
+            ['name' => '3. REZERVA', 'percentage' => 15, 'color' => '#228b22', 'contributes_to_net_worth' => true],
+            ['name' => '4. VRECKOVÉ', 'percentage' => 10, 'color' => '#ffbf00', 'contributes_to_net_worth' => false],
         ];
 
         $pillarModels = [];
@@ -59,6 +59,7 @@ class UserInitializationService
                 ['financial_plan_id' => $plan->id, 'name' => $p['name']],
                 [
                     'percentage' => $p['percentage'],
+                    'color' => $p['color'],
                     'contributes_to_net_worth' => $p['contributes_to_net_worth'],
                 ]
             );
@@ -102,7 +103,7 @@ class UserInitializationService
                 'parent_id' => null,
                 'type' => 'expense',
                 'financial_plan_item_id' => $p1->id,
-                'color' => '#ef4444',
+                'color' => '#ff0000',
                 'icon' => 'heroicon-o-home'
             ]);
             foreach ($subs as $subName) {
@@ -123,7 +124,7 @@ class UserInitializationService
             'parent_id' => null,
             'type' => 'expense',
             'financial_plan_item_id' => $p2->id,
-            'color' => '#3b82f6',
+            'color' => '#87ceeb',
             'icon' => 'heroicon-o-chart-bar'
         ]);
         foreach (['XTB', 'IBKR', 'XTB Betka', 'Partners Investments'] as $subName) {
@@ -149,7 +150,7 @@ class UserInitializationService
                 'parent_id' => null,
                 'type' => 'expense',
                 'financial_plan_item_id' => $p3->id,
-                'color' => '#eab308',
+                'color' => '#228b22',
                 'icon' => 'heroicon-o-shield-check'
             ]);
             foreach ($subs as $subName) {
@@ -178,7 +179,7 @@ class UserInitializationService
                 'parent_id' => null,
                 'type' => 'expense',
                 'financial_plan_item_id' => $p4->id,
-                'color' => '#22c55e',
+                'color' => '#ffbf00',
                 'icon' => 'heroicon-o-gift'
             ]);
             foreach ($subs as $subName) {

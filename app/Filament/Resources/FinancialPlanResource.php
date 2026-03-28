@@ -38,12 +38,14 @@ class FinancialPlanResource extends Resource
                             ->required()
                             ->live(onBlur: true),
 
-                        Forms\Components\TextInput::make('expected_annual_return')
-                            ->label('Očakávaný ročný výnos portfólia (%)')
+                        Forms\Components\TextInput::make('reserve_target')
+                            ->label('Cieľová suma rezervy')
+                            ->helperText('Celková suma, ktorú si chcete v kategóriách rezervy a hotovosti našetriť.')
                             ->numeric()
-                            ->default(8)
-                            ->suffix('%')
-                            ->required(),
+                            ->prefix('€')
+                            ->default(0)
+                            ->required()
+                            ->live(onBlur: true),
                     ])->columns(2),
 
                 Forms\Components\Section::make('Rozdelenie výplaty')
@@ -52,8 +54,16 @@ class FinancialPlanResource extends Resource
                         Forms\Components\Repeater::make('items')
                             ->relationship() // Prepojenie na tabuľku financial_plan_items
                             ->schema([
+                                Forms\Components\Placeholder::make('item_index')
+                                    ->label('')
+                                    ->content(function ($get, $state) {
+                                        return null; 
+                                    })
+                                    ->visible(false),
+
                                 Forms\Components\TextInput::make('name')
                                     ->label('Názov položky')
+                                    ->placeholder('napr. Rezerva, Investície...')
                                     ->required(),
 
                                 Forms\Components\TextInput::make('percentage')
@@ -63,20 +73,50 @@ class FinancialPlanResource extends Resource
                                     ->required()
                                     ->live(onBlur: true),
 
+                                Forms\Components\ViewField::make('color')
+                                    ->label('Základná farba')
+                                    ->view('filament.forms.components.pillar-color-picker')
+                                    ->required(),
+
                                 Forms\Components\Toggle::make('contributes_to_net_worth')
                                     ->label('Buduje majetok?')
                                     ->helperText('Ak zapnete, táto suma sa započíta do modelového rastu majetku.')
                                     ->default(false),
 
-                                Forms\Components\Toggle::make('applies_expected_return')
-                                    ->label('Aplikovať zhodnotenie 8%?')
-                                    ->helperText('Zapnite len pre akcie/ETF.')
+                                Forms\Components\Toggle::make('is_reserve')
+                                    ->label('📦 Je to rezervný fond?')
+                                    ->helperText('Tento šuflík (a jeho kategórie) budú plniť globálnu rezervu.')
+                                    ->default(false)
+                                    ->live(),
+
+                                Forms\Components\Toggle::make('is_saving')
+                                    ->label('📈 Väčšia suma je lepšia?')
+                                    ->helperText('Zapnite pre Investovanie/Šetrenie. Prekročenie plánu bude vnímané ako úspech (zelená).')
                                     ->default(false),
+
+                                Forms\Components\Placeholder::make('reserve_info')
+                                    ->label('')
+                                    ->content(function ($get) {
+                                        $isReserve = $get('is_reserve');
+                                        if (!$isReserve) {
+                                            return null;
+                                        }
+
+                                        $income = (float) $get('../../monthly_income');
+                                        $target = (float) $get('../../reserve_target');
+                                        $pct = (float) ($get('percentage') ?? 0);
+                                        $monthly = $income * ($pct / 100);
+                                        
+                                        $months = $monthly > 0 ? round($target / $monthly, 1) : 0;
+                                        
+                                        return "📦 Plnenie rezervy: mesačne {$monthly} €  → cieľ {$target} €  (cca {$months} mesiacov sporenia)";
+                                    })
+                                    ->columnSpanFull()
+                                    ->visible(fn ($get) => (bool) $get('is_reserve')),
                             ])
-                            ->columns(4)
+                            ->columns(5) // Adjusted back from 6 after removing ROI toggle
                             ->defaultItems(3)
                             ->addActionLabel('Pridať ďalší šuflík')
-                            // Validácia: Súčet percent musí byť 100
                             ->rules([
                                 fn() => function (string $attribute, $value, \Closure $fail) {
                                     $total = collect($value)->sum('percentage');
@@ -93,15 +133,9 @@ class FinancialPlanResource extends Resource
     {
         return $table
             ->columns([
-                // OPRAVA: Tu definujeme, čo má tabuľka reálne vypísať
                 Tables\Columns\TextColumn::make('monthly_income')
                     ->label('Mesačný príjem')
                     ->money('EUR')
-                    ->sortable(),
-
-                Tables\Columns\TextColumn::make('expected_annual_return')
-                    ->label('Očakávaný výnos')
-                    ->suffix(' %')
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('items_count')

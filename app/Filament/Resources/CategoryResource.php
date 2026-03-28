@@ -47,9 +47,17 @@ class CategoryResource extends Resource
                 
                 Forms\Components\Select::make('financial_plan_item_id')
                     ->label('Finančný pilier (Šuflík)')
-                    ->relationship('planItem', 'name')
-                    ->required(fn (\Filament\Forms\Get $get) => $get('type') === 'expense')
-                    ->visible(fn (\Filament\Forms\Get $get) => $get('type') === 'expense'),
+                    ->relationship(
+                        name: 'planItem', 
+                        titleAttribute: 'name',
+                        modifyQueryUsing: fn (Builder $query) => $query->whereHas('financialPlan', function ($q) {
+                            $q->where('is_active', true)
+                              ->where('user_id', auth()->id());
+                        })
+                    )
+                    ->required(fn (Forms\Get $get) => $get('type') === 'expense')
+                    ->visible(fn (Forms\Get $get) => $get('type') === 'expense')
+                    ->live(),
 
                 Forms\Components\TextInput::make('monthly_limit')
                     ->label('Mesačný limit (€)')
@@ -70,10 +78,26 @@ class CategoryResource extends Resource
                     ),
 
                 Forms\Components\ViewField::make('color')
-                    ->label('Farba kategórie')
+                    ->label('Farba')
                     ->view('filament.forms.components.color-picker-grid')
+                    ->viewData(fn (Forms\Get $get) => [
+                        'baseColor' => (function() use ($get) {
+                            $baseColor = '#94a3b8';
+                            $parentId = $get('parent_id');
+                            if ($parentId) {
+                                $parent = \App\Models\Category::find($parentId);
+                                if ($parent && $parent->color) return $parent->color;
+                            }
+                            $pillarId = $get('financial_plan_item_id');
+                            if ($pillarId) {
+                                $pillar = \App\Models\FinancialPlanItem::find($pillarId);
+                                if ($pillar && $pillar->color) return $pillar->color;
+                            }
+                            return $baseColor;
+                        })()
+                    ])
                     ->required()
-                    ->default('#34d399'),
+                    ->hidden(fn (Forms\Get $get) => $get('parent_id') !== null),
                 
                 Forms\Components\Select::make('icon')
                     ->label('Ikona')

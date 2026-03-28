@@ -3,28 +3,32 @@
     :field="$field"
 >
     @php
-        $colors = \App\Models\Category::getPremiumPalette();
         $statePath = $field->getStatePath();
+        
+        // baseColor je teraz odovzdaná cez viewData z Resource
+        $shades = \App\Models\Category::getShadesForBase($baseColor ?? '#94a3b8');
+        $labels = [
+            'Vibrant',
+            'Professional',
+            'Pastel',
+            'Deep',
+            'Electric'
+        ];
     @endphp
 
     <div
         x-data="{
-            state: $wire.entangle('{{ $statePath }}'),
-            colors: @js($colors)
+            state: $wire.entangle('{{ $statePath }}')
         }"
-        class="flex flex-wrap gap-3 mt-2"
+        class="flex flex-wrap gap-4 mt-3"
     >
-        @foreach ($colors as $color)
-            <button
-                type="button"
-                x-on:click="state = '{{ $color }}'"
-                class="w-8 h-8 rounded-full transition-all duration-200 transform hover:scale-110 focus:outline-none"
-                :class="state === '{{ $color }}' ? 'ring-2 ring-offset-2 ring-primary-500 scale-110' : 'hover:ring-2 hover:ring-offset-1 hover:ring-gray-300'"
-                style="background-color: {{ $color }};"
-                title="{{ $color }}"
-            >
-                <span class="sr-only">{{ $color }}</span>
-            </button>
-        @endforeach
+        @foreach ($shades as $i => $shade)
+                <div
+                    x-on:click="$wire.set('{{ $statePath }}', '{{ $shade }}')"
+                    class="w-8 h-8 rounded-full cursor-pointer transition-all duration-200 border-2"
+                    :class="$wire.get('{{ $statePath }}') === '{{ $shade }}' ? 'ring-2 ring-offset-2 ring-primary-500 border-white scale-110 shadow-lg' : 'border-transparent hover:scale-105'"
+                    style="background-color: {{ $shade }};"
+                ></div>
+            @endforeach
     </div>
 </x-dynamic-component>

@@ -16,7 +16,7 @@ class ExpenseDrilldownChart extends Widget
         'xl' => 1,
     ];
 
-    protected static ?int $sort = 3;
+    protected static ?int $sort = null;
 
     public string $period = '1'; // mesiacov späť
     public ?int $drillCategoryId = null;
@@ -25,7 +25,7 @@ class ExpenseDrilldownChart extends Widget
 
     public static function canView(): bool
     {
-        return !auth()->user()?->isSuperAdmin();
+        return false;
     }
 
     public function getPeriodOptions(): array
