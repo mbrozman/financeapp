@@ -68,7 +68,21 @@
                     theme: 'dark',
                     style: { fontSize: '12px' },
                     y: {
-                        formatter: (val) => new Intl.NumberFormat('sk-SK', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 }).format(val)
+                        formatter: function(val, { series, seriesIndex, dataPointIndex, w }) {
+                            const item = w.config.series[seriesIndex].data[dataPointIndex];
+                            const formattedVal = new Intl.NumberFormat('sk-SK', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 }).format(val);
+                            
+                            if (item && item.limit > 0) {
+                                const remaining = item.limit - val;
+                                const status = remaining >= 0 ? 'Zostáva: ' : 'Prekročené o: ';
+                                const formattedLimit = new Intl.NumberFormat('sk-SK', { style: 'currency', currency: 'EUR' }).format(item.limit);
+                                const formattedRem = new Intl.NumberFormat('sk-SK', { style: 'currency', currency: 'EUR' }).format(Math.abs(remaining));
+                                
+                                return `${formattedVal} / ${formattedLimit}<br><small>${status}${formattedRem}</small>`;
+                            }
+                            
+                            return formattedVal;
+                        }
                     }
                 },
                 stroke: {
@@ -117,9 +131,16 @@
                     <div class="flex flex-wrap gap-8 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                         <template x-for="(s, index) in series" :key="s.name">
                             <div class="bg-gray-50/50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-100 dark:border-gray-700/50 flex-[1_1_440px] min-w-[440px]">
-                                <div class="flex items-center mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
-                                    <span class="w-3.5 h-3.5 rounded-full shrink-0 shadow-sm mr-5" :style="'background-color: ' + colors[index]"></span>
-                                    <div class="text-[15px] font-bold text-gray-800 dark:text-gray-200 truncate pl-1" x-text="s.name"></div>
+                                <div class="flex items-center justify-between mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
+                                    <div class="flex items-center">
+                                        <span class="w-3.5 h-3.5 rounded-full shrink-0 shadow-sm mr-5" :style="'background-color: ' + colors[index]"></span>
+                                        <div class="text-[15px] font-bold text-gray-800 dark:text-gray-200 truncate pl-1" x-text="s.name"></div>
+                                    </div>
+                                    <template x-if="s.limit > 0">
+                                        <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-2">
+                                            Limit: <span x-text="new Intl.NumberFormat('sk-SK').format(s.limit) + ' €'"></span>
+                                        </div>
+                                    </template>
                                 </div>
                                 <div class="space-y-2 pt-1">
                                     <template x-for="item in s.data" :key="item.x">
@@ -129,8 +150,15 @@
                                                 <span class="text-[13px] text-gray-600 dark:text-gray-400 truncate pl-1" x-text="item.x"></span>
                                             </div>
                                             <div class="flex items-center gap-3 text-right justify-end shrink-0 pl-4">
+                                                <template x-if="item.limit > 0">
+                                                    <span class="text-[10px] font-bold text-gray-400 dark:text-gray-500 whitespace-nowrap min-w-[60px]" 
+                                                          :class="item.y > item.limit ? 'text-red-500 dark:text-red-400' : ''"
+                                                          x-text="'/ ' + new Intl.NumberFormat('sk-SK').format(item.limit) + ' €'"></span>
+                                                </template>
                                                 <span class="text-xs font-bold text-gray-400 dark:text-gray-500 w-10 text-right" x-text="(item.y / total * 100).toFixed(1) + '%'"></span>
-                                                <span class="text-sm text-gray-900 dark:text-gray-300 font-semibold whitespace-nowrap min-w-[60px] text-right" x-text="new Intl.NumberFormat('sk-SK').format(item.y) + ' €'"></span>
+                                                <span class="text-sm text-gray-900 dark:text-gray-300 font-semibold whitespace-nowrap min-w-[60px] text-right" 
+                                                      :class="item.limit > 0 && item.y > item.limit ? 'text-red-600 dark:text-red-500' : ''"
+                                                      x-text="new Intl.NumberFormat('sk-SK').format(item.y) + ' €'"></span>
                                             </div>
                                         </div>
                                     </template>

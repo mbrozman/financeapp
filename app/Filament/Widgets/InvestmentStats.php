@@ -30,6 +30,16 @@ class InvestmentStats extends BaseWidget
             $currentValue = $currentValue->plus($investment->current_market_value_eur ?? 0);
         }
 
+        // 3.1 PRIPOČÍTANIE HOTOVOSTI U BROKERA (Účty typu investment)
+        $brokerAccounts = \App\Models\Account::where('user_id', auth()->id())
+            ->where('type', 'investment')
+            ->get();
+
+        foreach ($brokerAccounts as $acc) {
+            $balanceEur = \App\Services\CurrencyService::convertToEur((string)$acc->balance, $acc->currency_id);
+            $currentValue = $currentValue->plus($balanceEur);
+        }
+
         // 4. VÝPOČET ZISKU A PERCENT
         $profitEur = $currentValue->minus($totalInvested);
 

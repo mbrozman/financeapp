@@ -12,7 +12,6 @@ class Goal extends Model
 
     protected $fillable = [
         'user_id',
-        'account_id',
         'name',
         'target_amount',
         'current_amount',
@@ -27,9 +26,9 @@ class Goal extends Model
         'deadline' => 'date',
     ];
 
-    public function account(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function accounts(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
     {
-        return $this->belongsTo(Account::class);
+        return $this->belongsToMany(Account::class);
     }
 
     // --- VLASTNÝ GETTER PRE AKTUÁLNY STAV ---
@@ -37,10 +36,11 @@ class Goal extends Model
     {
         return Attribute::make(
             get: function ($value, $attributes) {
-                // Ak je cieľ prepojený na účet, prečítame jeho zostatok
-                if (!empty($attributes['account_id'])) {
-                    $acc = \App\Models\Account::find($attributes['account_id']);
-                    return $acc ? $acc->balance : $value;
+                // Sčítame zostatky všetkých prepojených účtov
+                if ($this->accounts()->exists()) {
+                    return $this->accounts()->get()->sum(function($acc) {
+                        return (float) ($acc->balance ?? 0);
+                    });
                 }
                 return $value;
             }

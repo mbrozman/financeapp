@@ -19,26 +19,35 @@ class TakePortfolioSnapshot extends Command
         $this->info('Snímam čistý majetok užívateľov...');
 
         \App\Models\User::all()->each(function ($user) {
-            // 1. LIKVIDNÁ HOTOVOSŤ (Banky + Šuflík)
+            // 1. LIKVIDNÁ HOTOVOSŤ (Banky + Šuflík + Rezerva)
             $liquidCash = \App\Models\Account::where('user_id', $user->id)
-                ->whereIn('type', ['bank', 'cash'])
+                ->whereIn('type', ['bank', 'cash', 'reserve'])
                 ->get()
-                ->sum(fn($acc) => (float)$acc->balance / ($acc->currency?->exchange_rate ?: 1));
+                ->sum(fn($acc) => (float)\App\Services\CurrencyService::convertToEur((string)$acc->balance, $acc->currency_id));
 
             // 2. INVESTIČNÝ MAJETOK
             $investments = \App\Models\Investment::where('user_id', $user->id)
                 ->where('is_archived', false)
                 ->get();
-            $marketValue = $investments->sum('current_market_value_eur');
+            
+            // Trhová hodnota cenných papierov
+            $securitiesValue = $investments->sum('current_market_value_eur');
+            
+            // Voľná hotovosť na investičných účtoch (u brokera)
+            $brokerCash = \App\Models\Account::where('user_id', $user->id)
+                ->where('type', 'investment')
+                ->get()
+                ->sum(fn($acc) => (float)\App\Services\CurrencyService::convertToEur((string)$acc->balance, $acc->currency_id));
+
             $investedTotal = $investments->sum('total_invested_eur');
 
             // 3. ULOŽENIE SNÍMKY
-            \App\Models\PortfolioSnapshot::updateOrCreate( // Ak si premenoval model na NetWorthSnapshot, zmeň názov tu
+            \App\Models\PortfolioSnapshot::updateOrCreate(
                 ['user_id' => $user->id, 'recorded_at' => now()->toDateString()],
                 [
                     'total_invested_eur' => $investedTotal,
                     'total_liquid_cash_eur' => $liquidCash,
-                    'total_market_value_eur' => $marketValue + $liquidCash, // Toto je ten "Real Net Worth"
+                    'total_market_value_eur' => $securitiesValue + $brokerCash, // Investície = Cenné papiere + Hotovosť u brokera
                 ]
             );
         });

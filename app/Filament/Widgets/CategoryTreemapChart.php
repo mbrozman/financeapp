@@ -103,12 +103,14 @@ class CategoryTreemapChart extends Widget
 
             $parentName = $parentCat->name;
             $parentColor = $parentCat->effective_color ?? $parentCat->color ?? $pColor;
+            $parentLimit = (float)($parentCat->monthly_limit ?? 0);
 
             // Ensure Category level (Lv1)
             if (!isset($tree[$pName]['categories'][$parentName])) {
                 $tree[$pName]['categories'][$parentName] = [
                     'amount' => 0,
                     'color' => $parentColor,
+                    'limit' => $parentLimit,
                     'subcategories' => []
                 ];
             }
@@ -118,11 +120,13 @@ class CategoryTreemapChart extends Widget
             if ($subCat) {
                 $subName = $subCat->name;
                 $subColor = $subCat->effective_color ?? $subCat->color ?? $parentColor;
+                $subLimit = (float)($subCat->monthly_limit ?? 0);
 
                 if (!isset($tree[$pName]['categories'][$parentName]['subcategories'][$subName])) {
                     $tree[$pName]['categories'][$parentName]['subcategories'][$subName] = [
                         'amount' => 0,
-                        'color' => $subColor
+                        'color' => $subColor,
+                        'limit' => $subLimit
                     ];
                 }
                 $tree[$pName]['categories'][$parentName]['subcategories'][$subName]['amount'] += $amount;
@@ -132,7 +136,8 @@ class CategoryTreemapChart extends Widget
                 if (!isset($tree[$pName]['categories'][$parentName]['subcategories'][$generalName])) {
                     $tree[$pName]['categories'][$parentName]['subcategories'][$generalName] = [
                         'amount' => 0,
-                        'color' => $parentColor
+                        'color' => $parentColor,
+                        'limit' => 0
                     ];
                 }
                 $tree[$pName]['categories'][$parentName]['subcategories'][$generalName]['amount'] += $amount;
@@ -155,6 +160,7 @@ class CategoryTreemapChart extends Widget
                 if (!isset($groupedByCategory[$cName])) {
                     $groupedByCategory[$cName] = [
                         'color' => $cData['color'] ?? $pData['color'] ?? '#94a3b8',
+                        'limit' => $cData['limit'] ?? 0,
                         'subcategories' => []
                     ];
                 }
@@ -163,7 +169,8 @@ class CategoryTreemapChart extends Widget
                     if (!isset($groupedByCategory[$cName]['subcategories'][$subName])) {
                         $groupedByCategory[$cName]['subcategories'][$subName] = [
                             'amount' => 0,
-                            'color' => $subData['color'] ?? $cData['color']
+                            'color' => $subData['color'] ?? $cData['color'],
+                            'limit' => $subData['limit'] ?? 0
                         ];
                     }
                     $groupedByCategory[$cName]['subcategories'][$subName]['amount'] += $subData['amount'];
@@ -178,7 +185,8 @@ class CategoryTreemapChart extends Widget
                 $seriesData[] = [
                     'x' => $subName,
                     'y' => round($subInfo['amount'], 2),
-                    'fillColor' => $subInfo['color']
+                    'fillColor' => $subInfo['color'],
+                    'limit' => $subInfo['limit']
                 ];
             }
             
@@ -188,6 +196,7 @@ class CategoryTreemapChart extends Widget
                 
                 $series[] = [
                     'name' => $cName,
+                    'limit' => $cData['limit'],
                     'data' => $seriesData,
                     'mappedColor' => $cData['color'] // DOČASNE ULOŽÍME DO POĽA
                 ];

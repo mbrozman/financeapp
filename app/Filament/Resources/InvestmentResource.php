@@ -108,7 +108,8 @@ class InvestmentResource extends Resource
                                 'category',
                                 'name',
                                 fn(Builder $query) =>
-                                $query->where('is_active', true)
+                                $query->where('user_id', auth()->id())
+                                    ->where('is_active', true)
                             )->required()
                             ->preload(),
 
@@ -242,7 +243,20 @@ class InvestmentResource extends Resource
                 Tables\Columns\TextColumn::make('total_quantity')
                     ->label('Ks')
                     ->numeric(4)
-                    ->hidden(fn($livewire) => $livewire->activeTab === 'archived'),
+                    ->alignEnd(),
+
+                // PRIEMERNÁ NÁKUPNÁ CENA
+                Tables\Columns\TextColumn::make('average_buy_price')
+                    ->label('Nákupná cena')
+                    ->alignEnd()
+                    ->state(fn($record) => $record->getAveragePriceForCurrency(session('global_currency')))
+                    ->formatStateUsing(function ($state, $record) {
+                        $currencyCode = session('global_currency');
+                        $symbol = $currencyCode 
+                            ? (\App\Models\Currency::where('code', $currencyCode)->first()?->symbol ?? $currencyCode)
+                            : ($record->currency?->symbol ?? '');
+                        return number_format((float)$state, 2, ',', ' ') . ' ' . $symbol;
+                    }),
 
                 // % Z PORTFÓLIA
                 Tables\Columns\TextColumn::make('portfolio_weight')
@@ -274,6 +288,20 @@ class InvestmentResource extends Resource
                             : ($record->currency?->symbol ?? '');
                         return number_format((float)$state, 2, ',', ' ') . ' ' . $symbol;
                     }),
+
+                // VÝNOS %
+                Tables\Columns\TextColumn::make('yield_percent')
+                    ->label('Výnos (%)')
+                    ->alignEnd()
+                    ->state(function (Investment $record) {
+                        $invested = (float) $record->total_invested_eur;
+                        if ($invested <= 0) return '0.00 %';
+                        $gain = (float) $record->getGainForCurrency('EUR');
+                        $yield = ($gain / $invested) * 100;
+                        return number_format($yield, 2, ',', ' ') . ' %';
+                    })
+                    ->badge()
+                    ->color(fn($state) => (float)str_replace(',', '.', $state) < 0 ? 'danger' : ((float)str_replace(',', '.', $state) > 0 ? 'success' : 'gray')),
 
                 // ZISK V MENE
                 Tables\Columns\TextColumn::make('total_gain_base')

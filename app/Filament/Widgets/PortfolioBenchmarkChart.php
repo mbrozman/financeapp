@@ -63,8 +63,8 @@ class PortfolioBenchmarkChart extends ChartWidget
         $firstChartDate = Carbon::parse($labels[0]);
 
         // 3. Get Benchmarks (SPY and QQQ) normalized to the CHART start date
-        $spy = Investment::where('ticker', 'SPY')->first();
-        $qqq = Investment::where('ticker', 'QQQ')->first();
+        $spy = Investment::benchmarks()->where('ticker', 'SPY')->first();
+        $qqq = Investment::benchmarks()->where('ticker', 'QQQ')->first();
 
         $spyHistory = $spy ? $this->getNormalizedHistory($spy->id, $firstChartDate, $endDate) : [];
         $qqqHistory = $qqq ? $this->getNormalizedHistory($qqq->id, $firstChartDate, $endDate) : [];

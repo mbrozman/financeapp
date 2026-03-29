@@ -14,7 +14,10 @@ class UpdateStockPrices extends Command
 
     public function handle(StockApiService $api)
     {
-       $investments = Investment::whereNotNull('ticker')->get();
+        // Bežné investície používateľov
+        $investments = Investment::withoutGlobalScopes()
+            ->whereNotNull('ticker')
+            ->get();
 
     foreach ($investments as $investment) {
         $this->info("Aktualizujem: {$investment->ticker}...");

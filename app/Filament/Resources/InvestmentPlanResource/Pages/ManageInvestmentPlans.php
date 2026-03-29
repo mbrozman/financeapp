@@ -32,15 +32,24 @@ class ManageInvestmentPlans extends ManageRecords
                         $apiService = app(StockApiService::class);
                         $quote = $apiService->getLiveQuote($ticker);
 
+                        // 1.1 Zistenie typu aktíva (ETF vs Akcia) pre kategóriu
+                        $profile = $apiService->getExtendedProfile($ticker);
+                        $assetType = $profile['asset_type'] ?? 'ETF';
+                        $categoryName = $assetType === 'ETF' ? 'ETF / Fondy' : 'Akcie';
+
+                        $categoryId = \App\Models\InvestmentCategory::where('user_id', $userId)
+                            ->where('name', 'LIKE', $categoryName . '%')
+                            ->first()?->id ?? \App\Models\InvestmentCategory::where('user_id', $userId)->first()?->id;
+
                         $investment = Investment::firstOrCreate(
                             ['user_id' => $userId, 'ticker' => $ticker],
                             [
                                 'name' => $quote['name'] ?? $ticker,
-                                'currency_id' => Currency::where('code', $quote['currency'] ?? 'EUR')->first()?->id ?? $data['currency_id'],
+                                'currency_id' => \App\Models\Currency::where('code', $quote['currency'] ?? 'EUR')->first()?->id ?? $data['currency_id'],
                                 'account_id' => $data['account_id'],
-                                'investment_category_id' => 2, // akcie
+                                'investment_category_id' => $categoryId,
                                 'broker' => \App\Models\Account::find($data['account_id'])?->name ?? 'XTB',
-                                'asset_type' => 'ETF',
+                                'asset_type' => $assetType,
                                 'current_price' => $quote['price'] ?? '0',
                             ]
                         );

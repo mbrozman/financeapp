@@ -83,6 +83,21 @@ class IndividualInvestmentChart extends BaseWidget
             return $date->format('M Y');
         })->toArray();
 
+        // 2.5 FALLBACK PRE PRÁZDNU HISTÓRIU
+        if (empty($priceData)) {
+            $currentPrice = (float) $this->record->current_price;
+            // Prepočet aktuálnej ceny ak je iná mena
+            if ($currencyCode !== $this->record->currency?->code && $targetCurrency) {
+                $currentPrice = (float) \App\Services\CurrencyService::convert(
+                    (string)$currentPrice,
+                    $this->record->currency_id,
+                    $targetCurrency->id
+                );
+            }
+            $priceData[] = round($currentPrice, 2);
+            $labels[] = now()->format('d.M H:i');
+        }
+
         // 3. PRIEMERNÁ NÁKUPNÁ CENA
         $avgPriceBase = (float)($this->record->average_buy_price ?? 0);
         $avgPriceDisplay = $avgPriceBase;

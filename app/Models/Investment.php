@@ -22,7 +22,7 @@ class Investment extends Model
     protected $fillable = [
         'user_id', 'account_id', 'investment_category_id', 'currency_id',
         'ticker', 'name', 'broker', 'sector', 'industry', 'country', 'asset_type',
-        'current_price', 'is_archived', 'last_price_update',
+        'current_price', 'is_archived', 'is_benchmark', 'last_price_update',
         'total_quantity', 'average_buy_price', 'average_buy_price_eur',
         'total_invested_base', 'total_invested_eur',
         'total_sales_base', 'total_sales_eur',
@@ -32,6 +32,7 @@ class Investment extends Model
 
     protected $casts = [
         'is_archived'        => 'boolean',
+        'is_benchmark'       => 'boolean',
         'current_price'      => 'string', 
         'last_price_update'  => 'datetime',
     ];
@@ -42,6 +43,24 @@ class Investment extends Model
     public function category(): BelongsTo { return $this->belongsTo(InvestmentCategory::class, 'investment_category_id'); }
     public function transactions(): HasMany { return $this->hasMany(InvestmentTransaction::class); }
     public function priceHistories(): HasMany { return $this->hasMany(InvestmentPriceHistory::class); }
+
+    /**
+     * Vylúči benchmark záznamy z bežných dotazov (používatelia ich nesmú vidieť v zoznamoch)
+     */
+    protected static function booted(): void
+    {
+        static::addGlobalScope('non_benchmark', function ($q) {
+            $q->where('is_benchmark', false);
+        });
+    }
+
+    /**
+     * Scope pre prístup výlučne k benchmark záznamom (napr. v grafoch)
+     */
+    public static function benchmarks(): \Illuminate\Database\Eloquent\Builder
+    {
+        return static::withoutGlobalScopes()->where('is_benchmark', true);
+    }
 
     protected array $statsCache = [];
 
@@ -168,6 +187,20 @@ class Investment extends Model
 
         $targetCurrency = Currency::where('code', $code)->first();
         return CurrencyService::convert($this->total_invested_base, $this->currency_id, $targetCurrency?->id);
+    }
+
+    public function getAveragePriceForCurrency(?string $code = null): string
+    {
+        if (!$code || $code === $this->currency?->code) {
+            return $this->average_buy_price;
+        }
+
+        if ($code === 'EUR') {
+            return $this->average_buy_price_eur;
+        }
+
+        $targetCurrency = Currency::where('code', $code)->first();
+        return CurrencyService::convert($this->average_buy_price, $this->currency_id, $targetCurrency?->id);
     }
 
     public function getGainForCurrency(?string $code = null): string
