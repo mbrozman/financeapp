@@ -26,6 +26,7 @@ class InvestmentTransaction extends Model
         'transaction_date',
         'investment_plan_id',
         'notes',
+        'subtract_from_broker',
     ];
 
     protected $casts = [
@@ -35,6 +36,7 @@ class InvestmentTransaction extends Model
         'price_per_unit' => 'string',
         'commission' => 'string',
         'exchange_rate' => 'string',
+        'subtract_from_broker' => 'boolean',
     ];
 
     public function investment(): BelongsTo

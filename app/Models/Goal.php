@@ -36,10 +36,16 @@ class Goal extends Model
     {
         return Attribute::make(
             get: function ($value, $attributes) {
-                // Sčítame zostatky všetkých prepojených účtov
+                // Sčítame zostatky všetkých prepojených účtov + hodnotu investícií
                 if ($this->accounts()->exists()) {
                     return $this->accounts()->get()->sum(function($acc) {
-                        return (float) ($acc->balance ?? 0);
+                        // 1. Hotovosť na účte prepočítaná na EUR
+                        $cashEur = (float) \App\Services\CurrencyService::convertToEur($acc->balance ?? 0, $acc->currency_id);
+                        
+                        // 2. Hodnota investícií na tomto účte
+                        $investmentsEur = $acc->investments->sum(fn($inv) => (float) $inv->current_market_value_eur);
+                        
+                        return $cashEur + $investmentsEur;
                     });
                 }
                 return $value;

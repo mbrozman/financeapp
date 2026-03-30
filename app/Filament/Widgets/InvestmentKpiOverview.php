@@ -44,6 +44,21 @@ class InvestmentKpiOverview extends BaseWidget
             $totalGain = $totalGain->plus($inv->getGainForCurrency($this->getCurrency()));
         }
 
+        // 4. PRIPOČÍTANIE HOTOVOSTI U BROKEROV (Aby sa nezobrazovala 'strata' pri nákupe)
+        $brokerAccounts = \App\Models\Account::where('user_id', auth()->id())
+            ->where('type', 'investment')
+            ->get();
+
+        foreach ($brokerAccounts as $acc) {
+            $balanceInTarget = \App\Services\CurrencyService::convert(
+                (string) $acc->balance,
+                $acc->currency_id,
+                $targetCurrencyId
+            );
+            $totalValue = $totalValue->plus($balanceInTarget);
+            $totalInvested = $totalInvested->plus($balanceInTarget);
+        }
+
         $symbol = match($this->getCurrency()) {
             'USD' => '$',
             'CZK' => 'Kč',

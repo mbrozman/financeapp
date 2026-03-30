@@ -75,18 +75,22 @@ class CreateInvestment extends CreateRecord
                 $inputRate = (float) ($data['exchange_rate'] ?? 0);
                 $rate = $inputRate > 0 ? $inputRate : CurrencyService::getLiveRateById($initialCurrencyId);
 
-                InvestmentTransaction::create([
+                $tx = new InvestmentTransaction();
+                $tx->fill([
                     'user_id' => auth()->id(),
                     'investment_id' => $record->id,
                     'currency_id' => $initialCurrencyId,
                     'type' => TransactionType::BUY,
-                    // Posielame dáta ako stringy, o presnosť sa postará DB a BigDecimal v modeli
                     'quantity' => (string) $initialQty,
                     'price_per_unit' => $data['initial_price'],
                     'commission' => $data['initial_commission'] ?? 0,
                     'exchange_rate' => $rate,
                     'transaction_date' => $data['transaction_date'] ?? now(),
                 ]);
+                
+                // Dôležité: Prenesieme príznak pre observer
+                $tx->subtract_from_broker = (bool) ($data['subtract_from_broker'] ?? true);
+                $tx->save();
 
                 // Okamžite stiahneme históriu a osviežime model
                 app(StockApiService::class)->downloadHistory($record, 365);

@@ -158,16 +158,18 @@ class InvestmentResource extends Resource
                         Forms\Components\TextInput::make('initial_quantity')
                             ->label('Počet kusov')
                             ->numeric()
-                            ->default(0)
+                            ->required()
+                            ->minValue(0.00000001)
                             ->live(onBlur: true)
                             ->afterStateUpdated(fn(Forms\Set $set, Forms\Get $get) => self::calculateInitialCommission($set, $get)),
                         Forms\Components\TextInput::make('initial_price')
                             ->label(fn(Forms\Get $get) => "Cena za 1 ks (" . (\App\Models\Currency::find($get('initial_currency_id'))?->code ?? 'EUR') . ")")
                             ->numeric()
-                            ->default(0)
+                            ->required()
+                            ->minValue(0.00000001)
                             ->live(onBlur: true)
                             ->afterStateUpdated(fn(Forms\Set $set, Forms\Get $get) => self::calculateInitialCommission($set, $get)),
-                        Forms\Components\Grid::make(2)
+                        Forms\Components\Grid::make(1)
                             ->schema([
                                 Forms\Components\TextInput::make('initial_commission_percent')
                                     ->label('Poplatok v %')
@@ -187,6 +189,10 @@ class InvestmentResource extends Resource
                             ->default(fn(Forms\Get $get) => \App\Services\CurrencyService::getLiveRateById($get('initial_currency_id')))
                             ->helperText(fn(Forms\Get $get) => "Zadajte kurz pre menu " . (\App\Models\Currency::find($get('initial_currency_id'))?->code ?? 'EUR') . " voči EUR."),
                         Forms\Components\DatePicker::make('transaction_date')->label('Dátum nákupu')->default(now()),
+                        Forms\Components\Toggle::make('subtract_from_broker')
+                            ->label('Odpočítať z hotovosti u brokera')
+                            ->default(true)
+                            ->helperText('Ak je zapnuté, suma nákupu sa odpočíta z voľnej hotovosti na zvolenom účte (brokerovi). Vypnite pre historické dáta.'),
                     ])->columns(3),
             ]);
     }

@@ -18,9 +18,26 @@ class TransactionsRelationManager extends RelationManager
     {
         return $form
             ->schema([
-                Forms\Components\TextInput::make('ticker')
+                Forms\Components\DatePicker::make('transaction_date')
+                    ->label('Dátum transakcie')
                     ->required()
-                    ->maxLength(255),
+                    ->default(now()),
+                Forms\Components\TextInput::make('quantity')
+                    ->label('Množstvo (ks)')
+                    ->numeric()
+                    ->required(),
+                Forms\Components\TextInput::make('price_per_unit')
+                    ->label('Cena za 1 ks')
+                    ->numeric()
+                    ->required(),
+                Forms\Components\TextInput::make('commission')
+                    ->label('Poplatok')
+                    ->numeric()
+                    ->default(0),
+                Forms\Components\TextInput::make('notes')
+                    ->label('Poznámka')
+                    ->maxLength(255)
+                    ->columnSpanFull(),
             ]);
     }
 
@@ -61,10 +78,11 @@ class TransactionsRelationManager extends RelationManager
                 //
             ])
             ->headerActions([
-                // Manuálne pridanie transakcie do plánu nedáva zmysel, deje sa to automaticky
+                //
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),
+                Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([

@@ -16,7 +16,6 @@ class InvestmentStats extends BaseWidget
     {
         // 1. EAGER LOADING
         $investments = Investment::with(['transactions', 'currency'])
-            ->where('is_archived', false)
             ->get();
 
         // 2. INICIALIZÁCIA PRESNEJ MATEMATIKY
@@ -38,6 +37,7 @@ class InvestmentStats extends BaseWidget
         foreach ($brokerAccounts as $acc) {
             $balanceEur = \App\Services\CurrencyService::convertToEur((string)$acc->balance, $acc->currency_id);
             $currentValue = $currentValue->plus($balanceEur);
+            $totalInvested = $totalInvested->plus($balanceEur);
         }
 
         // 4. VÝPOČET ZISKU A PERCENT

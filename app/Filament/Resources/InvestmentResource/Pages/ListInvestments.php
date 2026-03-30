@@ -28,7 +28,7 @@ class ListInvestments extends ListRecords
                 ->color('warning')
                 ->requiresConfirmation()
                 ->action(function () {
-                    \App\Models\Investment::all()->each(function ($inv) {
+                    \App\Models\Investment::withoutGlobalScopes()->get()->each(function ($inv) {
                         \App\Services\InvestmentCalculationService::refreshStats($inv);
                     });
 
@@ -59,13 +59,10 @@ class ListInvestments extends ListRecords
                 ->icon('heroicon-m-briefcase')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('is_archived', false)),
 
-            // 2. ZÁLOŽKA: Len ukončené obchody
+            // 2. ZÁLOŽKA: Len ukončené obchody (musíme vypnúť globálny filter)
             'archived' => Tab::make('Archív (Predané)')
                 ->icon('heroicon-m-archive-box')
-                ->modifyQueryUsing(fn (Builder $query) => $query->where('is_archived', true)),
-
-            // 3. ZÁLOŽKA: Všetko spolu
-            'all' => Tab::make('Všetko spolu'),
+                ->modifyQueryUsing(fn (Builder $query) => $query->withoutGlobalScopes()->where('is_archived', true)),
         ];
     }
 }

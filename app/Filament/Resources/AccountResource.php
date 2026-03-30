@@ -83,8 +83,34 @@ class AccountResource extends Resource
 
                 Tables\Columns\TextColumn::make('balance')
                     ->label('Zostatok')
-                    ->money(fn($record) => $record->currency->code) // Automaticky formátuje menu
-                    ->sortable(),
+                    ->sortable()
+                    ->state(function (Account $record) {
+                        $targetCurrencyCode = session('global_currency', 'EUR');
+                        $targetCurrency = \App\Models\Currency::where('code', $targetCurrencyCode)->first();
+                        
+                        return \App\Services\CurrencyService::convert(
+                            $record->balance,
+                            $record->currency_id,
+                            $targetCurrency?->id
+                        );
+                    })
+                    ->formatStateUsing(function ($state) {
+                        $currencyCode = session('global_currency', 'EUR');
+                        $symbol = match($currencyCode) {
+                            'USD' => '$',
+                            'CZK' => 'Kč',
+                            'GBP' => '£',
+                            default => '€'
+                        };
+                        return number_format((float)$state, 2, ',', ' ') . ' ' . $symbol;
+                    })
+                    ->description(function (Account $record) {
+                        $globalCurrency = session('global_currency');
+                        if ($globalCurrency && $globalCurrency !== $record->currency->code) {
+                            return 'Pôvodne: ' . number_format($record->balance, 2, ',', ' ') . ' ' . $record->currency->code;
+                        }
+                        return null;
+                    }),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('type')

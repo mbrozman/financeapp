@@ -49,8 +49,14 @@ class Investment extends Model
      */
     protected static function booted(): void
     {
+        // 1. Vylúči benchmarky (SPY, QQQ) z bežných pohľadov
         static::addGlobalScope('non_benchmark', function ($q) {
             $q->where('is_benchmark', false);
+        });
+
+        // 2. Vylúči archivované (predané) investície (všade v appke)
+        static::addGlobalScope('active_only', function ($q) {
+            $q->where('is_archived', false);
         });
     }
 

@@ -41,4 +41,9 @@ class Account extends Model
     {
         return $this->belongsToMany(Goal::class);
     }
+
+    public function investments(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Investment::class);
+    }
 }

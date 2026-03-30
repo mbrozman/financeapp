@@ -40,6 +40,24 @@ class InvestmentAllocationChart extends ChartWidget
             }
         }
 
+        // 2. PRIDANIE HOTOVOSTI U BROKEROV
+        $brokerAccounts = \App\Models\Account::where('user_id', auth()->id())
+            ->where('type', 'investment')
+            ->get();
+
+        $totalBrokerCash = BigDecimal::of(0);
+        foreach ($brokerAccounts as $acc) {
+            $totalBrokerCash = $totalBrokerCash->plus(
+                \App\Services\CurrencyService::convertToEur((string)$acc->balance, $acc->currency_id)
+            );
+        }
+
+        if ($totalBrokerCash->isGreaterThan(0)) {
+            $labels[] = 'Hotovosť u brokerov';
+            $data[] = $totalBrokerCash->toFloat();
+            $colors[] = '#94a3b8'; // Bridlicová šedá pre cash
+        }
+
         // 3. ŠTRUKTÚRA PRE CHART.JS
         return [
             'datasets' => [

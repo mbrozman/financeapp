@@ -33,7 +33,6 @@ class InvestmentDiversificationChart extends ChartWidget
     {
         $investments = Investment::with(['transactions', 'currency'])
             ->where('user_id', auth()->id())
-            ->where('is_archived', false) // Len aktívne investicie pre koláčový graf
             ->get();
 
         $groupingField = $this->grouping; // 'asset_type', 'sector', alebo 'country'

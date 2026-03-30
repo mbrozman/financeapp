@@ -190,8 +190,34 @@ class TransactionResource extends Resource
 
                 Tables\Columns\TextColumn::make('amount')
                     ->label('Suma')
-                    ->formatStateUsing(fn($state) => number_format(abs((float)$state), 2, ',', ' '))
-                    ->money(fn($record) => $record->account->currency?->code ?? 'EUR')
+                    ->sortable()
+                    ->state(function (Transaction $record) {
+                        $targetCurrencyCode = session('global_currency', 'EUR');
+                        $targetCurrency = \App\Models\Currency::where('code', $targetCurrencyCode)->first();
+                        
+                        return \App\Services\CurrencyService::convert(
+                            $record->amount,
+                            $record->account->currency_id,
+                            $targetCurrency?->id
+                        );
+                    })
+                    ->formatStateUsing(function ($state) {
+                        $currencyCode = session('global_currency', 'EUR');
+                        $symbol = match($currencyCode) {
+                            'USD' => '$',
+                            'CZK' => 'Kč',
+                            'GBP' => '£',
+                            default => '€'
+                        };
+                        return number_format(abs((float)$state), 2, ',', ' ') . ' ' . $symbol;
+                    })
+                    ->description(function (Transaction $record) {
+                        $globalCurrency = session('global_currency');
+                        if ($globalCurrency && $globalCurrency !== $record->account->currency->code) {
+                            return 'Pôvodne: ' . number_format(abs($record->amount), 2, ',', ' ') . ' ' . $record->account->currency->code;
+                        }
+                        return null;
+                    })
                     ->color(fn($record) => match ($record->type?->value ?? $record->type) {
                         'income' => 'success',
                         'expense' => 'danger',

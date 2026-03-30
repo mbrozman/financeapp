@@ -69,6 +69,12 @@ class TransactionsRelationManager extends RelationManager
                             ->label('Dátum')
                             ->default(now())
                             ->required(),
+
+                        Forms\Components\Toggle::make('subtract_from_broker')
+                            ->label('Odpočítať z hotovosti u brokera')
+                            ->default(true)
+                            ->helperText('Vypnite pre historické dáta, ktoré už máte v zostatku brokera započítané.')
+                            ->columnSpan('full'),
                     ]),
 
                 Forms\Components\Grid::make(3)
