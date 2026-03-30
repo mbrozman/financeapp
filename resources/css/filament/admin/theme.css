@@ -1,0 +1,11 @@
+@import "tailwindcss";
+@import "../../../../vendor/filament/filament/resources/css/index.css";
+
+@theme {
+    --radius-pillar: 3.5rem;
+    --radius-premium: 2.5rem;
+}
+
+@source "../../../../vendor/filament/**/*.blade.php";
+@source "../../../../app/Filament/**/*.php";
+@source "../../../../resources/views/filament/**/*.blade.php";

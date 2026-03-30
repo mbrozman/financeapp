@@ -72,8 +72,6 @@ class InvestmentResource extends Resource
                                 // 2. Rozšírené info (Sektor, Krajina, Typ)
                                 $profile = app(StockApiService::class)->getExtendedProfile($state);
                                 if ($profile) {
-                                    $set('sector', $profile['sector']);
-                                    $set('country', $profile['country']);
                                     $set('asset_type', $profile['asset_type']);
                                 }
                             }),
@@ -94,13 +92,7 @@ class InvestmentResource extends Resource
                             ])
                             ->default('Equity'),
 
-                        Forms\Components\TextInput::make('sector')
-                            ->label('Sektor')
-                            ->placeholder('Napr. Technology, Healthcare...'),
 
-                        Forms\Components\TextInput::make('country')
-                            ->label('Krajina / Región')
-                            ->placeholder('Napr. USA, Europe, World...'),
 
                         Forms\Components\Select::make('investment_category_id')
                             ->label('Typ aktíva')
@@ -402,8 +394,7 @@ class InvestmentResource extends Resource
                                 'Commodity' => 'warning',
                                 default => 'gray',
                             }),
-                        Infolists\Components\TextEntry::make('sector')->label('Sektor'),
-                        Infolists\Components\TextEntry::make('country')->label('Región'),
+
 
                         Infolists\Components\TextEntry::make('market_value')
                             ->label(function ($record) {

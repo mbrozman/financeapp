@@ -64,8 +64,8 @@ class InitBenchmarks extends Command
                 ]
             );
 
-            $this->info("Downloading history for {$ticker} (730 days)...");
-            $success = $api->downloadHistory($investment, 730);
+            $this->info("Downloading history for {$ticker} (1825 days)...");
+            $success = $api->downloadHistory($investment, 1825);
             
             if ($success) {
                 $this->info("History for {$ticker} downloaded successfully.");

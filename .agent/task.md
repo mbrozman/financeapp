@@ -1,0 +1,7 @@
+- [x] Inicializácia task.md
+- [ ] `[/]` Aktualizácia [InitBenchmarks.php](file:///c:/laragon/www/finance-app/app/Console/Commands/InitBenchmarks.php) (limit na 5 rokov)
+- [ ] `[ ]` Spustenie `php artisan app:init-benchmarks` (stiahnutie dát)
+- [ ] `[ ]` Vytvorenie [InvestmentPerformanceService.php](file:///c:/laragon/www/finance-app/app/Services/InvestmentPerformanceService.php)
+- [ ] `[ ]` Vytvorenie widgetu [PortfolioPerformanceTable.php](file:///c:/laragon/www/finance-app/app/Filament/Widgets/PortfolioPerformanceTable.php)
+- [ ] `[ ]` Integrácia do [investments-dashboard.blade.php](file:///c:/laragon/www/finance-app/resources/views/filament/pages/investments-dashboard.blade.php)
+- [ ] `[ ]` Verifikácia
