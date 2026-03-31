@@ -28,17 +28,17 @@ Route::get('/admin/sync-portfolio-data', function () {
     echo \Illuminate\Support\Facades\Artisan::output() . "<br>";
 
     echo "3. Generujem históriu (7 dní)...<br>";
-    \$user = \App\Models\User::first();
-    if (\$user) {
-        \$latest = \App\Models\PortfolioSnapshot::where('user_id', \$user->id)->orderBy('recorded_at', 'desc')->first();
-        if (\$latest) {
-            for (\$i = 1; \$i <= 7; \$i++) {
+    $user = \App\Models\User::first();
+    if ($user) {
+        $latest = \App\Models\PortfolioSnapshot::where('user_id', $user->id)->orderBy('recorded_at', 'desc')->first();
+        if ($latest) {
+            for ($i = 1; $i <= 7; $i++) {
                 \App\Models\PortfolioSnapshot::updateOrCreate(
-                    ['user_id' => \$user->id, 'recorded_at' => now()->subDays(\$i)->toDateString()],
+                    ['user_id' => $user->id, 'recorded_at' => now()->subDays($i)->toDateString()],
                     [
-                        'total_invested_eur' => \$latest->total_invested_eur,
-                        'total_liquid_cash_eur' => \$latest->total_liquid_cash_eur,
-                        'total_market_value_eur' => \$latest->total_market_value_eur
+                        'total_invested_eur' => $latest->total_invested_eur,
+                        'total_liquid_cash_eur' => $latest->total_liquid_cash_eur,
+                        'total_market_value_eur' => $latest->total_market_value_eur
                     ]
                 );
             }
