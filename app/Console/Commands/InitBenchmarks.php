@@ -17,9 +17,21 @@ class InitBenchmarks extends Command
 
     public function handle()
     {
-        $userId = 1; // Assuming first user is the main user or admin
+        $user = \App\Models\User::first();
+        if (!$user) {
+            $this->error("No user found.");
+            return;
+        }
+        $userId = $user->id;
+
+        $usd = Currency::where('code', 'USD')->first();
+        if (!$usd) {
+            $this->error("USD currency not found.");
+            return;
+        }
+        $usdId = $usd->id;
         
-        $this->info("Initializing benchmarks...");
+        $this->info("Initializing benchmarks for user: {$userId}...");
 
         // 1. Ensure Category exists
         $category = InvestmentCategory::updateOrCreate(
@@ -36,7 +48,7 @@ class InitBenchmarks extends Command
             ['user_id' => $userId, 'name' => 'System Benchmark'],
             [
                 'type' => 'investment',
-                'currency_id' => 2, // USD
+                'currency_id' => $usdId,
                 'balance' => 0,
                 'is_active' => true,
             ]
@@ -58,7 +70,7 @@ class InitBenchmarks extends Command
                     'name' => $name,
                     'account_id' => $account->id,
                     'investment_category_id' => $category->id,
-                    'currency_id' => 2, // USD
+                    'currency_id' => $usdId,
                     'broker' => 'System',
                     'current_price' => 0,
                 ]

@@ -13,7 +13,7 @@ class CurrencyService
      * Vracia STRING, aby sa zachovala presnosť pre ďalšie výpočty.
      * Kurz očakávame v tvare násobiteľa: "Koľko EUR stojí 1 jednotka cudzej meny" (napr. 0.92 EUR za 1 USD)
      */
-    public static function convertToEur(string|float|null $amount, ?int $currencyId, ?float $historicalRate = null): string
+    public static function convertToEur(string|float|null $amount, string|int|null $currencyId, ?float $historicalRate = null): string
     {
         if (!$amount || $amount == 0) return '0.0000';
         
@@ -45,7 +45,7 @@ class CurrencyService
     /**
      * Flexibilný prepočet medzi ľubovoľnými menami cez EUR ako základňu.
      */
-    public static function convert(string|float|null $amount, ?int $fromCurrencyId, ?int $toCurrencyId, ?float $historicalRate = null): string
+    public static function convert(string|float|null $amount, string|int|null $fromCurrencyId, string|int|null $toCurrencyId, ?float $historicalRate = null): string
     {
         if (!$amount || $amount == 0) return '0.0000';
         if ($fromCurrencyId === $toCurrencyId) return (string) BigDecimal::of($amount)->toScale(4, RoundingMode::HALF_UP);
@@ -68,7 +68,7 @@ class CurrencyService
     /**
      * Vráti aktuálny kurz podľa ID
      */
-    public static function getLiveRateById(?int $id): float
+    public static function getLiveRateById(string|int|null $id): float
     {
         if (!$id) return 1.0;
 
@@ -98,7 +98,7 @@ class CurrencyService
         return self::getRate($code);
     }
 
-    private static function resolveRateById(?int $currencyId, ?float $historicalRate = null): float
+    private static function resolveRateById(string|int|null $currencyId, ?float $historicalRate = null): float
     {
         if ($historicalRate !== null) {
             $normalizedHistorical = self::normalizeRate($historicalRate);

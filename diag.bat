@@ -1,2 +1,6 @@
 @echo off
-php check_data.php
+echo SPRACOVAVAM BENCHMARKY...
+php artisan app:init-benchmarks
+echo VYTVARAM SNIMKU PORTFOLIA...
+php artisan app:take-portfolio-snapshot
+echo HOTOVO.

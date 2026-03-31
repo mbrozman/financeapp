@@ -226,10 +226,11 @@ class InvestmentResource extends Resource
                     })
                     ->searchable(),
 
-                Tables\Columns\TextColumn::make('broker')
+                Tables\Columns\TextColumn::make('account.name')
                     ->label('Broker')
                     ->icon('heroicon-m-building-office-2')
                     ->color('gray')
+                    ->sortable()
                     ->searchable(),
 
                 Tables\Columns\TextColumn::make('category.name')
@@ -273,7 +274,8 @@ class InvestmentResource extends Resource
                         return number_format($weight, 2, ',', ' ') . ' %';
                     })
                     ->badge()
-                    ->color('gray'),
+                    ->color('gray')
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => $query->orderBy('current_market_value_eur', $direction)),
 
                 Tables\Columns\TextColumn::make('total_invested_base')
                     ->label('Investované')
@@ -333,26 +335,6 @@ class InvestmentResource extends Resource
                         return number_format((float)$state, 2, ',', ' ') . ' ' . $symbol;
                     }),
 
-                // VÝNOS %
-                Tables\Columns\TextColumn::make('total_gain_percent')
-                    ->label('Výnos (%)')
-                    ->alignEnd()
-                    ->state(function ($record) {
-                        $currencyCode = session('global_currency');
-                        if (!$currencyCode || $currencyCode === $record->currency?->code) {
-                            return $record->total_gain_percent;
-                        }
-                        
-                        $invested = \Brick\Math\BigDecimal::of($record->getInvestedForCurrency($currencyCode));
-                        if ($invested->isZero()) return '0';
-                        
-                        $gain = \Brick\Math\BigDecimal::of($record->getGainForCurrency($currencyCode));
-                        return (string) $gain->dividedBy($invested, 4, \Brick\Math\RoundingMode::HALF_UP)->multipliedBy(100)->toScale(2, \Brick\Math\RoundingMode::HALF_UP);
-                    })
-                    ->badge()
-                    ->color(fn($state) => (float)$state > 0 ? 'success' : ((float)$state < 0 ? 'danger' : 'gray'))
-                    ->formatStateUsing(fn($state) => ((float)$state > 0 ? '+' : '') . number_format((float)$state, 2, ',', ' ') . ' %'),
-
                 Tables\Columns\TextColumn::make('tax_status')
                     ->label('Daňový test')
                     ->badge()
@@ -364,6 +346,11 @@ class InvestmentResource extends Resource
             ])
             ->recordUrl(fn($record) => static::getUrl('view', ['record' => $record]))
             ->defaultSort('ticker', 'asc')
+            ->groups([
+                Tables\Grouping\Group::make('account.name')
+                    ->label('Broker')
+                    ->collapsible(),
+            ])
             ->filters([
                 // Filtre odstránené na žiadosť používateľa, nahrádza ich vyhľadávanie
             ]);
@@ -382,7 +369,7 @@ class InvestmentResource extends Resource
                             ->formatStateUsing(fn($state) => $state ? 'Ukončené' : 'Aktívne')
                             ->color(fn($state) => $state ? 'gray' : 'success'),
                         Infolists\Components\TextEntry::make('category.name')->label('Typ aktíva'),
-                        Infolists\Components\TextEntry::make('broker')->label('Broker'),
+                        Infolists\Components\TextEntry::make('account.name')->label('Broker'),
                         Infolists\Components\TextEntry::make('asset_type')
                             ->label('Trieda')
                             ->badge()
