@@ -23,13 +23,15 @@ Route::get('/admin/sync-portfolio-data', function () {
     \Illuminate\Support\Facades\Artisan::call('app:init-benchmarks');
     echo \Illuminate\Support\Facades\Artisan::output() . "<br>";
 
-    echo "2. Vytváram snímku portfólia...<br>";
+    // Spätná oprava is_benchmark príznaku
+    \App\Models\Investment::whereIn('ticker', ['SPY', 'QQQ'])->update(['is_benchmark' => true]);
+
+    echo "2. Vytváram snímku portfólia pre všetkých používateľov...<br>";
     \Illuminate\Support\Facades\Artisan::call('app:take-portfolio-snapshot');
     echo \Illuminate\Support\Facades\Artisan::output() . "<br>";
 
-    echo "3. Generujem históriu (7 dní)...<br>";
-    $user = \App\Models\User::first();
-    if ($user) {
+    echo "3. Generujem históriu (7 dní) pre všetkých používateľov...<br>";
+    \App\Models\User::all()->each(function ($user) {
         $latest = \App\Models\PortfolioSnapshot::where('user_id', $user->id)->orderBy('recorded_at', 'desc')->first();
         if ($latest) {
             for ($i = 1; $i <= 7; $i++) {
@@ -42,8 +44,9 @@ Route::get('/admin/sync-portfolio-data', function () {
                     ]
                 );
             }
+            echo " - História vygenerovaná pre užívateľa: {$user->email}<br>";
         }
-    }
+    });
 
-    return "<br><b>DÁTA BOLI ÚSPEŠNE SYNCHRONIZOVANÉ.</b> Môžete sa vrátiť na Dashboard.";
+    return "<br><b>DÁTA BOLI ÚSPEŠNE SYNCHRONIZOVANÉ.</b> Osviežte Dashboard.";
 });

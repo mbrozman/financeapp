@@ -71,6 +71,7 @@ class InitBenchmarks extends Command
                     'account_id' => $account->id,
                     'investment_category_id' => $category->id,
                     'currency_id' => $usdId,
+                    'is_benchmark' => true,
                     'broker' => 'System',
                     'current_price' => 0,
                 ]
