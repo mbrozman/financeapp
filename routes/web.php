@@ -11,3 +11,39 @@ Route::get('/schema-fix', [MigrationController::class, 'forceSchemaFix']);
 Route::get('/fresh', [MigrationController::class, 'fresh']);
 Route::get('/refresh-all', [MigrationController::class, 'refreshAll']);
 Route::get('/debug-investments', [MigrationController::class, 'debugInvestments']);
+
+// Záchranná trasa pre synchronizáciu dát na serveri (Google Cloud)
+Route::get('/admin/sync-portfolio-data', function () {
+    // Zabezpečenie: Vyžadujeme APP_KEY v URL pre bezpečnosť
+    if (request('key') !== config('app.key')) {
+        return response('Unauthorized. Please provide the correct key.', 403);
+    }
+
+    echo "1. Inicializujem benchmarky...<br>";
+    \Illuminate\Support\Facades\Artisan::call('app:init-benchmarks');
+    echo \Illuminate\Support\Facades\Artisan::output() . "<br>";
+
+    echo "2. Vytváram snímku portfólia...<br>";
+    \Illuminate\Support\Facades\Artisan::call('app:take-portfolio-snapshot');
+    echo \Illuminate\Support\Facades\Artisan::output() . "<br>";
+
+    echo "3. Generujem históriu (7 dní)...<br>";
+    \$user = \App\Models\User::first();
+    if (\$user) {
+        \$latest = \App\Models\PortfolioSnapshot::where('user_id', \$user->id)->orderBy('recorded_at', 'desc')->first();
+        if (\$latest) {
+            for (\$i = 1; \$i <= 7; \$i++) {
+                \App\Models\PortfolioSnapshot::updateOrCreate(
+                    ['user_id' => \$user->id, 'recorded_at' => now()->subDays(\$i)->toDateString()],
+                    [
+                        'total_invested_eur' => \$latest->total_invested_eur,
+                        'total_liquid_cash_eur' => \$latest->total_liquid_cash_eur,
+                        'total_market_value_eur' => \$latest->total_market_value_eur
+                    ]
+                );
+            }
+        }
+    }
+
+    return "<br><b>DÁTA BOLI ÚSPEŠNE SYNCHRONIZOVANÉ.</b> Môžete sa vrátiť na Dashboard.";
+});
