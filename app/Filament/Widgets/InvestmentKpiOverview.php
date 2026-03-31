@@ -25,6 +25,7 @@ class InvestmentKpiOverview extends BaseWidget
         $totalValue = BigDecimal::zero();
         $totalInvested = BigDecimal::zero();
         $totalGain = BigDecimal::zero();
+        $totalDividends = BigDecimal::zero();
 
         $targetCurrency = \App\Models\Currency::where('code', $this->getCurrency())->first();
         $targetCurrencyId = $targetCurrency?->id; // Ak null, CurrencyService::convert použije EUR ako fallback (ak mu pošleme null cieľ)
@@ -42,9 +43,12 @@ class InvestmentKpiOverview extends BaseWidget
 
             // 3. Zisk (P/L)
             $totalGain = $totalGain->plus($inv->getGainForCurrency($this->getCurrency()));
+
+            // 4. Dividendy
+            $totalDividends = $totalDividends->plus($inv->getDividendsForCurrency($this->getCurrency()));
         }
 
-        // 4. PRIPOČÍTANIE HOTOVOSTI U BROKEROV (Aby sa nezobrazovala 'strata' pri nákupe)
+        // 5. PRIPOČÍTANIE HOTOVOSTI U BROKEROV (Aby sa nezobrazovala 'strata' pri nákupe)
         $brokerAccounts = \App\Models\Account::where('user_id', auth()->id())
             ->where('type', 'investment')
             ->get();
@@ -89,6 +93,11 @@ class InvestmentKpiOverview extends BaseWidget
                 ->description($gainPrefix . $percentStr . ' % z vkladov')
                 ->descriptionIcon($totalGain->isGreaterThan(0) ? 'heroicon-m-arrow-trending-up' : ($totalGain->isLessThan(0) ? 'heroicon-m-arrow-trending-down' : 'heroicon-m-minus'))
                 ->color($totalGain->isGreaterThan(0) ? 'success' : ($totalGain->isLessThan(0) ? 'danger' : 'gray')),
+                
+            Stat::make('Prijaté Dividendy', number_format((float)(string)$totalDividends, 2, ',', ' ') . ' ' . $symbol)
+                ->description('Pasívny príjem k dnešnému dňu')
+                ->descriptionIcon('heroicon-m-currency-dollar')
+                ->color('success'),
         ];
     }
     public static function canView(): bool

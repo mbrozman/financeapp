@@ -19,27 +19,20 @@ Route::get('/admin/sync-portfolio-data', function () {
         return response('Unauthorized. Please provide the correct key.', 403);
     }
 
-    echo "1. Inicializujem benchmarky...<br>";
-    \Illuminate\Support\Facades\Artisan::call('app:init-benchmarks');
-    echo \Illuminate\Support\Facades\Artisan::output() . "<br>";
-
-    echo "2. AKTUALIZUJEM CENY VŠETKÝCH AKCIÍ...<br>";
+    echo "1. AKTUALIZUJEM TRHOVÉ CENY AKCIÍ...<br>";
     \Illuminate\Support\Facades\Artisan::call('app:update-stock-prices');
     echo \Illuminate\Support\Facades\Artisan::output() . "<br>";
 
-    // Spätná oprava is_benchmark príznaku
-    \App\Models\Investment::whereIn('ticker', ['SPY', 'QQQ'])->update(['is_benchmark' => true]);
-
-    echo "3. Vytváram snímku portfólia pre všetkých používateľov...<br>";
+    echo "2. Vytváram snímku portfólia pre všetkých používateľov...<br>";
     \Illuminate\Support\Facades\Artisan::call('app:take-portfolio-snapshot');
     echo \Illuminate\Support\Facades\Artisan::output() . "<br>";
 
-    echo "4. Generujem kompletnú históriu pre všetkých používateľov...<br>";
+    echo "3. Generujem históriu pre všetkých používateľov...<br>";
     \App\Models\User::all()->each(function ($user) {
         $latest = \App\Models\PortfolioSnapshot::where('user_id', $user->id)->orderBy('recorded_at', 'desc')->first();
         if ($latest) {
-            // Body potrebné pre tabuľku: 1D, 1W, 1M, 3M, 6M, YTD, 1Y
-            $historyDays = [1, 7, 31, 91, 183, 30, 366]; // Približné počty dní dozadu
+            // Body potrebné pre tabuľku: 1D, 1W, 1M, 3M, 6M, 1Y
+            $historyDays = [1, 7, 31, 91, 183, 366]; 
             
             // Pridáme aj špecifický štart roka (YTD)
             $ytdDate = now()->startOfYear()->subDay(); 
@@ -57,7 +50,7 @@ Route::get('/admin/sync-portfolio-data', function () {
                     ]
                 );
             }
-            echo " - Kompletná história vygenerovaná pre užívateľa: {$user->email}<br>";
+            echo " - História synchronizovaná pre: {$user->email}<br>";
         }
     });
 

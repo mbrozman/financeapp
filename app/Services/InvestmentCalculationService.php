@@ -16,11 +16,13 @@ class InvestmentCalculationService
      */
     public static function getStats(Investment $investment): array
     {
-        // 1. ZÍSKAME TRANSACKIE (vždy čerstvé z DB a zoradené)
+        // 1. ZÍSKAME TRANSACKIE A DIVIDENDY (vždy čerstvé z DB a zoradené)
         $transactions = $investment->transactions()
             ->orderBy('transaction_date', 'asc')
             ->orderBy('created_at', 'asc')
             ->get();
+            
+        $dividends = $investment->dividends()->get();
             
         $baseCurrencyId = $investment->currency_id;
 
@@ -108,7 +110,7 @@ class InvestmentCalculationService
                     }
                 }
             }
-            // --- LOGIKA DIVIDEND ---
+            // --- LOGIKA STARYCH DIVIDEND Z TRANSAKCIÍ (Spätná kompatibilita) ---
             elseif ($tx->type === TransactionType::DIVIDEND) {
                 $netDividend = $qty->multipliedBy($price)->minus($comm);
                 $totalDividendsBase = $totalDividendsBase->plus($netDividend);
@@ -116,6 +118,15 @@ class InvestmentCalculationService
                 $netDividendEur = $qty->multipliedBy($priceInEur)->minus($commInEur);
                 $totalDividendsEur = $totalDividendsEur->plus($netDividendEur);
             }
+        }
+
+        // 2.5. LOGIKA NOVÝCH DIVIDEND (Z tabuľky investment_dividends)
+        foreach ($dividends as $div) {
+            $divPriceInBase = CurrencyService::convert($div->amount, $div->currency_id, $baseCurrencyId, $div->exchange_rate);
+            $divPriceInEur = CurrencyService::convertToEur($div->amount, $div->currency_id, $div->exchange_rate);
+            
+            $totalDividendsBase = $totalDividendsBase->plus(BigDecimal::of($divPriceInBase));
+            $totalDividendsEur = $totalDividendsEur->plus(BigDecimal::of($divPriceInEur));
         }
 
         // 3. VÝPOČET PRE ZVYŠNÉ KUSY

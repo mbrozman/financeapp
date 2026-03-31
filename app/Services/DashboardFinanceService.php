@@ -19,24 +19,37 @@ class DashboardFinanceService
             ->whereIn('type', ['bank', 'cash', 'reserve'])
             ->get();
 
-        $totalBank = $accounts->where('type', 'bank')->sum(fn ($account) => (float) CurrencyService::convertToEur((string) $account->balance, $account->currency_id));
-        $totalCash = $accounts->where('type', 'cash')->sum(fn ($account) => (float) CurrencyService::convertToEur((string) $account->balance, $account->currency_id));
-        $totalReserve = $accounts->where('type', 'reserve')->sum(fn ($account) => (float) CurrencyService::convertToEur((string) $account->balance, $account->currency_id));
+        $totalBank = BigDecimal::zero();
+        $totalCash = BigDecimal::zero();
+        $totalReserve = BigDecimal::zero();
+
+        foreach ($accounts as $account) {
+            $eurValueString = CurrencyService::convertToEur((string) $account->balance, $account->currency_id);
+            $eurValue = BigDecimal::of($eurValueString);
+            
+            if ($account->type === 'bank') $totalBank = $totalBank->plus($eurValue);
+            elseif ($account->type === 'cash') $totalCash = $totalCash->plus($eurValue);
+            elseif ($account->type === 'reserve') $totalReserve = $totalReserve->plus($eurValue);
+        }
         
-        $totalLiquidity = $totalBank + $totalCash + $totalReserve;
+        $totalLiquidity = $totalBank->plus($totalCash)->plus($totalReserve);
 
         return [
-            'total_liquidity' => $totalLiquidity,
-            'total_bank' => $totalBank,
-            'total_cash' => $totalCash,
-            'total_reserve' => $totalReserve,
+            'total_liquidity' => round($totalLiquidity->toFloat(), 2),
+            'total_bank' => round($totalBank->toFloat(), 2),
+            'total_cash' => round($totalCash->toFloat(), 2),
+            'total_reserve' => round($totalReserve->toFloat(), 2),
         ];
     }
 
     public function getYearlyCashflow($userId, int $year): array
     {
-        $totals = Transaction::select(
-            DB::raw("SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as total_income"),
+        return \Illuminate\Support\Facades\Cache::remember(
+            "dashboard_yearly_cashflow_{$userId}_{$year}",
+            900, // 15 minút caching
+            function () use ($userId, $year) {
+                $totals = Transaction::select(
+                    DB::raw("SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as total_income"),
             DB::raw("SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as total_expense")
         )
             ->where('user_id', $userId)
@@ -64,26 +77,28 @@ class DashboardFinanceService
             $labels[] = $monthDate->translatedFormat('M');
             $monthData = $data->first(fn ($item) => Carbon::parse($item->month)->month === $i);
             
-            $income = $monthData ? abs((float) $monthData->total_income) : 0.0;
-            $expense = $monthData ? abs((float) $monthData->total_expense) : 0.0;
+            $incomeBD = $monthData && $monthData->total_income !== null ? BigDecimal::of((string) $monthData->total_income)->abs() : BigDecimal::zero();
+            $expenseBD = $monthData && $monthData->total_expense !== null ? BigDecimal::of((string) $monthData->total_expense)->abs() : BigDecimal::zero();
             
-            $incomeValues[] = $income;
-            $expenseValues[] = $expense;
-            $surplusValues[] = round($income - $expense, 2);
+            $incomeValues[] = round($incomeBD->toFloat(), 2);
+            $expenseValues[] = round($expenseBD->toFloat(), 2);
+            $surplusValues[] = round($incomeBD->minus($expenseBD)->toFloat(), 2);
         }
 
-        $totalIncome = abs((float) ($totals->total_income ?? 0));
-        $totalExpense = abs((float) ($totals->total_expense ?? 0));
+        $totalIncomeBD = isset($totals->total_income) && $totals->total_income !== null ? BigDecimal::of((string) $totals->total_income)->abs() : BigDecimal::zero();
+        $totalExpenseBD = isset($totals->total_expense) && $totals->total_expense !== null ? BigDecimal::of((string) $totals->total_expense)->abs() : BigDecimal::zero();
 
-        return [
-            'total_income' => $totalIncome,
-            'total_expense' => $totalExpense,
-            'total_surplus' => round($totalIncome - $totalExpense, 2),
-            'labels' => $labels,
-            'income_values' => $incomeValues,
-            'expense_values' => $expenseValues,
-            'surplus_values' => $surplusValues,
-        ];
+                return [
+                    'total_income' => round($totalIncomeBD->toFloat(), 2),
+                    'total_expense' => round($totalExpenseBD->toFloat(), 2),
+                    'total_surplus' => round($totalIncomeBD->minus($totalExpenseBD)->toFloat(), 2),
+                    'labels' => $labels,
+                    'income_values' => $incomeValues,
+                    'expense_values' => $expenseValues,
+                    'surplus_values' => $surplusValues,
+                ];
+            }
+        );
     }
 
     public function getRealityVsPlanSeries($userId, string $filter = 'with_roi'): array
@@ -137,13 +152,13 @@ class DashboardFinanceService
                 continue;
             }
 
-            // Reality: Income - Expense
+            // Reality: Income + Expense (expense is negative)
             $data = $monthlyData->get($i);
-            $income = $data ? (float)$data->income : 0;
-            $expense = $data ? (float)$data->expense : 0;
-            $surplus = $income + $expense; // Expense is already negative
+            $incomeBD = $data && $data->income !== null ? BigDecimal::of((string)$data->income) : BigDecimal::zero();
+            $expenseBD = $data && $data->expense !== null ? BigDecimal::of((string)$data->expense) : BigDecimal::zero();
+            $surplusBD = $incomeBD->plus($expenseBD);
             
-            $accumulatedReality = $accumulatedReality->plus($surplus);
+            $accumulatedReality = $accumulatedReality->plus($surplusBD);
             $accumulatedModel = $accumulatedModel->plus($monthlySavingsIdeal);
 
             $realityValues[$i] = round($accumulatedReality->toFloat(), 2);

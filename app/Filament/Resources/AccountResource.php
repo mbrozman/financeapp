@@ -30,8 +30,8 @@ class AccountResource extends Resource
         return 'Účet';
     }
 
-    protected static ?string $navigationGroup = '💸 OPERÁCIE';
-    protected static ?int $navigationSort = 23;
+    protected static ?string $navigationGroup = '🔧 NASTAVENIA';
+    protected static ?int $navigationSort = 100;
     protected static ?string $navigationIcon = 'heroicon-o-building-library';
 
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder

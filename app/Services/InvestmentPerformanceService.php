@@ -6,6 +6,8 @@ use App\Models\Investment;
 use App\Models\InvestmentPriceHistory;
 use App\Models\PortfolioSnapshot;
 use Illuminate\Support\Carbon;
+use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 
 class InvestmentPerformanceService
 {
@@ -57,14 +59,21 @@ class InvestmentPerformanceService
                 ->first();
         }
 
-        if (!$startSnapshot || (float)$startSnapshot->total_market_value_eur <= 0) {
+        $startValueBD = BigDecimal::of((string)$startSnapshot->total_market_value_eur);
+        if ($startValueBD->isZero()) {
             return null;
         }
 
-        $endValue = (float)$endSnapshot->total_market_value_eur;
-        $startValue = (float)$startSnapshot->total_market_value_eur;
+        $endValueBD = BigDecimal::of((string)$endSnapshot->total_market_value_eur);
 
-        return (($endValue / $startValue) - 1) * 100;
+        // (($endValue / $startValue) - 1) * 100
+        try {
+            $ratio = $endValueBD->dividedBy($startValueBD, 4, RoundingMode::HALF_UP);
+            $performance = $ratio->minus(1)->multipliedBy(100);
+            return round($performance->toFloat(), 2);
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 
     private function calculateBenchmarkReturn(string $ticker, Carbon $startDate, string $label = ''): ?float
@@ -82,10 +91,10 @@ class InvestmentPerformanceService
             ->first();
             
         if (!$historyEnd) return null;
-        $endPrice = (float)$historyEnd->price;
+        $endPriceBD = BigDecimal::of((string)$historyEnd->price);
         $endDate = $historyEnd->recorded_at;
 
-        if ($endPrice <= 0) return null;
+        if ($endPriceBD->isZero()) return null;
 
         // 2. Získať historickú cenu (Start Price)
         // Ak ide o 1D, chceme presne predchádzajúci dostupný záznam z histórie
@@ -101,12 +110,20 @@ class InvestmentPerformanceService
                 ->first();
         }
 
-        if (!$startPriceHistory || (float)$startPriceHistory->price <= 0) {
+        if (!$startPriceHistory) return null;
+
+        $startPriceBD = BigDecimal::of((string)$startPriceHistory->price);
+        
+        if ($startPriceBD->isZero()) {
             return null;
         }
 
-        $startPrice = (float)$startPriceHistory->price;
-
-        return (($endPrice / $startPrice) - 1) * 100;
+        try {
+            $ratio = $endPriceBD->dividedBy($startPriceBD, 4, RoundingMode::HALF_UP);
+            $performance = $ratio->minus(1)->multipliedBy(100);
+            return round($performance->toFloat(), 2);
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 }

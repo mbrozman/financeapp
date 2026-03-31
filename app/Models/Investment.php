@@ -42,6 +42,7 @@ class Investment extends Model
     public function currency(): BelongsTo { return $this->belongsTo(Currency::class); }
     public function category(): BelongsTo { return $this->belongsTo(InvestmentCategory::class, 'investment_category_id'); }
     public function transactions(): HasMany { return $this->hasMany(InvestmentTransaction::class); }
+    public function dividends(): HasMany { return $this->hasMany(InvestmentDividend::class); }
     public function priceHistories(): HasMany { return $this->hasMany(InvestmentPriceHistory::class); }
 
     /**
@@ -228,6 +229,20 @@ class Investment extends Model
 
         $targetCurrency = Currency::where('code', $code)->first();
         return CurrencyService::convert($this->total_gain_base, $this->currency_id, $targetCurrency?->id);
+    }
+
+    public function getDividendsForCurrency(?string $code = null): string
+    {
+        if (!$code || $code === $this->currency?->code) {
+            return $this->total_dividends_base ?? '0';
+        }
+
+        if ($code === 'EUR') {
+            return $this->total_dividends_eur ?? '0';
+        }
+
+        $targetCurrency = Currency::where('code', $code)->first();
+        return CurrencyService::convert($this->total_dividends_base ?? '0', $this->currency_id, $targetCurrency?->id);
     }
 
     protected function taxFreeQuantity(): Attribute

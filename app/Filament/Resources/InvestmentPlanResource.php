@@ -18,11 +18,11 @@ class InvestmentPlanResource extends Resource
     protected static ?string $model = InvestmentPlan::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
-    protected static ?string $navigationGroup = '📈 INVESTÍCIE';
+    protected static ?string $navigationGroup = null;
     protected static ?string $navigationLabel = 'Investičné plány';
     protected static ?string $pluralLabel = 'Investičné plány';
     protected static ?string $modelLabel = 'Investičný plán';
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 3;
 
     public static function form(Form $form): Form
     {

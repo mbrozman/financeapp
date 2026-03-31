@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\InvestmentResource\Pages;
 use App\Filament\Resources\InvestmentResource\RelationManagers\TransactionsRelationManager;
+use App\Filament\Resources\InvestmentResource\RelationManagers\DividendsRelationManager;
 use App\Models\Investment;
 use App\Services\StockApiService;
 use Filament\Forms;
@@ -33,8 +34,8 @@ class InvestmentResource extends Resource
     {
         return 'Investícia';
     }
-    protected static ?string $navigationGroup = '📈 INVESTÍCIE';
-    protected static ?int $navigationSort = 30;
+    protected static ?string $navigationGroup = null;
+    protected static ?int $navigationSort = 2;
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar';
 
     public static function form(Form $form): Form
@@ -527,7 +528,10 @@ class InvestmentResource extends Resource
 
     public static function getRelations(): array
     {
-        return [TransactionsRelationManager::class];
+        return [
+            TransactionsRelationManager::class,
+            DividendsRelationManager::class,
+        ];
     }
 
     public static function getPages(): array

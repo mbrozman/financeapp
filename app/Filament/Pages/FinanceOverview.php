@@ -12,7 +12,7 @@ class FinanceOverview extends Page
     }
 
     protected static ?string $navigationIcon = 'heroicon-o-presentation-chart-line';
-    protected static ?string $navigationGroup = '📊 PREHĽADY';
+    protected static ?string $navigationGroup = null;
     protected static ?string $navigationLabel = 'Prehľad financií';
     protected static ?int $navigationSort = 1;
     protected static ?string $title = 'Prehľad financií';

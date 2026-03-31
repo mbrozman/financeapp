@@ -27,17 +27,22 @@ class ExecuteInvestmentPlans extends Command
     {
         $this->info("Spúšťam spracovanie investičných plánov...");
 
-        $plans = InvestmentPlan::where('is_active', true)
-            ->where('next_run_date', '<=', now()->toDateString())
-            ->get();
+        $hasPlans = false;
 
-        if ($plans->isEmpty()) {
+        InvestmentPlan::where('is_active', true)
+            ->where('next_run_date', '<=', now()->toDateString())
+            ->chunkById(50, function ($plans) use ($apiService, &$hasPlans) {
+                if ($plans->isNotEmpty()) {
+                    $hasPlans = true;
+                }
+                foreach ($plans as $plan) {
+                    $this->processPlan($plan, $apiService);
+                }
+            });
+
+        if (!$hasPlans) {
             $this->info("Žiadne plány na spustenie.");
             return;
-        }
-
-        foreach ($plans as $plan) {
-            $this->processPlan($plan, $apiService);
         }
 
         $this->info("Spracovanie dokončené.");
@@ -66,14 +71,14 @@ class ExecuteInvestmentPlans extends Command
 
                 foreach ($items as $item) {
                     $investment = $item->investment;
-                    $weight = (float) $item->weight;
+                    $weight = (string) $item->weight;
                     
                     // Podiel sumy pre toto aktívum
-                    $itemAmount = (float) BigDecimal::of($plan->amount)
+                    $itemAmountString = (string) BigDecimal::of((string)$plan->amount)
                         ->multipliedBy($weight)
                         ->dividedBy(100, 4, RoundingMode::HALF_UP);
 
-                    $this->info("  -> Nákup {$investment->ticker} (Podiel {$weight}%, Suma: {$itemAmount})");
+                    $this->info("  -> Nákup {$investment->ticker} (Podiel {$weight}%, Suma: {$itemAmountString})");
 
                     // 1. ZÍSKANIE CENY
                     $quote = $apiService->getLiveQuote($investment->ticker);
@@ -85,18 +90,18 @@ class ExecuteInvestmentPlans extends Command
                     $currentPrice = BigDecimal::of($quote['price']);
                     
                     // 2. PREPOČET SUMY DO MENY INVESTÍCIE (ak je iná)
-                    $investedAmountInNative = CurrencyService::convert(
-                        $itemAmount,
+                    $investedAmountInNativeString = CurrencyService::convert(
+                        $itemAmountString,
                         $plan->currency_id,
                         $investment->currency_id
                     );
 
                     // 3. VÝPOČET KUSOV
-                    $quantity = BigDecimal::of($investedAmountInNative)
+                    $quantity = BigDecimal::of($investedAmountInNativeString)
                         ->dividedBy($currentPrice, 8, RoundingMode::DOWN);
 
                     if ($quantity->isZero()) {
-                        $this->warn("    ⚠️ Suma {$itemAmount} je príliš nízka na nákup {$investment->ticker}.");
+                        $this->warn("    ⚠️ Suma {$itemAmountString} je príliš nízka na nákup {$investment->ticker}.");
                         continue;
                     }
 

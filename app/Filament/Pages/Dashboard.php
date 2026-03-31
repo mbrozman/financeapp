@@ -15,6 +15,8 @@ class Dashboard extends BaseDashboard
     {
         return [
             \App\Filament\Widgets\StatsOverview::class,
+            \App\Filament\Widgets\InvestmentKpiOverview::class,
+            \App\Filament\Widgets\AssetTypeDiversificationChart::class,
         ];
     }
 }

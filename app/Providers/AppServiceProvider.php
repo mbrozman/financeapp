@@ -24,6 +24,7 @@ class AppServiceProvider extends ServiceProvider
         URL::forceScheme('https');
     }
         \App\Models\InvestmentTransaction::observe(\App\Observers\InvestmentTransactionObserver::class);
+        \App\Models\InvestmentDividend::observe(\App\Observers\InvestmentDividendObserver::class);
         \App\Models\User::observe(\App\Observers\UserObserver::class);
     }
 }
