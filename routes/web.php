@@ -34,13 +34,22 @@ Route::get('/admin/sync-portfolio-data', function () {
     \Illuminate\Support\Facades\Artisan::call('app:take-portfolio-snapshot');
     echo \Illuminate\Support\Facades\Artisan::output() . "<br>";
 
-    echo "4. Generujem históriu (7 dní) pre všetkých používateľov...<br>";
+    echo "4. Generujem kompletnú históriu pre všetkých používateľov...<br>";
     \App\Models\User::all()->each(function ($user) {
         $latest = \App\Models\PortfolioSnapshot::where('user_id', $user->id)->orderBy('recorded_at', 'desc')->first();
         if ($latest) {
-            for ($i = 1; $i <= 7; $i++) {
+            // Body potrebné pre tabuľku: 1D, 1W, 1M, 3M, 6M, YTD, 1Y
+            $historyDays = [1, 7, 31, 91, 183, 30, 366]; // Približné počty dní dozadu
+            
+            // Pridáme aj špecifický štart roka (YTD)
+            $ytdDate = now()->startOfYear()->subDay(); 
+            
+            $dates = collect($historyDays)->map(fn($days) => now()->subDays($days)->toDateString());
+            $dates->push($ytdDate->toDateString());
+
+            foreach ($dates as $dateString) {
                 \App\Models\PortfolioSnapshot::updateOrCreate(
-                    ['user_id' => $user->id, 'recorded_at' => now()->subDays($i)->toDateString()],
+                    ['user_id' => $user->id, 'recorded_at' => $dateString],
                     [
                         'total_invested_eur' => $latest->total_invested_eur,
                         'total_liquid_cash_eur' => $latest->total_liquid_cash_eur,
@@ -48,7 +57,7 @@ Route::get('/admin/sync-portfolio-data', function () {
                     ]
                 );
             }
-            echo " - História vygenerovaná pre užívateľa: {$user->email}<br>";
+            echo " - Kompletná história vygenerovaná pre užívateľa: {$user->email}<br>";
         }
     });
 
