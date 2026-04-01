@@ -45,7 +45,7 @@
             {{-- Progress track --}}
             <div class="w-full h-4 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden border border-gray-200 dark:border-gray-700">
                 <div class="h-full rounded-full transition-all duration-1000"
-                     style="width: {{ $r['progress'] }}%; background: linear-gradient(90deg, #fbbf24, #d97706);"></div>
+                     style="width: {{ min(100, $r['progress']) }}%; background: linear-gradient(90deg, #fbbf24, #d97706);"></div>
             </div>
 
             {{-- 8 markers representing segments of the target --}}

@@ -72,7 +72,7 @@ class ReserveFundWidget extends Widget
             ->sum('amount');
         $thisMonthSaved = abs((float) $thisMonthSaved);
 
-        $progress = $targetAmount > 0 ? min(100, round(($savedAmount / $targetAmount) * 100, 1)) : 0;
+        $progress = $targetAmount > 0 ? round(($savedAmount / $targetAmount) * 100, 1) : 0;
         $monthsCoverage = $monthlyAllocation > 0 ? round($savedAmount / $monthlyAllocation, 1) : 0;
         
         // Months remaining = (Total Target - Current Saved) / Monthly Allocation

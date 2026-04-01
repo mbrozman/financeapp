@@ -63,8 +63,7 @@ class Goal extends Model
                 
                 $percentage = ($this->current_amount / $this->target_amount) * 100;
                 
-                // Ošetríme, aby to nepresiahlo 100%, ak nasporíme viac
-                return min(round($percentage, 2), 100);
+                return round($percentage, 2);
             },
         );
     }

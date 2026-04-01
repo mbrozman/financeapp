@@ -27,9 +27,13 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
+            ->brandName('Vault')
+            ->globalSearch(false)
+            ->brandLogo(asset('images/logo.png'))
+            ->brandLogoHeight('52px')
             ->profile()
             ->colors([
-                'primary' => Color::Amber,
+                'primary' => '#fbcc01',
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
@@ -43,6 +47,27 @@ class AdminPanelProvider extends PanelProvider
             ->renderHook(
                 \Filament\View\PanelsRenderHook::GLOBAL_SEARCH_BEFORE,
                 fn (): string => \Illuminate\Support\Facades\Blade::render('@livewire(\'global-currency-switcher\')'),
+            )
+            ->renderHook(
+                \Filament\View\PanelsRenderHook::HEAD_END,
+                fn (): string => \Illuminate\Support\Facades\Blade::render('
+                    <style>
+                        .fi-sidebar-header a::after {
+                            content: "Vault";
+                            font-weight: 700;
+                            font-size: 1.8rem;
+                            margin-left: 12px;
+                            color: #1a3e10;
+                            display: inline-block;
+                            vertical-align: middle;
+                        }
+                        .fi-sidebar-header a {
+                            display: flex;
+                            align-items: center;
+                            text-decoration: none;
+                        }
+                    </style>
+                '),
             )
             ->middleware([
                 EncryptCookies::class,
