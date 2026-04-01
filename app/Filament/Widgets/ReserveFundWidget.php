@@ -28,11 +28,14 @@ class ReserveFundWidget extends Widget
         if (!$reserveItem) return null;
 
         $planIncome = (float) $plan->monthly_income;
+        if (!$planIncome || !$reserveItem) return null;
+
         $monthlyAllocation = $planIncome * ($reserveItem->percentage / 100);
         $targetAmount = (float) $plan->reserve_target;
 
         // Cumulative amount saved — sum of all expense transactions in reserve categories (all time)
-        $reserveTransactions = Transaction::where('user_id', $userId)
+        // This is kept for reporting purposes but NOT added to account balances anymore
+        $reserveTransactionsSum = Transaction::where('user_id', $userId)
             ->where(function ($q) {
                 $q->where('type', 'expense')
                   ->orWhere(fn($q2) => $q2->where('type', 'transfer')->where('amount', '<', 0));
@@ -42,16 +45,17 @@ class ReserveFundWidget extends Widget
                   ->orWhereHas('parent', fn($q2) => $q2->where('financial_plan_item_id', $reserveItem->id));
             })
             ->sum('amount');
-        $reserveTransactions = abs((float) $reserveTransactions);
+        $reserveTransactionsSum = abs((float) $reserveTransactionsSum);
 
-        // Add balances of all cash and reserve type accounts
-        $cashBalance = \App\Models\Account::where('user_id', $userId)
-            ->whereIn('type', ['cash', 'reserve'])
+        // Ground truth for "Saved" = balances of all accounts of type 'reserve'
+        $reserveAccountBalance = \App\Models\Account::where('user_id', $userId)
+            ->where('type', 'reserve')
             ->where('is_active', true)
             ->sum('balance');
-        $cashBalance = abs((float) $cashBalance);
+        $reserveAccountBalance = abs((float) $reserveAccountBalance);
 
-        $savedAmount = $reserveTransactions + $cashBalance;
+        // We only use the account balances for the total saved amount
+        $savedAmount = $reserveAccountBalance;
 
         // Current month contribution (reserve transactions only this month)
         $thisMonthSaved = Transaction::where('user_id', $userId)
@@ -84,8 +88,8 @@ class ReserveFundWidget extends Widget
             'monthly_target'   => $monthlyAllocation,
             'target'           => $targetAmount,
             'saved'            => $savedAmount,
-            'reserve_tx'       => $reserveTransactions,
-            'cash_balance'     => $cashBalance,
+            'reserve_tx'       => $reserveTransactionsSum,
+            'cash_balance'     => $reserveAccountBalance,
             'remaining'        => max(0, $targetAmount - $savedAmount),
             'progress'         => $progress,
             'months_coverage'  => $monthsCoverage,

@@ -8,6 +8,7 @@ use App\Models\PortfolioSnapshot;
 use App\Enums\TransactionType;
 use Carbon\Carbon;
 use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 use Illuminate\Support\Collection;
 
 class PortfolioPerformanceService
@@ -26,12 +27,14 @@ class PortfolioPerformanceService
 
         // 1. External Cash Flows (Investments are negative cash flows for the investor's pocket)
         foreach ($transactions as $tx) {
-            $amountBase = (string) BigDecimal::of($tx->quantity)->multipliedBy($tx->price_per_unit)->plus($tx->commission ?? 0);
-            $amountEur = CurrencyService::convertToEur($amountBase, $tx->currency_id, $tx->exchange_rate);
+            $amountBase = BigDecimal::of($tx->quantity)->multipliedBy($tx->price_per_unit)->plus($tx->commission ?? 0);
+            $amountEur = CurrencyService::convertToEur((string) $amountBase, $tx->currency_id, $tx->exchange_rate);
             
             // For MWR, a BUY is money leaving the "wallet" (negative)
             // A SELL is money entering the "wallet" (positive)
-            $flow = ($tx->type === TransactionType::BUY) ? -(float)$amountEur : (float)$amountEur;
+            $flow = ($tx->type === TransactionType::BUY) 
+                ? -(float)(string) $amountEur 
+                : (float)(string) $amountEur;
             
             $cashFlows[] = [
                 'date' => $tx->transaction_date,
@@ -41,16 +44,18 @@ class PortfolioPerformanceService
 
         // 2. Add current portfolio value as a final positive cash flow (terminal value)
         $investments = Investment::where('user_id', $userId)->where('is_archived', false)->get();
-        $currentValueEur = 0;
+        $totalCurrentValueEur = BigDecimal::zero();
         foreach ($investments as $inv) {
-            $currentValueEur += (float) CurrencyService::convertToEur($inv->current_market_value_base, $inv->currency_id);
+            $totalCurrentValueEur = $totalCurrentValueEur->plus(
+                CurrencyService::convertToEur($inv->current_market_value_base, $inv->currency_id)
+            );
         }
 
         if (count($cashFlows) === 0) return 0;
 
         $cashFlows[] = [
             'date' => now(),
-            'amount' => $currentValueEur
+            'amount' => (float) (string) $totalCurrentValueEur
         ];
 
         return self::xirr($cashFlows) * 100;
@@ -72,33 +77,42 @@ class PortfolioPerformanceService
 
         if ($snapshots->count() < 2) return 0;
 
-        $totalTWR = 1.0;
+        $totalTWR = BigDecimal::of(1);
         
         for ($i = 1; $i < $snapshots->count(); $i++) {
             $prev = $snapshots[$i - 1];
             $curr = $snapshots[$i];
 
-            $beginningValue = (float)$prev->total_market_value_eur;
-            $endingValue = (float)$curr->total_market_value_eur;
+            $beginningValue = BigDecimal::of($prev->total_market_value_eur);
+            $endingValue = BigDecimal::of($curr->total_market_value_eur);
             
             // We need to account for external cash flows during THIS specific period
-            $netCashFlow = InvestmentTransaction::where('user_id', $userId)
+            $netCashFlow = BigDecimal::zero();
+            $periodTransactions = InvestmentTransaction::where('user_id', $userId)
                 ->whereBetween('transaction_date', [$prev->recorded_at, $curr->recorded_at])
-                ->get()
-                ->sum(function($tx) {
-                    $amountBase = (string) BigDecimal::of($tx->quantity)->multipliedBy($tx->price_per_unit)->plus($tx->commission ?? 0);
-                    $amountEur = CurrencyService::convertToEur($amountBase, $tx->currency_id, $tx->exchange_rate);
-                    return ($tx->type === TransactionType::BUY) ? (float)$amountEur : -(float)$amountEur;
-                });
+                ->get();
+
+            foreach ($periodTransactions as $tx) {
+                $amountBase = BigDecimal::of($tx->quantity)->multipliedBy($tx->price_per_unit)->plus($tx->commission ?? 0);
+                $amountEur = CurrencyService::convertToEur((string) $amountBase, $tx->currency_id, $tx->exchange_rate);
+                
+                if ($tx->type === TransactionType::BUY) {
+                    $netCashFlow = $netCashFlow->plus($amountEur);
+                } else {
+                    $netCashFlow = $netCashFlow->minus($amountEur);
+                }
+            }
 
             // Period Return = (EndValue - NetCashFlow - StartValue) / StartValue
-            if ($beginningValue > 0) {
-                $periodReturn = ($endingValue - $netCashFlow - $beginningValue) / $beginningValue;
-                $totalTWR *= (1 + $periodReturn);
+            if ($beginningValue->isGreaterThan(0)) {
+                $periodReturn = $endingValue->minus($netCashFlow)->minus($beginningValue)
+                    ->dividedBy($beginningValue, 10, RoundingMode::HALF_UP);
+                
+                $totalTWR = $totalTWR->multipliedBy($beginningValue->one()->plus($periodReturn));
             }
         }
 
-        return ($totalTWR - 1) * 100;
+        return (float) (string) $totalTWR->minus(1)->multipliedBy(100);
     }
 
     /**

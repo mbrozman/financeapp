@@ -8,6 +8,7 @@ use Filament\Support\Enums\IconPosition;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Carbon;
+use Brick\Math\BigDecimal;
 
 class StatsOverview extends BaseWidget
 {
@@ -36,44 +37,66 @@ class StatsOverview extends BaseWidget
         $targetCurrency = \App\Models\Currency::where('code', $currencyCode)->first();
         $targetCurrencyId = $targetCurrency?->id;
 
-        // 1. Likvidita (Bank + Cash)
-        $accounts = Account::with('currency')->where('user_id', auth()->id())->get();
-        $totalLiquidity = 0.0;
-
-        foreach ($accounts as $account) {
+        // 1. Banky a Hotovosť (bank, cash, reserve) - Len AKTÍVNE
+        $liquidityAccounts = Account::with('currency')
+            ->where('user_id', auth()->id())
+            ->where('is_active', true)
+            ->whereIn('type', ['bank', 'cash', 'reserve'])
+            ->get();
+        
+        $totalBankCash = BigDecimal::zero();
+        foreach ($liquidityAccounts as $account) {
             $valConverted = \App\Services\CurrencyService::convert(
                 $account->balance, 
                 $account->currency_id, 
                 $targetCurrencyId
             );
-            $totalLiquidity += (float) $valConverted;
+            $totalBankCash = $totalBankCash->plus($valConverted);
         }
 
-        // 2. Investície (Market Value)
-        $investments = \App\Models\Investment::where('user_id', auth()->id())->get();
-        $totalInvestments = 0.0;
+        // 2. Brokerské účty (investment - cash at brokers) - Len AKTÍVNE
+        $brokerAccounts = Account::with('currency')
+            ->where('user_id', auth()->id())
+            ->where('is_active', true)
+            ->where('type', 'investment')
+            ->get();
+            
+        $totalBrokerCash = BigDecimal::zero();
+        foreach ($brokerAccounts as $account) {
+            $valConverted = \App\Services\CurrencyService::convert(
+                $account->balance, 
+                $account->currency_id, 
+                $targetCurrencyId
+            );
+            $totalBrokerCash = $totalBrokerCash->plus($valConverted);
+        }
+
+        // 3. Investičné pozície (Market Value of active stocks)
+        // Eager loadujeme menové relácie pre presnosť
+        $investments = \App\Models\Investment::with('currency')->where('user_id', auth()->id())->get();
+        $totalPositionsValue = BigDecimal::zero();
         foreach ($investments as $inv) {
-            $totalInvestments += (float) $inv->getCurrentValueForCurrency($currencyCode);
+            $totalPositionsValue = $totalPositionsValue->plus($inv->getCurrentValueForCurrency($currencyCode));
         }
 
-        // 3. Celkový majetok
-        $totalNetWorth = $totalLiquidity + $totalInvestments;
+        // 4. Celkový majetok = Všetko dokopy
+        $totalNetWorth = $totalBankCash->plus($totalBrokerCash)->plus($totalPositionsValue);
 
         return [
-            Stat::make('Celkový majetok', number_format($totalNetWorth, 2, ',', ' ') . ' ' . $symbol)
-                ->description('Likvidita + Trhová cena investícií (' . $currencyCode . ')')
-                ->descriptionIcon('heroicon-m-scale')
+            Stat::make('Celkový majetok', number_format((float)(string)$totalNetWorth, 2, ',', ' ') . ' ' . $symbol)
+                ->description('Sumár kompletného bohatstva')
+                ->descriptionIcon('heroicon-m-globe-alt')
                 ->color('success'),
 
-            Stat::make('Likvidita', number_format($totalLiquidity, 2, ',', ' ') . ' ' . $symbol)
-                ->description('Bankové účty + hotovosť (' . $currencyCode . ')')
+            Stat::make('Banky a Hotovosť', number_format((float)(string)$totalBankCash, 2, ',', ' ') . ' ' . $symbol)
+                ->description('Bežné účty, úspory a keš')
                 ->descriptionIcon('heroicon-m-wallet')
                 ->color('info'),
 
-            Stat::make('Investície', number_format($totalInvestments, 2, ',', ' ') . ' ' . $symbol)
-                ->description('Aktuálna hodnota portfólia (' . $currencyCode . ')')
-                ->descriptionIcon('heroicon-m-arrow-trending-up')
-                ->color('warning'),
+            Stat::make('Peniaze u Brokerov', number_format((float)(string)$totalBrokerCash, 2, ',', ' ') . ' ' . $symbol)
+                ->description('Neinvestovaná hotovosť na invest. účtoch')
+                ->descriptionIcon('heroicon-m-building-library')
+                ->color('primary'),
         ];
     }
 

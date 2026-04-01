@@ -8,6 +8,8 @@ use App\Models\FinancialPlan;
 use App\Models\InvestmentTransaction;
 use App\Models\Transaction;
 use Carbon\Carbon;
+use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 
 class MonthlyBudgetService
 {
@@ -15,44 +17,58 @@ class MonthlyBudgetService
     {
         $date = Carbon::parse($selectedMonth . '-01');
 
-        $actualIncome = abs((float) Transaction::where('user_id', $userId)
+        $actualIncome = BigDecimal::of(Transaction::where('user_id', $userId)
             ->where('type', TransactionType::INCOME)
             ->whereMonth('transaction_date', $date->month)
             ->whereYear('transaction_date', $date->year)
-            ->sum('amount'));
+            ->sum('amount'))->abs();
 
         $plan = FinancialPlan::with('items')->where('user_id', $userId)->first();
-        $plannedIncome = $plan ? (float) $plan->monthly_income : 2200;
-        $incomeDiff = $actualIncome - $plannedIncome;
+        $plannedIncome = BigDecimal::of($plan ? $plan->monthly_income : 2200);
+        $incomeDiff = $actualIncome->minus($plannedIncome);
 
-        $totalSpentAbs = abs((float) Transaction::where('user_id', $userId)
+        $totalSpentAbs = BigDecimal::of(Transaction::where('user_id', $userId)
             ->where('type', TransactionType::EXPENSE)
             ->whereMonth('transaction_date', $date->month)
             ->whereYear('transaction_date', $date->year)
-            ->sum('amount'));
+            ->sum('amount'))->abs();
 
-        $totalInvested = (float) InvestmentTransaction::where('user_id', $userId)
+        $totalInvested = BigDecimal::zero();
+        $investments = InvestmentTransaction::where('user_id', $userId)
             ->where('type', TransactionType::BUY)
             ->whereMonth('transaction_date', $date->month)
             ->whereYear('transaction_date', $date->year)
-            ->get()
-            ->sum(function ($tx) {
-                $amountBase = (float) $tx->quantity * (float) $tx->price_per_unit;
-                return (float) CurrencyService::convertToEur((string) $amountBase, $tx->currency_id, (float) $tx->exchange_rate);
-            });
+            ->get();
+
+        foreach ($investments as $tx) {
+            $amountBase = BigDecimal::of($tx->quantity)->multipliedBy($tx->price_per_unit);
+            if ($tx->commission) {
+                $amountBase = $amountBase->plus($tx->commission);
+            }
+            $amountEur = CurrencyService::convertToEur((string) $amountBase, $tx->currency_id, $tx->exchange_rate);
+            $totalInvested = $totalInvested->plus($amountEur);
+        }
 
         $pillarData = [];
         if ($plan) {
             foreach ($plan->items as $item) {
-                $pLimit = ($actualIncome * (float) $item->percentage) / 100;
+                $pLimit = $actualIncome->multipliedBy($item->percentage)->dividedBy(100, 4, RoundingMode::HALF_UP);
                 $categoryBudgets = $this->getCategoryBudgets($item->id, $date, $selectedMonth, $userId);
-                $pActualAbs = collect($categoryBudgets)->flatten(1)->sum('actual');
+                
+                $pActualAbs = BigDecimal::zero();
+                foreach($categoryBudgets as $budgetList) {
+                    foreach($budgetList as $budget) {
+                        $pActualAbs = $pActualAbs->plus($budget['actual']);
+                    }
+                }
 
                 $pillarData[] = [
                     'name' => $item->name,
-                    'limit' => $pLimit,
-                    'actual' => $pActualAbs,
-                    'percent' => $pLimit > 0 ? ($pActualAbs / $pLimit) * 100 : 0,
+                    'limit' => (float) (string) $pLimit,
+                    'actual' => (float) (string) $pActualAbs,
+                    'percent' => $pLimit->isGreaterThan(0) 
+                        ? (float) (string) $pActualAbs->dividedBy($pLimit, 4, RoundingMode::HALF_UP)->multipliedBy(100) 
+                        : 0,
                     'budgets' => $categoryBudgets,
                 ];
             }
@@ -64,12 +80,12 @@ class MonthlyBudgetService
             : 0;
 
         return [
-            'actual_income' => $actualIncome,
-            'planned_income' => $plannedIncome,
-            'income_diff' => $incomeDiff,
-            'total_spent' => $totalSpentAbs,
-            'total_invested' => $totalInvested,
-            'savings' => $actualIncome - ($totalSpentAbs + $totalInvested),
+            'actual_income' => (float) (string) $actualIncome,
+            'planned_income' => (float) (string) $plannedIncome,
+            'income_diff' => (float) (string) $incomeDiff,
+            'total_spent' => (float) (string) $totalSpentAbs,
+            'total_invested' => (float) (string) $totalInvested,
+            'savings' => (float) (string) $actualIncome->minus($totalSpentAbs->plus($totalInvested)),
             'pillars' => $pillarData,
             'days_remaining' => $daysRemaining,
         ];
@@ -90,15 +106,17 @@ class MonthlyBudgetService
                 continue;
             }
 
-            $actAbs = abs($cat->actualAmount($selectedMonth));
-            $lim = (float) $cat->monthly_limit;
+            $actAbs = BigDecimal::of($cat->actualAmount($selectedMonth))->abs();
+            $lim = BigDecimal::of($cat->monthly_limit ?? 0);
             $parentCategoryName = $cat->parent->name;
 
             $itemData = [
                 'category' => $cat->name,
-                'actual' => $actAbs,
-                'limit' => $lim,
-                'percent' => $lim > 0 ? ($actAbs / $lim) * 100 : 0,
+                'actual' => (float) (string) $actAbs,
+                'limit' => (float) (string) $lim,
+                'percent' => $lim->isGreaterThan(0) 
+                    ? (float) (string) $actAbs->dividedBy($lim, 4, RoundingMode::HALF_UP)->multipliedBy(100) 
+                    : 0,
             ];
 
             if (!isset($groupedRes[$parentCategoryName])) {

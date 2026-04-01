@@ -109,12 +109,14 @@ class DashboardFinanceService
         $labels = [];
         $realityValues = [];
         $modelValues = [];
+        $savedValues = [];
 
         for ($i = 1; $i <= 12; $i++) {
             $date = Carbon::create($year, $i, 1);
             $labels[] = $date->translatedFormat('M Y');
             $realityValues[$i] = 0;
             $modelValues[$i] = 0;
+            $savedValues[$i] = 0;
         }
 
         if (!$plan) {
@@ -122,6 +124,7 @@ class DashboardFinanceService
                 'labels' => $labels,
                 'reality_values' => array_values($realityValues),
                 'model_values' => array_values($modelValues),
+                'monthly_saved_values' => array_values($savedValues),
                 'is_ahead' => true,
             ];
         }
@@ -140,6 +143,44 @@ class DashboardFinanceService
             ->get()
             ->keyBy('month');
 
+        // 2. Get monthly invested amount (Buys)
+        $investments = \App\Models\InvestmentTransaction::where('user_id', $userId)
+            ->where('type', \App\Enums\TransactionType::BUY)
+            ->whereYear('transaction_date', $year)
+            ->get();
+            
+        $monthlySavedBD = [];
+        for ($i = 1; $i <= 12; $i++) { $monthlySavedBD[$i] = BigDecimal::zero(); }
+
+        foreach ($investments as $tx) {
+            $month = $tx->transaction_date->month;
+            $amountBase = BigDecimal::of($tx->quantity)->multipliedBy($tx->price_per_unit);
+            if ($tx->commission) { $amountBase = $amountBase->plus($tx->commission); }
+            $amountEur = CurrencyService::convertToEur((string) $amountBase, $tx->currency_id, (float)$tx->exchange_rate);
+            $monthlySavedBD[$month] = $monthlySavedBD[$month]->plus($amountEur);
+        }
+
+        // 3. Get monthly reserve deposits (Transactions)
+        $reserveItem = $plan->items->where('is_reserve', true)->first();
+        if ($reserveItem) {
+            $reserveTxs = Transaction::where('user_id', $userId)
+                ->whereYear('transaction_date', $year)
+                ->where(function ($q) {
+                    $q->where('type', 'expense')
+                      ->orWhere(fn($q2) => $q2->where('type', 'transfer')->where('amount', '<', 0));
+                })
+                ->whereHas('category', function ($q) use ($reserveItem) {
+                    $q->where('financial_plan_item_id', $reserveItem->id)
+                      ->orWhereHas('parent', fn($q2) => $q2->where('financial_plan_item_id', $reserveItem->id));
+                })
+                ->get();
+                
+            foreach ($reserveTxs as $tx) {
+                $month = $tx->transaction_date->month;
+                $monthlySavedBD[$month] = $monthlySavedBD[$month]->plus(abs((float)$tx->amount));
+            }
+        }
+
         $monthlySavingsIdeal = $plan->getMonthlySavingsAmount();
         
         $accumulatedReality = BigDecimal::zero();
@@ -149,20 +190,22 @@ class DashboardFinanceService
             if ($i < $startMonth) {
                 $realityValues[$i] = null;
                 $modelValues[$i] = null;
+                $savedValues[$i] = 0;
                 continue;
             }
 
             // Reality: Income + Expense (expense is negative)
             $data = $monthlyData->get($i);
-            $incomeBD = $data && $data->income !== null ? BigDecimal::of((string)$data->income) : BigDecimal::zero();
-            $expenseBD = $data && $data->expense !== null ? BigDecimal::of((string)$data->expense) : BigDecimal::zero();
-            $surplusBD = $incomeBD->plus($expenseBD);
+            $incomeBD = $data && $data->income !== null ? BigDecimal::of((string)$data->income)->abs() : BigDecimal::zero();
+            $expenseBD = $data && $data->expense !== null ? BigDecimal::of((string)$data->expense)->abs() : BigDecimal::zero();
+            $surplusBD = $incomeBD->minus($expenseBD);
             
             $accumulatedReality = $accumulatedReality->plus($surplusBD);
             $accumulatedModel = $accumulatedModel->plus($monthlySavingsIdeal);
 
             $realityValues[$i] = round($accumulatedReality->toFloat(), 2);
             $modelValues[$i] = round($accumulatedModel->toFloat(), 2);
+            $savedValues[$i] = round($monthlySavedBD[$i]->toFloat(), 2);
         }
 
         // Calculate is_ahead based on the LATEST available month
@@ -173,6 +216,7 @@ class DashboardFinanceService
             'labels' => $labels,
             'reality_values' => array_values($realityValues),
             'model_values' => array_values($modelValues),
+            'monthly_saved_values' => array_values($savedValues),
             'is_ahead' => $isAhead,
         ];
     }

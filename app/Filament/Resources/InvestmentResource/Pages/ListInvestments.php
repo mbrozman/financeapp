@@ -42,7 +42,9 @@ class ListInvestments extends ListRecords
 
     protected function getHeaderWidgets(): array
     {
-        return [];
+        return [
+            \App\Filament\Widgets\InvestmentKpiOverview::class,
+        ];
     }
 
     public function getHeaderWidgetsColumns(): int | string | array
