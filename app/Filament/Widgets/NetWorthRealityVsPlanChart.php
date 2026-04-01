@@ -42,15 +42,6 @@ class NetWorthRealityVsPlanChart extends ChartWidget implements HasActions, HasF
         return [
             'datasets' => [
                 [
-                    'label' => 'Ušetrené v mesiaci (€)',
-                    'data' => $series['monthly_saved_values'],
-                    'backgroundColor' => 'rgba(99, 102, 241, 0.2)',
-                    'borderColor' => '#6366f1',
-                    'borderWidth' => 1,
-                    'type' => 'bar',
-                    'borderRadius' => 4,
-                ],
-                [
                     'label' => 'Realita (€)',
                     'data' => $realityValues,
                     'borderColor' => $isAhead ? '#22c55e' : '#ef4444',
@@ -58,7 +49,6 @@ class NetWorthRealityVsPlanChart extends ChartWidget implements HasActions, HasF
                     'tension' => 0.4,
                     'fill' => true,
                     'pointRadius' => 4,
-                    'type' => 'line',
                 ],
                 [
                     'label' => 'Model / Plán (€)',
@@ -69,7 +59,6 @@ class NetWorthRealityVsPlanChart extends ChartWidget implements HasActions, HasF
                     'tension' => 0.4,
                     'fill' => false,
                     'pointRadius' => 3,
-                    'type' => 'line',
                 ],
             ],
             'labels' => $labels,
