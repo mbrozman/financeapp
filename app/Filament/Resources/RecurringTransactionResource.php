@@ -63,7 +63,10 @@ class RecurringTransactionResource extends Resource
 
                         Forms\Components\Select::make('category_id')
                             ->label('Kategória')
-                            ->relationship('category', 'name')
+                            ->relationship('category', 'name', function (Builder $query) {
+                                return $query->whereDoesntHave('planItem', fn($q) => $q->where('is_reserve', true))
+                                    ->whereDoesntHave('parent.planItem', fn($q) => $q->where('is_reserve', true));
+                            })
                             ->searchable()
                             ->preload()
                             ->hidden(fn (Forms\Get $get) => $get('type') === 'transfer'),

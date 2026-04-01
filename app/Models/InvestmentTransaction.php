@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\DB; // TENTO RIADOK TU MUSÍ BYŤ
 use App\Enums\TransactionType;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Support\Facades\Cache;
+use App\Services\DashboardFinanceService;
 
 class InvestmentTransaction extends Model
 {
@@ -51,5 +53,18 @@ class InvestmentTransaction extends Model
     public function investmentPlan(): BelongsTo
     {
         return $this->belongsTo(InvestmentPlan::class);
+    }
+
+    protected static function booted(): void
+    {
+        static::created(fn (InvestmentTransaction $tx) => $tx->clearDashboardCache());
+        static::deleted(fn (InvestmentTransaction $tx) => $tx->clearDashboardCache());
+        static::updated(fn (InvestmentTransaction $tx) => $tx->clearDashboardCache());
+    }
+
+    public function clearDashboardCache(): void
+    {
+        $year = $this->transaction_date?->year ?? now()->year;
+        Cache::forget(DashboardFinanceService::getYearlyCashflowCacheKey($this->user_id, $year));
     }
 }

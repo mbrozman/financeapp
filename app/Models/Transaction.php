@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Casts\Attribute; // Naimportované správne
 use App\Enums\TransactionType;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Support\Facades\Cache;
+use App\Services\DashboardFinanceService;
 
 class Transaction extends Model
 {
@@ -86,16 +88,28 @@ class Transaction extends Model
     {
         static::created(function (Transaction $transaction) {
             $transaction->account->increment('balance', $transaction->amount);
+            $transaction->clearDashboardCache();
         });
 
         static::deleted(function (Transaction $transaction) {
             $transaction->account->decrement('balance', $transaction->amount);
+            $transaction->clearDashboardCache();
         });
 
         static::updated(function (Transaction $transaction) {
             // Výpočet rozdielu medzi starou a novou sumou
             $diff = $transaction->amount - $transaction->getOriginal('amount');
             $transaction->account->increment('balance', $diff);
+            
+            $transaction->clearDashboardCache();
+            // Ak sa zmenil dátum, premažeme aj pôvodný rok (pre istotu)
+            if ($transaction->wasChanged('transaction_date')) {
+                $oldDate = $transaction->getOriginal('transaction_date');
+                if ($oldDate) {
+                    $oldYear = \Illuminate\Support\Carbon::parse($oldDate)->year;
+                    Cache::forget(DashboardFinanceService::getYearlyCashflowCacheKey($transaction->user_id, $oldYear));
+                }
+            }
         });
 
         static::deleting(function (Transaction $transaction) {
@@ -109,5 +123,11 @@ class Transaction extends Model
                 }
             }
         });
+    }
+
+    public function clearDashboardCache(): void
+    {
+        $year = $this->transaction_date?->year ?? now()->year;
+        Cache::forget(DashboardFinanceService::getYearlyCashflowCacheKey($this->user_id, $year));
     }
 }

@@ -56,3 +56,20 @@ Route::get('/admin/sync-portfolio-data', function () {
 
     return "<br><b>DÁTA BOLI ÚSPEŠNE SYNCHRONIZOVANÉ.</b> Osviežte Dashboard.";
 });
+
+// Spúšťač pre Google Cloud Scheduler (Cron)
+Route::get('/cloud-run/scheduler/{token}', function ($token) {
+    // Overenie prístupu cez tajný kľúč
+    if ($token !== config('app.cron_token')) {
+        abort(403, 'Unauthorized. Invalid cron token.');
+    }
+
+    // Spustenie Laravel Scheduleru
+    \Illuminate\Support\Facades\Artisan::call('schedule:run');
+    
+    return response()->json([
+        'status' => 'success',
+        'output' => \Illuminate\Support\Facades\Artisan::output(),
+        'execution_time' => now()->toDateTimeString(),
+    ]);
+});

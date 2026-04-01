@@ -61,8 +61,9 @@ class TransactionResource extends Resource
                             ->options(fn(\Filament\Forms\Get $get) => Category::whereNull('parent_id')
                                 ->where('type', match($get('type')) {
                                     'income' => 'income',
-                                    default => 'expense', // Transfer uses expense categories for allocation tracking
+                                    default => 'expense',
                                 })
+                                ->whereDoesntHave('planItem', fn($q) => $q->where('is_reserve', true))
                                 ->pluck('name', 'id')
                             )
                             ->live()

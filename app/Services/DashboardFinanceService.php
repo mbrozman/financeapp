@@ -12,6 +12,11 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardFinanceService
 {
+    public static function getYearlyCashflowCacheKey($userId, int $year): string
+    {
+        return "dashboard_yearly_cashflow_{$userId}_{$year}";
+    }
+
     public function getLiquidityStats($userId): array
     {
         $accounts = Account::with('currency')
@@ -45,7 +50,7 @@ class DashboardFinanceService
     public function getYearlyCashflow($userId, int $year): array
     {
         return \Illuminate\Support\Facades\Cache::remember(
-            "dashboard_yearly_cashflow_{$userId}_{$year}",
+            self::getYearlyCashflowCacheKey($userId, $year),
             900, // 15 minút caching
             function () use ($userId, $year) {
                 $totals = Transaction::select(
