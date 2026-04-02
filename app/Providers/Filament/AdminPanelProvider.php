@@ -29,8 +29,9 @@ class AdminPanelProvider extends PanelProvider
             ->login()
             ->brandName('Vault')
             ->globalSearch(false)
-            ->brandLogo(asset('images/logo.png'))
+            ->brandLogo(asset('images/logo.svg'))
             ->brandLogoHeight('52px')
+            ->favicon(asset('images/logo.svg'))
             ->profile()
             ->colors([
                 'primary' => '#fbcc01',

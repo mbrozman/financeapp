@@ -58,10 +58,10 @@ Route::get('/admin/sync-portfolio-data', function () {
 });
 
 // Spúšťač pre Google Cloud Scheduler (Cron)
-Route::get('/cloud-run/scheduler/{token}', function ($token) {
+Route::match(['get', 'post'], '/cloud-run/scheduler/{token}', function ($token) {
     // Overenie prístupu cez tajný kľúč
     if ($token !== config('app.cron_token')) {
-        abort(403, 'Unauthorized. Invalid cron token.');
+        return response()->json(['error' => 'Laravel: Invalid Cron Token'], 403);
     }
 
     // Spustenie Laravel Scheduleru

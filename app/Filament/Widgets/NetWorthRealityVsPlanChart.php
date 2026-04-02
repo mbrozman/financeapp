@@ -28,7 +28,7 @@ class NetWorthRealityVsPlanChart extends ChartWidget implements HasActions, HasF
 
     public function getHeading(): string|\Illuminate\Contracts\Support\Htmlable|null
     {
-        return 'Mesačný rast: Realita vs. Plán (€)';
+        return 'Celkový majetok: Realita vs. Plán (€)';
     }
 
     protected function getData(): array
@@ -78,7 +78,15 @@ class NetWorthRealityVsPlanChart extends ChartWidget implements HasActions, HasF
                 'legend' => ['display' => true, 'position' => 'bottom'],
             ],
             'scales' => [
-                'y' => ['beginAtZero' => false],
+                'y' => [
+                    'beginAtZero' => false,
+                    'ticks' => [
+                        'callback' => "function(value) { 
+                            if (value >= 1000) return (value / 1000) + 'k €';
+                            return value + ' €';
+                        }"
+                    ]
+                ],
             ],
         ];
     }

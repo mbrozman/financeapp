@@ -17,13 +17,15 @@ class Goal extends Model
         'current_amount',
         'deadline',
         'type',
-        'color'
+        'color',
+        'is_reserve'
     ];
 
     protected $casts = [
         'target_amount' => 'decimal:4',
         'current_amount' => 'decimal:4',
         'deadline' => 'date',
+        'is_reserve' => 'boolean',
     ];
 
     public function accounts(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
@@ -31,24 +33,33 @@ class Goal extends Model
         return $this->belongsToMany(Account::class);
     }
 
+    public function investments(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Investment::class);
+    }
+
     // --- VLASTNÝ GETTER PRE AKTUÁLNY STAV ---
     protected function currentAmount(): Attribute
     {
         return Attribute::make(
             get: function ($value, $attributes) {
-                // Sčítame zostatky všetkých prepojených účtov + hodnotu investícií
+                // 1. Sčítame zostatky všetkých prepojených účtov (Hotovosť)
+                $accountsTotal = 0;
                 if ($this->accounts()->exists()) {
-                    return $this->accounts()->get()->sum(function($acc) {
-                        // 1. Hotovosť na účte prepočítaná na EUR
-                        $cashEur = (float) \App\Services\CurrencyService::convertToEur($acc->balance ?? 0, $acc->currency_id);
-                        
-                        // 2. Hodnota investícií na tomto účte
-                        $investmentsEur = $acc->investments->sum(fn($inv) => (float) $inv->current_market_value_eur);
-                        
-                        return $cashEur + $investmentsEur;
+                    $accountsTotal = $this->accounts()->get()->sum(function($acc) {
+                        return (float) \App\Services\CurrencyService::convertToEur($acc->balance ?? 0, $acc->currency_id);
                     });
                 }
-                return $value;
+
+                // 2. Sčítame hodnotu konkrétne prepojených investícií (Selektívne ETF)
+                $investmentsTotal = 0;
+                if ($this->investments()->exists()) {
+                    $investmentsTotal = $this->investments()->get()->sum(function($inv) {
+                        return (float) $inv->current_market_value_eur;
+                    });
+                }
+
+                return $accountsTotal + $investmentsTotal;
             }
         );
     }

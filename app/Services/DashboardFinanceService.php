@@ -17,6 +17,25 @@ class DashboardFinanceService
         return "dashboard_yearly_cashflow_{$userId}_{$year}";
     }
 
+    public function getTotalNetWorth($userId): float
+    {
+        // 1. Likvidita (Účty)
+        $accounts = Account::where('user_id', $userId)->get();
+        $totalAccounts = 0;
+        foreach ($accounts as $account) {
+            $totalAccounts += (float) CurrencyService::convertToEur((string) $account->balance, $account->currency_id);
+        }
+
+        // 2. Investície (Trhová hodnota)
+        $investments = \App\Models\Investment::where('user_id', $userId)->get();
+        $totalInvestments = 0;
+        foreach ($investments as $investment) {
+            $totalInvestments += (float) $investment->current_market_value_eur;
+        }
+
+        return round($totalAccounts + $totalInvestments, 2);
+    }
+
     public function getLiquidityStats($userId): array
     {
         $accounts = Account::with('currency')
@@ -122,6 +141,20 @@ class DashboardFinanceService
             $modelValues[$i] = 0;
         }
 
+        // 1. ZÍSKAME AKTUÁLNY NET WORTH (HOTOVOSŤ + INVESTÍCIE)
+        $currentNetWorth = $this->getTotalNetWorth($userId);
+
+        // 2. ZÍSKAME CELKOVÚ ZMENU ZA TENTO ROK DOTERAZ (Z TRANSAKCIÍ)
+        $totalChangeYTD = Transaction::where('user_id', $userId)
+            ->whereYear('transaction_date', $year)
+            ->where('transaction_date', '<=', now())
+            ->sum(DB::raw("CASE WHEN type = 'income' THEN amount ELSE -amount END"));
+        
+        $totalChangeYTD = (float) $totalChangeYTD;
+
+        // 3. POČIATOČNÝ BOD (NET WORTH NA ZAČIATKU ROKA)
+        $initialWealth = $currentNetWorth - $totalChangeYTD;
+
         if (!$plan) {
             return [
                 'labels' => $labels,
@@ -133,11 +166,10 @@ class DashboardFinanceService
 
         $startMonth = $plan->created_at->month;
         
-        // 1. Get real monthly surplus (Income - Expense)
+        // 4. MESAČNÉ POHYBY
         $monthlyData = Transaction::select(
             DB::raw("EXTRACT(MONTH FROM transaction_date) as month"),
-            DB::raw("SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as income"),
-            DB::raw("SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as expense")
+            DB::raw("SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END) as net_change")
         )
             ->where('user_id', $userId)
             ->whereYear('transaction_date', $year)
@@ -145,34 +177,34 @@ class DashboardFinanceService
             ->get()
             ->keyBy('month');
 
-        $monthlySavingsIdeal = $plan->getMonthlySavingsAmount();
+        $monthlySavingsIdeal = $plan->getMonthlySavingsAmount()->toFloat();
         
-        $accumulatedReality = BigDecimal::zero();
-        $accumulatedModel = BigDecimal::zero();
+        $accumulatedReality = BigDecimal::of((string) $initialWealth);
+        $accumulatedModel = BigDecimal::of((string) $initialWealth);
 
         for ($i = 1; $i <= 12; $i++) {
-            if ($i < $startMonth) {
-                $realityValues[$i] = null;
-                $modelValues[$i] = null;
-                continue;
-            }
-
-            // Reality: Income + Expense (expense is negative)
+            // Reality
             $data = $monthlyData->get($i);
-            $incomeBD = $data && $data->income !== null ? BigDecimal::of((string)$data->income) : BigDecimal::zero();
-            $expenseBD = $data && $data->expense !== null ? BigDecimal::of((string)$data->expense) : BigDecimal::zero();
-            $surplusBD = $incomeBD->plus($expenseBD);
+            $changeBD = $data && $data->net_change !== null ? BigDecimal::of((string)$data->net_change) : BigDecimal::zero();
             
-            $accumulatedReality = $accumulatedReality->plus($surplusBD);
-            $accumulatedModel = $accumulatedModel->plus($monthlySavingsIdeal);
+            // Model (Plánujeme rast od začiatku plánu, predošlé mesiace kopírujú realitu alebo zostávajú na štarte)
+            $planChangeBD = ($i >= $startMonth) ? BigDecimal::of((string)$monthlySavingsIdeal) : BigDecimal::zero();
+
+            $accumulatedReality = $accumulatedReality->plus($changeBD);
+            $accumulatedModel = $accumulatedModel->plus($planChangeBD);
 
             $realityValues[$i] = round($accumulatedReality->toFloat(), 2);
             $modelValues[$i] = round($accumulatedModel->toFloat(), 2);
+
+            // Ak sme v budúcnosti, realitu už neukazujeme (len trend plánu)
+            if ($i > now()->month) {
+                $realityValues[$i] = null;
+            }
         }
 
         // Calculate is_ahead based on the LATEST available month
-        $lastMonth = now()->month;
-        $isAhead = ($realityValues[$lastMonth] ?? 0) >= ($modelValues[$lastMonth] ?? 0);
+        $currentMonth = now()->month;
+        $isAhead = ($realityValues[$currentMonth] ?? 0) >= ($modelValues[$currentMonth] ?? 0);
 
         return [
             'labels' => $labels,

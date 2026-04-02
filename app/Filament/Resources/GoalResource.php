@@ -13,6 +13,8 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Filament\Tables\Columns\ViewColumn;
+use Filament\Infolists;
+use Filament\Infolists\Infolist;
 
 class GoalResource extends Resource
 {
@@ -61,13 +63,22 @@ class GoalResource extends Resource
                             ->prefix('€'),
 
                         Forms\Components\Select::make('accounts')
-                            ->label('Previazať s účtami (Automatický progres)')
+                            ->label('Previazať s účtami (Hotovosť / Sporenie)')
                             ->relationship('accounts', 'name')
                             ->multiple()
                             ->searchable()
                             ->preload()
                             ->live()
-                            ->helperText('Ak vyberiete účty, progres sa bude aktualizovať automaticky ako súčet ich zostatkov.'),
+                            ->helperText('Zostatky z týchto účtov sa sčítajú do celkového stavu (vhodné pre bežné účty a hotovosť).'),
+
+                        Forms\Components\Select::make('investments')
+                            ->label('Zahrnúť konkrétne investície (ETF)')
+                            ->relationship('investments', 'ticker')
+                            ->multiple()
+                            ->searchable()
+                            ->preload()
+                            ->live()
+                            ->helperText('Hodnota týchto ETF sa pripočíta do celkového stavu rezervy (vhodné pre selektívne pridávanie majetku).'),
 
                         Forms\Components\TextInput::make('current_amount')
                             ->label('Ručný aktuálny stav')
@@ -85,6 +96,13 @@ class GoalResource extends Resource
                         Forms\Components\ColorPicker::make('color')
                             ->label('Farba grafu')
                             ->default('#3b82f6'),
+
+                        Forms\Components\Toggle::make('is_reserve')
+                            ->label('Hlavná finančná rezerva')
+                            ->helperText('Tento cieľ bude zobrazený na hlavnom Dashboarde ako tvoj bezpečnostný vankúš.')
+                            ->default(false)
+                            ->live()
+                            ->columnSpanFull(),
                     ])->columns(2),
             ]);
     }
@@ -115,6 +133,10 @@ class GoalResource extends Resource
                     ->label('Termín')
                     ->date()
                     ->sortable(),
+            ])
+            ->actions([
+                Tables\Actions\ViewAction::make()->label('Prehľad'),
+                Tables\Actions\EditAction::make(),
             ]);
     }
 
@@ -130,7 +152,78 @@ class GoalResource extends Resource
         return [
             'index' => Pages\ListGoals::route('/'),
             'create' => Pages\CreateGoal::route('/create'),
+            'view' => Pages\ViewGoal::route('/{record}'),
             'edit' => Pages\EditGoal::route('/{record}/edit'),
         ];
+    }
+
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                Infolists\Components\Section::make('Prehľad cieľa')
+                    ->schema([
+                        Infolists\Components\TextEntry::make('name')
+                            ->label('Názov cieľa')
+                            ->weight('bold')
+                            ->size('lg'),
+                        Infolists\Components\TextEntry::make('type')
+                            ->label('Typ')
+                            ->badge()
+                            ->color(fn($state) => $state === 'saving' ? 'success' : 'danger'),
+                        Infolists\Components\TextEntry::make('target_amount')
+                            ->label('Cieľová suma')
+                            ->money('EUR'),
+                        Infolists\Components\TextEntry::make('current_amount')
+                            ->label('Aktuálne nasporené')
+                            ->money('EUR')
+                            ->color('success')
+                            ->weight('black'),
+                        Infolists\Components\ViewEntry::make('progress_view')
+                            ->label('Progres')
+                            ->view('filament.tables.columns.progress-bar')
+                            ->state(fn($record) => $record->progress),
+                        Infolists\Components\TextEntry::make('deadline')
+                            ->label('Termín')
+                            ->date()
+                            ->placeholder('Bez termínu'),
+                    ])->columns(3),
+
+                Infolists\Components\Section::make('Rozpis Majetku')
+                    ->schema([
+                        // PODSEKCIA: ÚČTY (HOTOVOSŤ)
+                        Infolists\Components\RepeatableEntry::make('accounts')
+                            ->label('Priradené účty (Hotovosť / Sporenie)')
+                            ->schema([
+                                Infolists\Components\TextEntry::make('name')->label('Názov účtu'),
+                                Infolists\Components\TextEntry::make('type')->label('Typ')->badge(),
+                                Infolists\Components\TextEntry::make('balance')
+                                    ->label('Príspevok do cieľa')
+                                    ->state(function($record) {
+                                        $eur = \App\Services\CurrencyService::convertToEur($record->balance ?? 0, $record->currency_id);
+                                        return number_format($eur, 2, ',', ' ') . ' €';
+                                    })
+                                    ->weight('bold'),
+                            ])
+                            ->columns(3)
+                            ->grid(1)
+                            ->visible(fn($record) => $record->accounts()->exists()),
+
+                        // PODSEKCIA: INVESTÍCIE (ETF)
+                        Infolists\Components\RepeatableEntry::make('investments')
+                            ->label('Priradené investície (ETF / Akcie)')
+                            ->schema([
+                                Infolists\Components\TextEntry::make('ticker')->label('Symbol')->badge()->color('warning'),
+                                Infolists\Components\TextEntry::make('name')->label('Názov aktíva'),
+                                Infolists\Components\TextEntry::make('current_market_value_eur')
+                                    ->label('Trhová hodnota (EUR)')
+                                    ->state(fn($record) => number_format($record->current_market_value_eur, 2, ',', ' ') . ' €')
+                                    ->weight('bold'),
+                            ])
+                            ->columns(3)
+                            ->grid(1)
+                            ->visible(fn($record) => $record->investments()->exists()),
+                    ])
+            ]);
     }
 }

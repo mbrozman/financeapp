@@ -16,85 +16,69 @@ class ReserveFundWidget extends Widget
     public function getReserveData(): ?array
     {
         $userId = Auth::id();
-        $plan = FinancialPlan::where('user_id', $userId)->where('is_active', true)->first();
-
-        if (!$plan) return null;
-
-        /** @var FinancialPlanItem|null $reserveItem */
-        $reserveItem = FinancialPlanItem::where('financial_plan_id', $plan->id)
+        
+        // 1. Hľadáme cieľ označený ako "Finančná rezerva"
+        $reserveGoal = \App\Models\Goal::where('user_id', $userId)
             ->where('is_reserve', true)
             ->first();
 
-        if (!$reserveItem) return null;
+        // Ak nemáme cieľ, skúsime starú logiku cez FinancialPlan (kompatibilita)
+        if (!$reserveGoal) {
+            $plan = \App\Models\FinancialPlan::where('user_id', $userId)->where('is_active', true)->first();
+            if (!$plan) return null;
 
-        $planIncome = (float) $plan->monthly_income;
-        if (!$planIncome || !$reserveItem) return null;
+            $reserveItem = \App\Models\FinancialPlanItem::where('financial_plan_id', $plan->id)
+                ->where('is_reserve', true)
+                ->first();
 
-        $monthlyAllocation = $planIncome * ($reserveItem->percentage / 100);
-        $targetAmount = (float) $plan->reserve_target;
+            if (!$reserveItem) return null;
 
-        // Cumulative amount saved — sum of all expense transactions in reserve categories (all time)
-        // This is kept for reporting purposes but NOT added to account balances anymore
-        $reserveTransactionsSum = Transaction::where('user_id', $userId)
-            ->where(function ($q) {
-                $q->where('type', 'expense')
-                  ->orWhere(fn($q2) => $q2->where('type', 'transfer')->where('amount', '<', 0));
-            })
-            ->whereHas('category', function ($q) use ($reserveItem) {
-                $q->where('financial_plan_item_id', $reserveItem->id)
-                  ->orWhereHas('parent', fn($q2) => $q2->where('financial_plan_item_id', $reserveItem->id));
-            })
-            ->sum('amount');
-        $reserveTransactionsSum = abs((float) $reserveTransactionsSum);
+            $targetAmount = (float) $plan->reserve_target;
+            
+            // Stará logika: len účty typu reserve
+            $savedAmount = (float) \App\Models\Account::where('user_id', $userId)
+                ->where('type', 'reserve')
+                ->where('is_active', true)
+                ->sum('balance');
+            
+            $name = $reserveItem->name;
+            $monthlyAllocation = (float) ($plan->monthly_income * ($reserveItem->percentage / 100));
+        } else {
+            // NOVÁ LOGIKA: Dáta priamo z Goal modelu (sčíta účty aj investície!)
+            $targetAmount = (float) $reserveGoal->target_amount;
+            $savedAmount = (float) $reserveGoal->current_amount;
+            $name = $reserveGoal->name;
+            
+            // Pre výpočet mesačnej alokácie si požičiame info z aktívneho plánu, ak existuje
+            $plan = \App\Models\FinancialPlan::where('user_id', $userId)->where('is_active', true)->first();
+            $monthlyAllocation = 0;
+            if ($plan) {
+                $reserveItem = \App\Models\FinancialPlanItem::where('financial_plan_id', $plan->id)
+                    ->where('is_reserve', true)
+                    ->first();
+                if ($reserveItem) {
+                    $monthlyAllocation = (float) ($plan->monthly_income * ($reserveItem->percentage / 100));
+                }
+            }
+        }
 
-        // Ground truth for "Saved" = balances of all accounts of type 'reserve'
-        $reserveAccountBalance = \App\Models\Account::where('user_id', $userId)
-            ->where('type', 'reserve')
-            ->where('is_active', true)
-            ->sum('balance');
-        $reserveAccountBalance = abs((float) $reserveAccountBalance);
-
-        // We only use the account balances for the total saved amount
-        $savedAmount = $reserveAccountBalance;
-
-        // Current month contribution (reserve transactions only this month)
-        $thisMonthSaved = Transaction::where('user_id', $userId)
-            ->where(function ($q) {
-                $q->where('type', 'expense')
-                  ->orWhere(fn($q2) => $q2->where('type', 'transfer')->where('amount', '<', 0));
-            })
-            ->whereYear('transaction_date', now()->year)
-            ->whereMonth('transaction_date', now()->month)
-            ->whereHas('category', function ($q) use ($reserveItem) {
-                $q->where('financial_plan_item_id', $reserveItem->id)
-                  ->orWhereHas('parent', fn($q2) => $q2->where('financial_plan_item_id', $reserveItem->id));
-            })
-            ->sum('amount');
-        $thisMonthSaved = abs((float) $thisMonthSaved);
+        if ($targetAmount <= 0 && $savedAmount <= 0) return null;
 
         $progress = $targetAmount > 0 ? round(($savedAmount / $targetAmount) * 100, 1) : 0;
         $monthsCoverage = $monthlyAllocation > 0 ? round($savedAmount / $monthlyAllocation, 1) : 0;
-        
-        // Months remaining = (Total Target - Current Saved) / Monthly Allocation
-        $monthsRemaining = $monthlyAllocation > 0 ? max(0, ceil(($targetAmount - $savedAmount) / $monthlyAllocation)) : 0;
-
-        // Find pillar index (1-based)
-        $pillarIndex = $plan->items()->orderBy('id')->get()->search(fn($item) => $item->id === $reserveItem->id) + 1;
+        $remaining = max(0, $targetAmount - $savedAmount);
+        $monthsRemaining = $monthlyAllocation > 0 ? ceil($remaining / $monthlyAllocation) : 0;
 
         return [
-            'name'             => $reserveItem->name,
-            'index'            => $pillarIndex,
-            'percentage'       => $reserveItem->percentage,
-            'monthly_target'   => $monthlyAllocation,
+            'name'             => $name,
             'target'           => $targetAmount,
             'saved'            => $savedAmount,
-            'reserve_tx'       => $reserveTransactionsSum,
-            'cash_balance'     => $reserveAccountBalance,
-            'remaining'        => max(0, $targetAmount - $savedAmount),
+            'remaining'        => $remaining,
             'progress'         => $progress,
             'months_coverage'  => $monthsCoverage,
             'months_remaining' => $monthsRemaining,
-            'this_month'       => $thisMonthSaved,
+            'index'            => $reserveGoal->id ?? 1,
+            'percentage'       => $reserveItem->percentage ?? 0,
         ];
     }
 
