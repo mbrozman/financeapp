@@ -71,6 +71,13 @@ class GoalResource extends Resource
                             ->live()
                             ->helperText('Zostatky z týchto účtov sa sčítajú do celkového stavu (vhodné pre bežné účty a hotovosť).'),
 
+                        Forms\Components\Toggle::make('include_all_investments')
+                            ->label('Zahrnúť všetky investície automaticky')
+                            ->helperText('Ak zapnete, do tohto cieľa sa automaticky zaráta hodnota CELÉHO vášho investičného portfólia (vhodné pre rezervu).')
+                            ->default(false)
+                            ->live()
+                            ->columnSpanFull(),
+
                         Forms\Components\Select::make('investments')
                             ->label('Zahrnúť konkrétne investície (ETF)')
                             ->relationship('investments', 'ticker')
@@ -78,13 +85,14 @@ class GoalResource extends Resource
                             ->searchable()
                             ->preload()
                             ->live()
+                            ->hidden(fn(Forms\Get $get) => (bool) $get('include_all_investments'))
                             ->helperText('Hodnota týchto ETF sa pripočíta do celkového stavu rezervy (vhodné pre selektívne pridávanie majetku).'),
 
                         Forms\Components\TextInput::make('current_amount')
                             ->label('Ručný aktuálny stav')
                             ->numeric()
-                            ->required(fn(Forms\Get $get) => empty($get('accounts')))
-                            ->disabled(fn(Forms\Get $get) => !empty($get('accounts')))
+                            ->required(fn(Forms\Get $get) => empty($get('accounts')) && empty($get('investments')) && !$get('include_all_investments'))
+                            ->disabled(fn(Forms\Get $get) => !empty($get('accounts')) || !empty($get('investments')) || $get('include_all_investments'))
                             ->dehydrated()
                             ->default(0)
                             ->prefix('€'),

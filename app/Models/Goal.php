@@ -18,14 +18,16 @@ class Goal extends Model
         'deadline',
         'type',
         'color',
-        'is_reserve'
-    ];
+        'is_reserve',
+        'include_all_investments'
+  ];
 
     protected $casts = [
         'target_amount' => 'decimal:4',
         'current_amount' => 'decimal:4',
         'deadline' => 'date',
         'is_reserve' => 'boolean',
+        'include_all_investments' => 'boolean',
     ];
 
     public function accounts(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
@@ -45,18 +47,21 @@ class Goal extends Model
             get: function ($value, $attributes) {
                 // 1. Sčítame zostatky všetkých prepojených účtov (Hotovosť)
                 $accountsTotal = 0;
-                if ($this->accounts()->exists()) {
-                    $accountsTotal = $this->accounts()->get()->sum(function($acc) {
-                        return (float) \App\Services\CurrencyService::convertToEur($acc->balance ?? 0, $acc->currency_id);
-                    });
-                }
+                $accountsTotal = $this->accounts()->get()->sum(function($acc) {
+                    return (float) \App\Services\CurrencyService::convertToEur($acc->balance ?? 0, $acc->currency_id);
+                });
 
-                // 2. Sčítame hodnotu konkrétne prepojených investícií (Selektívne ETF)
+                // 2. Sčítame hodnotu investícií (Selektívne alebo VŠETKY)
                 $investmentsTotal = 0;
-                if ($this->investments()->exists()) {
-                    $investmentsTotal = $this->investments()->get()->sum(function($inv) {
-                        return (float) $inv->current_market_value_eur;
-                    });
+                
+                if ($this->include_all_investments) {
+                    // Berieme VŠETKO v EUR (vrátane nových investícií)
+                    $investmentsTotal = \App\Models\Investment::where('user_id', $this->user_id)
+                        ->get()
+                        ->sum(fn($inv) => (float) $inv->current_market_value_eur);
+                } else {
+                    // Berieme len tie, ktoré si si RUČNE vybral v MultiSelecti
+                    $investmentsTotal = $this->investments()->get()->sum(fn($inv) => (float) $inv->current_market_value_eur);
                 }
 
                 return $accountsTotal + $investmentsTotal;

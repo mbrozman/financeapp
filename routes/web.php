@@ -69,8 +69,6 @@ Route::match(['get', 'post'], '/cloud-run/scheduler/{token}', function ($token) 
     
     return response()->json([
         'status' => 'success',
-    return response()->json([
-        'status' => 'success',
         'output' => Artisan::output(),
         'execution_time' => now()->toDateTimeString(),
     ]);
