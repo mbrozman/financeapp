@@ -72,4 +72,17 @@ Route::match(['get', 'post'], '/cloud-run/scheduler/{token}', function ($token) 
         'output' => \Illuminate\Support\Facades\Artisan::output(),
         'execution_time' => now()->toDateTimeString(),
     ]);
+
+
+
+
+});
+
+
+
+
+use Illuminate\Support\Facades\Artisan;
+Route::get('/spusti-migraciu-12345', function () {
+    Artisan::call('migrate', ['--force' => true]);
+    return "✅ Databáza úspešne zmigrovaná!";
 });
