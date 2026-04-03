@@ -62,8 +62,8 @@ class OperationsCenterWidget extends Widget
                 'actual_spent' => $actualSpent,
                 'model_limit' => $modelLimit,
                 'color' => $item->color ?? '#94a3b8',
-                'is_essential' => str_contains($item->name, 'HLAVNÉ'),
-                'is_reserve' => str_contains($item->name, 'REZERVA'),
+                'is_essential' => str_contains(strtoupper($item->name), 'HLAVNÉ'),
+                'is_reserve' => $item->goal && $item->goal->is_reserve,
             ];
 
             if ($pillarData['is_essential']) {

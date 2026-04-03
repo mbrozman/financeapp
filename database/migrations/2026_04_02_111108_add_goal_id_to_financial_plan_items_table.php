@@ -12,7 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('financial_plan_items', function (Blueprint $table) {
-            //
+            $table->foreignId('goal_id')->nullable()->constrained()->nullOnDelete();
+            $table->dropColumn('is_reserve');
         });
     }
 
@@ -22,7 +23,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('financial_plan_items', function (Blueprint $table) {
-            //
+            $table->dropForeign(['goal_id']);
+            $table->dropColumn('goal_id');
+            $table->boolean('is_reserve')->default(false);
         });
     }
 };

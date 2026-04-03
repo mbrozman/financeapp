@@ -83,36 +83,35 @@ class FinancialPlanResource extends Resource
                                     ->helperText('Ak zapnete, táto suma sa započíta do modelového rastu majetku.')
                                     ->default(false),
 
-                                Forms\Components\Toggle::make('is_reserve')
-                                    ->label('📦 Je to rezervný fond?')
-                                    ->helperText('Tento šuflík (a jeho kategórie) budú plniť globálnu rezervu.')
-                                    ->default(false)
-                                    ->live(),
+                                Forms\Components\Select::make('goal_id')
+                                    ->label('Priradiť k cieľu')
+                                    ->relationship('goal', 'name')
+                                    ->placeholder('Vyber cieľ (voliteľné)')
+                                    ->searchable()
+                                    ->preload()
+                                    ->live()
+                                    ->helperText('Prepojte tento šuflík s konkrétnym majetkovým cieľom (napr. Rezerva).'),
 
-                                Forms\Components\Toggle::make('is_saving')
-                                    ->label('📈 Väčšia suma je lepšia?')
-                                    ->helperText('Zapnite pre Investovanie/Šetrenie. Prekročenie plánu bude vnímané ako úspech (zelená).')
-                                    ->default(false),
-
-                                Forms\Components\Placeholder::make('reserve_info')
+                                Forms\Components\Placeholder::make('goal_info')
                                     ->label('')
                                     ->content(function ($get) {
-                                        $isReserve = $get('is_reserve');
-                                        if (!$isReserve) {
-                                            return null;
-                                        }
+                                        $goalId = $get('goal_id');
+                                        if (!$goalId) return null;
 
-                                        $income = (float) $get('../../monthly_income');
-                                        $target = (float) $get('../../reserve_target');
+                                        $goal = \App\Models\Goal::find($goalId);
+                                        if (!$goal) return null;
+
+                                        $income = (float) ($get('../../monthly_income') ?? 0);
                                         $pct = (float) ($get('percentage') ?? 0);
                                         $monthly = $income * ($pct / 100);
+                                        $target = (float) $goal->target_amount;
                                         
                                         $months = $monthly > 0 ? round($target / $monthly, 1) : 0;
                                         
-                                        return "📦 Plnenie rezervy: mesačne {$monthly} €  → cieľ {$target} €  (cca {$months} mesiacov sporenia)";
+                                        return "🎯 Cieľ: {$goal->name} ({$target} €) | Mesačný vklad: {$monthly} € → cca {$months} mesiacov";
                                     })
                                     ->columnSpanFull()
-                                    ->visible(fn ($get) => (bool) $get('is_reserve')),
+                                    ->visible(fn ($get) => (bool) $get('goal_id')),
                             ])
                             ->columns(5) // Adjusted back from 6 after removing ROI toggle
                             ->defaultItems(3)

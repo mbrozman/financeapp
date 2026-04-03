@@ -14,10 +14,9 @@ class FinancialPlanItem extends Model
         'name', 
         'color',
         'percentage', 
+        'goal_id',
         'applies_expected_return', 
-        'contributes_to_net_worth', 
-        'is_reserve', 
-        'is_saving'
+        'contributes_to_net_worth'
     ];
 
     public static function getBaseColors(): array
@@ -35,10 +34,9 @@ class FinancialPlanItem extends Model
     }
 
     protected $casts = [
+        'percentage' => 'decimal:2',
         'contributes_to_net_worth' => 'boolean',
         'applies_expected_return' => 'boolean',
-        'is_reserve' => 'boolean',
-        'is_saving' => 'boolean',
     ];
 
     /**
@@ -52,6 +50,11 @@ class FinancialPlanItem extends Model
     public function financialPlan(): BelongsTo
     {
         return $this->belongsTo(FinancialPlan::class);
+    }
+
+    public function goal(): BelongsTo
+    {
+        return $this->belongsTo(Goal::class);
     }
 
     /**

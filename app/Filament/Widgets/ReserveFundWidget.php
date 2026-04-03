@@ -22,45 +22,27 @@ class ReserveFundWidget extends Widget
             ->where('is_reserve', true)
             ->first();
 
-        // Ak nemáme cieľ, skúsime starú logiku cez FinancialPlan (kompatibilita)
-        if (!$reserveGoal) {
-            $plan = \App\Models\FinancialPlan::where('user_id', $userId)->where('is_active', true)->first();
-            if (!$plan) return null;
+        if (!$reserveGoal) return null;
 
+        // 2. Nájdeme položku v AKTÍVNOM pláne, ktorá tento cieľ plní
+        $plan = \App\Models\FinancialPlan::where('user_id', $userId)->where('is_active', true)->first();
+        $monthlyAllocation = 0;
+        $percentage = 0;
+
+        if ($plan) {
             $reserveItem = \App\Models\FinancialPlanItem::where('financial_plan_id', $plan->id)
-                ->where('is_reserve', true)
+                ->where('goal_id', $reserveGoal->id)
                 ->first();
 
-            if (!$reserveItem) return null;
-
-            $targetAmount = (float) $plan->reserve_target;
-            
-            // Stará logika: len účty typu reserve
-            $savedAmount = (float) \App\Models\Account::where('user_id', $userId)
-                ->where('type', 'reserve')
-                ->where('is_active', true)
-                ->sum('balance');
-            
-            $name = $reserveItem->name;
-            $monthlyAllocation = (float) ($plan->monthly_income * ($reserveItem->percentage / 100));
-        } else {
-            // NOVÁ LOGIKA: Dáta priamo z Goal modelu (sčíta účty aj investície!)
-            $targetAmount = (float) $reserveGoal->target_amount;
-            $savedAmount = (float) $reserveGoal->current_amount;
-            $name = $reserveGoal->name;
-            
-            // Pre výpočet mesačnej alokácie si požičiame info z aktívneho plánu, ak existuje
-            $plan = \App\Models\FinancialPlan::where('user_id', $userId)->where('is_active', true)->first();
-            $monthlyAllocation = 0;
-            if ($plan) {
-                $reserveItem = \App\Models\FinancialPlanItem::where('financial_plan_id', $plan->id)
-                    ->where('is_reserve', true)
-                    ->first();
-                if ($reserveItem) {
-                    $monthlyAllocation = (float) ($plan->monthly_income * ($reserveItem->percentage / 100));
-                }
+            if ($reserveItem) {
+                $monthlyAllocation = (float) ($plan->monthly_income * ($reserveItem->percentage / 100));
+                $percentage = (float) $reserveItem->percentage;
             }
         }
+
+        $targetAmount = (float) $reserveGoal->target_amount;
+        $savedAmount = (float) $reserveGoal->current_amount;
+        $name = $reserveGoal->name;
 
         if ($targetAmount <= 0 && $savedAmount <= 0) return null;
 
@@ -77,8 +59,8 @@ class ReserveFundWidget extends Widget
             'progress'         => $progress,
             'months_coverage'  => $monthsCoverage,
             'months_remaining' => $monthsRemaining,
-            'index'            => $reserveGoal->id ?? 1,
-            'percentage'       => $reserveItem->percentage ?? 0,
+            'index'            => $reserveGoal->id,
+            'percentage'       => $percentage,
         ];
     }
 
