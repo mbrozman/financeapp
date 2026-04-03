@@ -98,3 +98,36 @@ Route::get('/diagnostika-db', function () {
         'migration_output' => Artisan::output(),
     ]);
 });
+
+// OPRAVNÁ TRASA - Natvrdo pridá chýbajúce stĺpce (Použi len ak predošlé kroky zlyhali!)
+Route::get('/oprav-db-manualne', function () {
+    try {
+        echo "<b>ZAČÍNAM MANUÁLNU OPRAVU DATABÁZY...</b><br>";
+
+        \Illuminate\Support\Facades\Schema::table('financial_plan_items', function ($table) {
+            if (!\Illuminate\Support\Facades\Schema::hasColumn('financial_plan_items', 'goal_id')) {
+                $table->foreignId('goal_id')->nullable()->constrained()->nullOnDelete();
+                echo "- STĹPEC 'goal_id' USPESNE PRIDANÝ do 'financial_plan_items'.<br>";
+            }
+            if (\Illuminate\Support\Facades\Schema::hasColumn('financial_plan_items', 'is_reserve')) {
+                $table->dropColumn('is_reserve');
+                echo "- STARÝ STĹPEC 'is_reserve' ODSTRÁNENÝ.<br>";
+            }
+            if (\Illuminate\Support\Facades\Schema::hasColumn('financial_plan_items', 'is_saving')) {
+                $table->dropColumn('is_saving');
+                echo "- STARÝ STĹPEC 'is_saving' ODSTRÁNENÝ.<br>";
+            }
+        });
+
+        \Illuminate\Support\Facades\Schema::table('goals', function ($table) {
+            if (!\Illuminate\Support\Facades\Schema::hasColumn('goals', 'include_all_investments')) {
+                $table->boolean('include_all_investments')->default(false)->after('target_amount');
+                echo "- STĹPEC 'include_all_investments' USPESNE PRIDANÝ do 'goals'.<br>";
+            }
+        });
+
+        return "<br>✅ <b>DATABÁZA BOLA MANUÁLNE OPRAVENÁ!</b> Teraz by už tvoja aplikácia na serveri mala nabehnúť v poriadku.";
+    } catch (\Exception $e) {
+        return "<br>❌ <b>CHYBA PRI MANUÁLNEJ OPRAVE:</b> " . $e->getMessage();
+    }
+});
