@@ -83,3 +83,18 @@ Route::get('/spusti-migraciu-12345', function () {
         return "❌ Chyba pri migrácii: " . $e->getMessage();
     }
 });
+
+// DIAGNOSTIKA DATABÁZY - Kontrola existujúcich stĺpcov
+Route::get('/diagnostika-db', function () {
+    $table = 'financial_plan_items';
+    $columns = \Illuminate\Support\Facades\Schema::getColumnListing($table);
+    $hasGoalId = \Illuminate\Support\Facades\Schema::hasColumn($table, 'goal_id');
+
+    return response()->json([
+        'tabulka' => $table,
+        'zoznam_stlpcov' => $columns,
+        'ma_goal_id' => $hasGoalId,
+        'migration_status' => Artisan::call('migrate:status'),
+        'migration_output' => Artisan::output(),
+    ]);
+});
