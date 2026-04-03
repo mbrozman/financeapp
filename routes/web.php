@@ -96,6 +96,7 @@ Route::get('/diagnostika-db', function () {
         'ma_goal_id' => $hasGoalId,
         'migration_status' => Artisan::call('migrate:status'),
         'migration_output' => Artisan::output(),
+        'server_cron_token' => config('app.cron_token'), // TOTO NÁM POVIE, ČO MÁ SERVER V .ENV
     ]);
 });
 
