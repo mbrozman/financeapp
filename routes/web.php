@@ -69,20 +69,19 @@ Route::match(['get', 'post'], '/cloud-run/scheduler/{token}', function ($token) 
     
     return response()->json([
         'status' => 'success',
-        'output' => \Illuminate\Support\Facades\Artisan::output(),
+    return response()->json([
+        'status' => 'success',
+        'output' => Artisan::output(),
         'execution_time' => now()->toDateTimeString(),
     ]);
-
-
-
-
 });
 
-
-
-
-use Illuminate\Support\Facades\Artisan;
+// DOČASNÁ TRASA PRE MIGRÁCIU - Po úspešnom spustení na serveri ju prosím zmaž!
 Route::get('/spusti-migraciu-12345', function () {
-    Artisan::call('migrate', ['--force' => true]);
-    return "✅ Databáza úspešne zmigrovaná!";
+    try {
+        Artisan::call('migrate', ['--force' => true]);
+        return "✅ Databáza úspešne zmigrovaná!<br><br><b>Výstup:</b><br><pre>" . Artisan::output() . "</pre>";
+    } catch (\Exception $e) {
+        return "❌ Chyba pri migrácii: " . $e->getMessage();
+    }
 });
