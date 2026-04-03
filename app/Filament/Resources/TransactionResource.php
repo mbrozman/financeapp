@@ -63,7 +63,7 @@ class TransactionResource extends Resource
                                     'income' => 'income',
                                     default => 'expense',
                                 })
-                                ->whereDoesntHave('planItem', fn($q) => $q->where('is_reserve', true))
+                                ->whereDoesntHave('planItem', fn($q) => $q->whereHas('goal', fn($g) => $g->where('is_reserve', true)))
                                 ->pluck('name', 'id')
                             )
                             ->live()
