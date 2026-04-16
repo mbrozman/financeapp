@@ -27,7 +27,8 @@ class Investment extends Model
         'total_invested_base', 'total_invested_eur',
         'total_sales_base', 'total_sales_eur',
         'total_dividends_base', 'realized_gain_base',
-        'total_dividends_eur', 'realized_gain_eur', 'notes',
+        'total_dividends_eur', 'realized_gain_eur',
+        'current_market_value_eur', 'notes',
     ];
 
     protected $casts = [
@@ -150,7 +151,8 @@ class Investment extends Model
     protected function currentMarketValueEur(): Attribute
     {
         return Attribute::make(
-            get: function () {
+            get: function ($value) {
+                if ($value !== null) return $value;
                 if ($this->is_archived) return $this->total_sales_eur ?? '0';
                 return CurrencyService::convertToEur($this->current_market_value_base ?? '0', $this->currency_id);
             }

@@ -5,6 +5,8 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\RecurringTransactionResource\Pages;
 use App\Filament\Resources\RecurringTransactionResource\RelationManagers;
 use App\Models\RecurringTransaction;
+use App\Models\Category;
+use App\Models\FinancialPlanItem;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -61,15 +63,49 @@ class RecurringTransactionResource extends Resource
                             ->searchable()
                             ->preload(),
 
-                        Forms\Components\Select::make('category_id')
-                            ->label('Kategória')
-                            ->relationship('category', 'name', function (Builder $query) {
-                                return $query->whereDoesntHave('planItem', fn($q) => $q->whereHas('goal', fn($g) => $g->where('is_reserve', true)))
-                                    ->whereDoesntHave('parent.planItem', fn($q) => $q->whereHas('goal', fn($g) => $g->where('is_reserve', true)));
-                            })
+                        Forms\Components\Select::make('parent_category_id')
+                            ->label('Hlavná skupina')
+                            ->options(fn(Forms\Get $get) => Category::whereNull('parent_id')
+                                ->where('type', match($get('type')) {
+                                    'income' => 'income',
+                                    default => 'expense',
+                                })
+                                ->whereDoesntHave('planItem', fn($q) => $q->whereHas('goal', fn($g) => $g->where('is_reserve', true)))
+                                ->pluck('name', 'id')
+                            )
+                            ->live()
+                            ->dehydrated(false)
                             ->searchable()
-                            ->preload()
-                            ->hidden(fn (Forms\Get $get) => $get('type') === 'transfer'),
+                            ->placeholder('Vyberte hlavnú skupinu...')
+                            ->afterStateHydrated(function (Forms\Components\Select $component, $state, ?RecurringTransaction $record) {
+                                if ($record?->category?->parent_id) {
+                                    $component->state($record->category->parent_id);
+                                }
+                            }),
+
+                        Forms\Components\Select::make('category_id')
+                            ->label('Podkategória / Detail')
+                            ->placeholder(fn (Forms\Get $get) => $get('parent_category_id') ? 'Vyberte detail...' : 'Vyberte zo zoznamu')
+                            ->options(function (Forms\Get $get) {
+                                $parentId = $get('parent_category_id');
+                                $type = $get('type') === 'income' ? 'income' : 'expense';
+                                
+                                $query = Category::whereNotNull('parent_id')
+                                    ->where('type', $type);
+                                    
+                                if ($parentId) {
+                                    $query->where('parent_id', $parentId);
+                                }
+                                
+                                return $query->with('parent')
+                                    ->get()
+                                    ->groupBy('parent.name')
+                                    ->map(fn($categories) => $categories->pluck('name', 'id'))
+                                    ->toArray();
+                            })
+                            ->required(fn (Forms\Get $get) => in_array($get('type'), ['income', 'expense']))
+                            ->searchable()
+                            ->preload(),
 
                         Forms\Components\Select::make('to_account_id')
                             ->label('Cieľový účet')
@@ -140,6 +176,17 @@ class RecurringTransactionResource extends Resource
                     ->label('Suma')
                     ->money('EUR')
                     ->color(fn($record) => $record->type === 'expense' ? 'danger' : 'success'),
+
+                Tables\Columns\TextColumn::make('category.name')
+                    ->label('Kategória')
+                    ->formatStateUsing(function ($record) {
+                        return $record->category?->parent 
+                            ? $record->category->parent->name . ' > ' . $record->category->name 
+                            : $record->category?->name;
+                    })
+                    ->placeholder('Bez kategórie')
+                    ->searchable()
+                    ->sortable(),
 
                 Tables\Columns\TextColumn::make('interval')
                     ->label('Interval')

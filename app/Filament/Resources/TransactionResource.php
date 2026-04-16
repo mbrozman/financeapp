@@ -69,6 +69,11 @@ class TransactionResource extends Resource
                             ->live()
                             ->dehydrated(false)
                             ->searchable()
+                            ->afterStateHydrated(function (Forms\Components\Select $component, $state, ?Transaction $record) {
+                                if ($record?->category?->parent_id) {
+                                    $component->state($record->category->parent_id);
+                                }
+                            })
                             ->createOptionForm([
                                 Forms\Components\TextInput::make('name')
                                     ->label('Názov hlavnej skupiny')

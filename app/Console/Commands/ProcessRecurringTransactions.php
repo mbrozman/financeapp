@@ -52,6 +52,7 @@ class ProcessRecurringTransactions extends Command
                         $out->account_id = $item->account_id;
                         $out->description = "Pravidelný prevod ➜ {$item->toAccount->name}: {$item->name}";
                         $out->transaction_date = $item->next_date->copy();
+                        $out->category_id = $item->category_id;
                         $out->save();
 
                         // 2. Príjem na cieľový účet
@@ -63,6 +64,10 @@ class ProcessRecurringTransactions extends Command
                         $in->description = "Pravidelný prevod z {$item->account->name}: {$item->name}";
                         $in->transaction_date = $item->next_date->copy();
                         $in->save();
+
+                        // Prepojíme ich navzájom
+                        $out->updateQuietly(['linked_transaction_id' => $in->id]);
+                        $in->updateQuietly(['linked_transaction_id' => $out->id]);
 
                     } else {
                         // BEŽNÁ PLATBA (Príjem/Výdavok)

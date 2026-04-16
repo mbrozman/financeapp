@@ -159,20 +159,24 @@ class InvestmentCalculationService
             ->minus($totalCleanCostOfRemaining)
             ->minus($totalRemainingComm);
 
+        $currentValueBase = $currentQty->multipliedBy($currentPrice);
+        $currentValueEur = CurrencyService::convertToEur($currentValueBase, $investment->currency_id);
+
         return [
-            'current_quantity'      => (string) $currentQty,
-            'average_buy_price'     => (string) $avgPrice,
-            'average_buy_price_eur' => (string) $avgPriceEur,
-            'realized_gain_base'    => (string) $realizedGainBase,
-            'unrealized_gain_base'  => (string) $unrealizedGainBase,
-            'total_invested_base'   => (string) $totalInvestedBase,
-            'total_invested_eur'    => (string) $totalInvestedEur,
-            'total_sales_base'      => (string) $totalSalesBase,
-            'total_sales_eur'       => (string) $totalSalesEur,
-            'total_dividends_base'  => (string) $totalDividendsBase,
-            'total_dividends_eur'   => (string) $totalDividendsEur,
-            'realized_gain_eur'     => (string) $realizedGainEur,
-            'remaining_lots'        => $remainingLots,
+            'current_quantity'          => (string) $currentQty,
+            'current_market_value_eur'  => (string) $currentValueEur,
+            'average_buy_price'         => (string) $avgPrice,
+            'average_buy_price_eur'     => (string) $avgPriceEur,
+            'realized_gain_base'        => (string) $realizedGainBase,
+            'unrealized_gain_base'      => (string) $unrealizedGainBase,
+            'total_invested_base'       => (string) $totalInvestedBase,
+            'total_invested_eur'        => (string) $totalInvestedEur,
+            'total_sales_base'          => (string) $totalSalesBase,
+            'total_sales_eur'           => (string) $totalSalesEur,
+            'total_dividends_base'      => (string) $totalDividendsBase,
+            'total_dividends_eur'       => (string) $totalDividendsEur,
+            'realized_gain_eur'         => (string) $realizedGainEur,
+            'remaining_lots'            => $remainingLots,
         ];
     }
 
@@ -184,18 +188,19 @@ class InvestmentCalculationService
         $stats = self::getStats($investment);
 
         $investment->update([
-            'total_quantity'        => $stats['current_quantity'],
-            'average_buy_price'     => $stats['average_buy_price'],
-            'average_buy_price_eur' => $stats['average_buy_price_eur'],
-            'total_invested_base'   => $stats['total_invested_base'],
-            'total_invested_eur'    => $stats['total_invested_eur'],
-            'total_sales_base'      => $stats['total_sales_base'],
-            'total_sales_eur'       => $stats['total_sales_eur'],
-            'total_dividends_base'  => $stats['total_dividends_base'],
-            'total_dividends_eur'   => $stats['total_dividends_eur'],
-            'realized_gain_base'    => $stats['realized_gain_base'],
-            'realized_gain_eur'     => $stats['realized_gain_eur'],
-            'is_archived'           => (\Brick\Math\BigDecimal::of($stats['current_quantity'] ?? 0)->isZero()),
+            'total_quantity'            => $stats['current_quantity'],
+            'current_market_value_eur'  => $stats['current_market_value_eur'],
+            'average_buy_price'         => $stats['average_buy_price'],
+            'average_buy_price_eur'     => $stats['average_buy_price_eur'],
+            'total_invested_base'       => $stats['total_invested_base'],
+            'total_invested_eur'        => $stats['total_invested_eur'],
+            'total_sales_base'          => $stats['total_sales_base'],
+            'total_sales_eur'           => $stats['total_sales_eur'],
+            'total_dividends_base'      => $stats['total_dividends_base'],
+            'total_dividends_eur'       => $stats['total_dividends_eur'],
+            'realized_gain_base'        => $stats['realized_gain_base'],
+            'realized_gain_eur'         => $stats['realized_gain_eur'],
+            'is_archived'               => (\Brick\Math\BigDecimal::of($stats['current_quantity'] ?? 0)->isZero()),
         ]);
         
         if (method_exists($investment, 'clearStatsCache')) {

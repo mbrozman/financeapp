@@ -26,8 +26,12 @@ class UpdateStockPrices extends Command
         $liveData = $api->getLiveQuote($investment->ticker);
 
         if ($liveData) {
+            $currentValueBase = \Brick\Math\BigDecimal::of($investment->total_quantity)->multipliedBy($liveData['price']);
+            $currentValueEur = \App\Services\CurrencyService::convertToEur($currentValueBase, $investment->currency_id);
+
             $investment->update([
                 'current_price' => $liveData['price'],
+                'current_market_value_eur' => (string)$currentValueEur,
                 'daily_change_percentage' => $liveData['change_percent'],
                 'last_price_update' => now(),
             ]);

@@ -37,6 +37,7 @@ class MigrationController extends Controller
                 'total_dividends_eur' => 'decimal(19,4) DEFAULT 0',
                 'realized_gain_base' => 'decimal(19,4) DEFAULT 0',
                 'realized_gain_eur' => 'decimal(19,4) DEFAULT 0',
+                'current_market_value_eur' => 'decimal(19,4) DEFAULT 0',
             ];
 
             foreach ($colsToAdd as $col => $definition) {
