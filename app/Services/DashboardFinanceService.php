@@ -78,7 +78,6 @@ class DashboardFinanceService
         )
             ->where('user_id', $userId)
             ->whereYear('transaction_date', $year)
-            ->whereNull('linked_transaction_id')
             ->first();
 
         $data = Transaction::select(
@@ -88,7 +87,6 @@ class DashboardFinanceService
         )
             ->where('user_id', $userId)
             ->whereYear('transaction_date', $year)
-            ->whereNull('linked_transaction_id')
             ->groupBy('month')
             ->orderBy('month')
             ->get();

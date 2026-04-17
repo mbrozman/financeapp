@@ -123,7 +123,22 @@ class ExecuteInvestmentPlans extends Command
                     $this->info("    ✅ Nakúpené: {$quantity} ks");
                 }
 
-                // 5. UPDATE PLÁNU (Next Run Date)
+                // 5. VYTVORENIE CASH TRANSAKCIE (Deduction from Account)
+                if ($plan->account_id) {
+                    \App\Models\Transaction::create([
+                        'user_id' => $plan->user_id,
+                        'account_id' => $plan->account_id,
+                        'amount' => -abs($plan->amount),
+                        'currency_id' => $plan->currency_id,
+                        'transaction_date' => now(),
+                        'type' => 'transfer', // Používame 'transfer' pre čistý Cashflow, ale so započítaním do Budgetu
+                        'description' => "Investičný nákup: {$plan->name}",
+                        'category_id' => $plan->category_id,
+                    ]);
+                    $this->info("  -> Hotovosť odpočítaná z účtu: {$plan->account->name}");
+                }
+
+                // 6. UPDATE PLÁNU (Next Run Date)
                 $nextDate = match ($plan->frequency) {
                     'daily' => $plan->next_run_date->addDay(),
                     'weekly' => $plan->next_run_date->addWeek(),

@@ -95,6 +95,7 @@ class CategoryBudgetTable extends Widget
                     $tree[$pName] = [
                         'amount' => 0,
                         'color' => $pColor,
+                        'is_savings' => $pillar->contributes_to_net_worth ?? false,
                         'parent_categories' => []
                     ];
                 }

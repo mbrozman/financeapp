@@ -66,17 +66,34 @@
                         <div class="p-4 flex flex-col gap-2">
                             @foreach($pData['parent_categories'] as $cName => $cData)
                                 @php
+                                    $isSavings  = $pData['is_savings'] ?? false;
                                     $hasLimit   = $cData['limit'] > 0;
                                     $pct        = $cData['percent'];
                                     $overBudget = $pct >= 101;
                                     $nearLimit  = $pct >= 85 && !$overBudget;
 
-                                    $barHex   = $overBudget ? '#ef4444' : ($nearLimit ? '#f59e0b' : '#22c55e');
-                                    $pctClass = $overBudget
-                                        ? 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400'
-                                        : ($nearLimit
-                                            ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400'
-                                            : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400');
+                                    if ($isSavings) {
+                                        // LOGIKA PRE SPORENIE: Nad 100% = Super (Zelená), Málo = Červená
+                                        $barHex = $pct >= 100 ? '#22c55e' : ($pct >= 50 ? '#f59e0b' : '#ef4444');
+                                        $pctClass = $pct >= 100
+                                            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400'
+                                            : ($pct >= 50
+                                                ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400'
+                                                : 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400');
+                                        
+                                        $amountColorClass = $pct >= 100 ? 'text-emerald-500' : 'text-gray-900 dark:text-white';
+                                    } else {
+                                        // LOGIKA PRE VÝDAVKY: Nad 100% = Zle (Červená)
+                                        $barHex = $overBudget ? '#ef4444' : ($nearLimit ? '#f59e0b' : '#22c55e');
+                                        $pctClass = $overBudget
+                                            ? 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400'
+                                            : ($nearLimit
+                                                ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400'
+                                                : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400');
+                                        
+                                        $amountColorClass = $overBudget ? 'text-red-500' : 'text-gray-900 dark:text-white';
+                                    }
+
                                     $barWidth = min($pct, 100);
                                 @endphp
 
@@ -87,7 +104,7 @@
                                     <div class="flex items-start justify-between gap-2">
                                         <span class="text-[13px] font-bold text-gray-800 dark:text-gray-200 leading-snug">{{ $cName }}</span>
                                         <div class="text-right shrink-0">
-                                            <div class="text-sm font-extrabold tabular-nums leading-none {{ $overBudget ? 'text-red-500' : 'text-gray-900 dark:text-white' }}">
+                                            <div class="text-sm font-extrabold tabular-nums leading-none {{ $amountColorClass }}">
                                                 {{ number_format($cData['amount'], 0, ',', ' ') }} €
                                             </div>
                                             @if($hasLimit)
@@ -116,11 +133,16 @@
                                     @if(!empty($cData['subcategories']))
                                         <div class="mt-2.5 pt-2 border-t border-gray-100 dark:border-gray-700 space-y-1.5">
                                             @foreach($cData['subcategories'] as $sName => $sData)
-                                                @php $sOver = $sData['limit'] > 0 && $sData['percent'] >= 101; @endphp
+                                                @php 
+                                                    $sOver = $sData['limit'] > 0 && $sData['percent'] >= 101; 
+                                                    $sAmountColor = $isSavings 
+                                                        ? ($sData['percent'] >= 100 ? 'text-emerald-500' : 'text-gray-700 dark:text-gray-300')
+                                                        : ($sOver ? 'text-red-500' : 'text-gray-700 dark:text-gray-300');
+                                                @endphp
                                                 <div class="flex items-center justify-between gap-2">
                                                     <span class="text-[11px] text-gray-500 dark:text-gray-400 truncate">{{ $sName }}</span>
                                                     <div class="flex items-center gap-1.5 shrink-0">
-                                                        <span class="text-[11px] font-semibold tabular-nums {{ $sOver ? 'text-red-500' : 'text-gray-700 dark:text-gray-300' }}">
+                                                        <span class="text-[11px] font-semibold tabular-nums {{ $sAmountColor }}">
                                                             {{ number_format($sData['amount'], 0, ',', ' ') }} €
                                                         </span>
                                                         @if($sData['limit'] > 0)

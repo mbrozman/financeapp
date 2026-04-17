@@ -17,6 +17,7 @@ class InvestmentPlan extends Model
         'account_id',
         'amount',
         'currency_id',
+        'category_id',
         'frequency',
         'next_run_date',
         'is_active',
@@ -46,6 +47,11 @@ class InvestmentPlan extends Model
     public function currency(): BelongsTo
     {
         return $this->belongsTo(Currency::class);
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(Category::class);
     }
 
     public function transactions(): \Illuminate\Database\Eloquent\Relations\HasMany

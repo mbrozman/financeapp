@@ -77,6 +77,8 @@ class InvestmentPlanResource extends Resource
                             ->required()
                             ->columnSpan(1),
 
+                        \App\Filament\Resources\RecurringTransactionResource::getCategoryFields(),
+
                         Forms\Components\Toggle::make('is_active')
                             ->label('Plán je aktívny')
                             ->default(true)

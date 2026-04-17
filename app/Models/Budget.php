@@ -51,7 +51,10 @@ class Budget extends Model
                     ->pluck('id');
 
                 $sum = Transaction::whereIn('category_id', $categoryIds)
-                    ->where('type', 'expense')
+                    ->where(function ($query) {
+                        $query->where('type', 'expense')
+                            ->orWhere(fn($q) => $q->where('type', 'transfer')->where('amount', '<', 0));
+                    })
                     ->whereYear('transaction_date', $now->year)
                     ->whereMonth('transaction_date', $now->month)
                     ->sum('amount');
