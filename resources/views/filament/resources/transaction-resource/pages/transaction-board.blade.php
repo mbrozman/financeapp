@@ -292,7 +292,7 @@
     </style>
 
     {{-- SMART COMMAND BAR --}}
-    <div class="mb-8 max-w-5xl mx-auto">
+    <div class="mb-8 w-full">
         <div class="relative group">
             <div class="absolute -inset-1 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-2xl blur opacity-25 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
             <div class="relative flex items-center bg-white dark:bg-gray-900 ring-1 ring-gray-950/5 dark:ring-white/10 rounded-xl overflow-hidden shadow-sm">

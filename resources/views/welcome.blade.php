@@ -217,6 +217,7 @@
             <img src="{{ asset('images/logo.svg') }}" alt="Vaulty Logo" class="logo-icon">
             <span class="logo-text">VAULTY</span>
         </div>
+        
         <div class="nav-links">
             @auth
                 <a href="{{ url('/admin') }}">Dashboard</a>

@@ -89,8 +89,8 @@ class TransactionMonthFilter extends Widget implements HasForms
 
     public function resetFilter(): void
     {
-        $this->month = null;
-        $this->form->fill(['month' => null]);
-        $this->dispatch('filterUpdated', month: null);
+        $this->month = now()->format('Y-m');
+        $this->form->fill(['month' => $this->month]);
+        $this->dispatch('filterUpdated', month: $this->month);
     }
 }

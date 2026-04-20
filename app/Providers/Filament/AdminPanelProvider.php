@@ -28,10 +28,9 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->login()
             ->brandName('Vault')
+            ->brandLogo(fn () => view('filament.components.brand'))
             ->sidebarCollapsibleOnDesktop()
             ->globalSearch(false)
-            ->brandLogo(asset('images/logo.svg'))
-            ->brandLogoHeight('52px')
             ->favicon(asset('images/logo.svg'))
             ->profile()
             ->colors([
@@ -51,51 +50,68 @@ class AdminPanelProvider extends PanelProvider
                 fn (): string => \Illuminate\Support\Facades\Blade::render('@livewire(\'global-currency-switcher\')'),
             )
             ->renderHook(
+                \Filament\View\PanelsRenderHook::SIDEBAR_FOOTER,
+                fn (): string => \Illuminate\Support\Facades\Blade::render('
+                    <div class="flex items-center justify-center p-4 border-t border-gray-100 dark:border-white/5">
+                        <button 
+                            x-on:click="window.dispatchEvent(new CustomEvent(\'toggle-sidebar\'))"
+                            type="button"
+                            class="flex items-center justify-center p-2 text-gray-500 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5 transition-colors"
+                        >
+                            <x-heroicon-m-chevron-double-left class="w-6 h-6 transition-transform" x-bind:class="$store.sidebar.isOpen ? \'\' : \'rotate-180\'" />
+                        </button>
+                    </div>
+                '),
+            )
+            ->renderHook(
                 \Filament\View\PanelsRenderHook::HEAD_END,
                 fn (): string => \Illuminate\Support\Facades\Blade::render('
                     <style>
-                        /* Presun šípky na spodok */
-                        .fi-sidebar-collapse-button {
-                            position: absolute;
-                            bottom: 10px;
-                            left: 50%;
-                            transform: translateX(-50%);
-                            z-index: 50;
+                        /* Skryť pôvodné ovládacie prvky (šípky hore) */
+                        .fi-topbar .fi-sidebar-collapse-button, 
+                        .fi-sidebar-header .fi-sidebar-collapse-button,
+                        header button[x-on*="sidebar"] {
+                            display: none !important;
                         }
                         
-                        /* Logo neschovávať v collapsed režime */
+                        /* Tmavší a oddelený sidebar */
+                        .fi-sidebar {
+                            background-color: #f8faf8 !important;
+                            border-right: 1px solid #e2e8e2 !important;
+                            position: relative !important;
+                        }
+                        .dark .fi-sidebar {
+                            background-color: #0d130d !important;
+                            border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
+                        }
+
+                        /* Fix loga a názvu VAULTY */
                         .fi-sidebar-header {
+                            padding: 1.25rem !important;
                             display: flex !important;
-                            justify-content: center;
-                            padding-top: 15px !important;
-                        }
-
-                        .fi-sidebar-header a::after {
-                            content: "Vault";
-                            font-weight: 700;
-                            font-size: 1.8rem;
-                            margin-left: 12px;
-                            color: #1a3e10;
-                            display: inline-block;
-                            vertical-align: middle;
-                            transition: all 0.2s;
-                        }
-
-                        /* Schovať text Vault v collapsed režime, ale nechať logo */
-                        .fi-main-sidebar-open-desktop .fi-sidebar-header a::after,
-                        aside:not(.fi-sidebar-open-desktop) .fi-sidebar-header a::after {
-                            display: none;
+                            justify-content: flex-start !important;
+                            align-items: center !important;
                         }
 
                         .fi-sidebar-header a {
-                            display: flex;
-                            align-items: center;
-                            text-decoration: none;
+                            display: flex !important;
+                            align-items: center !important;
+                            gap: 0.75rem !important;
+                            text-decoration: none !important;
+                        }
+
+                        .vaulty-brand-name {
+                            display: inline-block !important;
+                            opacity: 1 !important;
+                            visibility: visible !important;
                         }
                         
-                        /* Odstrániť pôvodné umiestnenie tlačidla v headeri */
-                        .fi-sidebar-header .fi-sidebar-collapse-button {
-                            position: absolute !important;
+                        /* Centrovanie loga v zbalenom stave */
+                        aside:not(.fi-main-sidebar-open-desktop) .vaulty-brand-name {
+                            display: none !important;
+                        }
+                        aside:not(.fi-main-sidebar-open-desktop) .fi-sidebar-header {
+                            justify-content: center !important;
                         }
                     </style>
                 '),

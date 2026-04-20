@@ -158,13 +158,18 @@ class TransactionBoard extends Page implements Forms\Contracts\HasForms
             ]);
         }
 
-        // ZORADENIE: Vlastné zo settings alebo predvolené
-        $savedOrder = auth()->user()->settings['board_order'] ?? [];
+        // ZORADENIE A FILTROVANIE: Vlastné zo settings
+        $boardSettings = auth()->user()->settings['board_settings'] ?? [];
+        $order = collect($boardSettings)->pluck('id')->toArray();
+        $hiddenIds = collect($boardSettings)->where('is_visible', false)->pluck('id')->toArray();
+
+        // Odstránime schované
+        $sections = $sections->reject(fn($s) => in_array($s['id'], $hiddenIds));
         
-        $sorted = $sections->sort(function ($a, $b) use ($savedOrder) {
-            if (!empty($savedOrder)) {
-                $posA = array_search($a['id'], $savedOrder);
-                $posB = array_search($b['id'], $savedOrder);
+        $sorted = $sections->sort(function ($a, $b) use ($order) {
+            if (!empty($order)) {
+                $posA = array_search($a['id'], $order);
+                $posB = array_search($b['id'], $order);
                 
                 if ($posA !== false && $posB !== false) return $posA <=> $posB;
                 if ($posA !== false) return -1;
@@ -415,15 +420,25 @@ class TransactionBoard extends Page implements Forms\Contracts\HasForms
                 ->icon('heroicon-m-cog-6-tooth')
                 ->color('gray')
                 ->modalHeading('Nastavenia Boardu')
-                ->modalDescription('Zmeňte poradie stĺpcov preťahovaním.')
+                ->modalDescription('Zmeňte poradie a viditeľnosť stĺpcov.')
                 ->form([
-                    Forms\Components\Repeater::make('board_order')
-                        ->label('Poradie stĺpcov')
+                    Forms\Components\Repeater::make('board_settings')
+                        ->label('Zoznam stĺpcov')
                         ->schema([
-                            Forms\Components\TextInput::make('title')
-                                ->disabled()
-                                ->label('Názov stĺpca'),
-                            Forms\Components\Hidden::make('id'),
+                            Forms\Components\Grid::make(12)
+                                ->schema([
+                                    Forms\Components\TextInput::make('title')
+                                        ->disabled()
+                                        ->label('Názov stĺpca')
+                                        ->columnSpan(8),
+                                    Forms\Components\Toggle::make('is_visible')
+                                        ->label('Viditeľný')
+                                        ->onIcon('heroicon-m-eye')
+                                        ->offIcon('heroicon-m-eye-slash')
+                                        ->inline(false)
+                                        ->columnSpan(4),
+                                    Forms\Components\Hidden::make('id'),
+                                ]),
                         ])
                         ->reorderable()
                         ->addable(false)
@@ -431,8 +446,6 @@ class TransactionBoard extends Page implements Forms\Contracts\HasForms
                         ->itemLabel(fn (array $state): ?string => $state['title'] ?? null),
                 ])
                 ->fillForm(function() {
-                    $date = Carbon::parse($this->month . '-01');
-                    
                     // Musíme vziať sekcie v aktuálnom poradí pred prepočtom Masonry
                     $mainCategories = Category::where('user_id', auth()->id())
                         ->whereNull('parent_id')
@@ -443,14 +456,23 @@ class TransactionBoard extends Page implements Forms\Contracts\HasForms
                         ->push(['id' => 'incomes', 'title' => 'PRÍJMY'])
                         ->push(['id' => 'transfers', 'title' => 'INTERNÉ PREVODY'])
                         ->push(['id' => 'recurring', 'title' => 'PRAVIDELNÉ PLATBY'])
-                        ->push(['id' => 'investments', 'title' => 'INVESTÍCIE']);
+                        ->push(['id' => 'investments', 'title' => 'INVESTÍCIE'])
+                        ->push(['id' => 'uncategorized', 'title' => 'NEZARADENÉ']);
 
-                    $savedOrder = auth()->user()->settings['board_order'] ?? [];
+                    $savedSettings = auth()->user()->settings['board_settings'] ?? [];
                     
-                    $sorted = $sections->sort(function($a, $b) use ($savedOrder) {
-                        if (!empty($savedOrder)) {
-                            $posA = array_search($a['id'], $savedOrder);
-                            $posB = array_search($b['id'], $savedOrder);
+                    $sorted = $sections->map(function($s) use ($savedSettings) {
+                        $setting = collect($savedSettings)->firstWhere('id', $s['id']);
+                        return [
+                            'id' => $s['id'],
+                            'title' => $s['title'],
+                            'is_visible' => $setting['is_visible'] ?? true,
+                        ];
+                    })->sort(function($a, $b) use ($savedSettings) {
+                        if (!empty($savedSettings)) {
+                            $order = collect($savedSettings)->pluck('id')->toArray();
+                            $posA = array_search($a['id'], $order);
+                            $posB = array_search($b['id'], $order);
                             if ($posA !== false && $posB !== false) return $posA <=> $posB;
                             if ($posA !== false) return -1;
                             if ($posB !== false) return 1;
@@ -459,17 +481,16 @@ class TransactionBoard extends Page implements Forms\Contracts\HasForms
                     });
 
                     return [
-                        'board_order' => $sorted->values()->toArray()
+                        'board_settings' => $sorted->values()->toArray()
                     ];
                 })
                 ->action(function (array $data) {
-                    $order = collect($data['board_order'])->pluck('id')->toArray();
                     $settings = auth()->user()->settings ?? [];
-                    $settings['board_order'] = $order;
+                    $settings['board_settings'] = $data['board_settings'];
                     
                     auth()->user()->update(['settings' => $settings]);
                     
-                    Notification::make()->title('Poradie uložené')->success()->send();
+                    Notification::make()->title('Nastavenia uložené')->success()->send();
                 }),
 
             Actions\Action::make('list_view')
