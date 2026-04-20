@@ -77,7 +77,7 @@ class PillarPerformanceWidget extends Widget
                 'percentage' => $item->percentage,
                 'allocated_limit' => $allocation,
                 'actual_spent' => $spent,
-                'is_saving' => (bool) $item->is_saving,
+                'is_saving' => (bool) ($item->is_saving || $item->contributes_to_net_worth),
                 'color' => $item->color ?? '#94a3b8',
             ];
         }

@@ -47,7 +47,7 @@ class ProcessRecurringTransactions extends Command
                         // 1. Výdavok zo zdrojového účtu
                         $out = new Transaction();
                         $out->type = 'transfer';
-                        $out->amount = -abs($item->amount);
+                        $out->amount = -(float)(string) $item->amount; // (string) zachová decimal presnosť
                         $out->user_id = $item->user_id;
                         $out->account_id = $item->account_id;
                         $out->description = "Pravidelný prevod ➜ {$item->toAccount->name}: {$item->name}";
@@ -58,7 +58,7 @@ class ProcessRecurringTransactions extends Command
                         // 2. Príjem na cieľový účet
                         $in = new Transaction();
                         $in->type = 'transfer';
-                        $in->amount = abs($item->amount);
+                        $in->amount = (float)(string) $item->amount;
                         $in->user_id = $item->user_id;
                         $in->account_id = $item->to_account_id;
                         $in->description = "Pravidelný prevod z {$item->account->name}: {$item->name}";
@@ -73,7 +73,7 @@ class ProcessRecurringTransactions extends Command
                         // BEŽNÁ PLATBA (Príjem/Výdavok)
                         $transaction = new Transaction();
                         $transaction->type = $item->type;
-                        $transaction->amount = $item->amount;
+                        $transaction->amount = (string) $item->amount; // zachová presnosť decimal:4
                         $transaction->user_id = $item->user_id;
                         $transaction->account_id = $item->account_id;
                         $transaction->category_id = $item->category_id;

@@ -3,6 +3,8 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\TransactionResource\Pages;
+use App\Filament\Resources\TransactionResource\Widgets;
+
 use App\Models\Transaction;
 use App\Models\Category;
 use App\Models\FinancialPlanItem;
@@ -114,7 +116,7 @@ class TransactionResource extends Resource
                                     ->map(fn($categories) => $categories->pluck('name', 'id'))
                                     ->toArray();
                             })
-                            ->required(fn ($get) => $get('type') !== 'transfer')
+                            ->required()
                             ->searchable()
                             ->createOptionForm([
                                 Forms\Components\TextInput::make('name')
@@ -203,7 +205,7 @@ class TransactionResource extends Resource
                         
                         return \App\Services\CurrencyService::convert(
                             $record->amount,
-                            $record->account->currency_id,
+                            $record->account?->currency_id,
                             $targetCurrency?->id
                         );
                     })
@@ -219,7 +221,7 @@ class TransactionResource extends Resource
                     })
                     ->description(function (Transaction $record) {
                         $globalCurrency = session('global_currency');
-                        if ($globalCurrency && $globalCurrency !== $record->account->currency->code) {
+                        if ($globalCurrency && $record->account?->currency && $globalCurrency !== $record->account->currency->code) {
                             return 'Pôvodne: ' . number_format(abs($record->amount), 2, ',', ' ') . ' ' . $record->account->currency->code;
                         }
                         return null;
@@ -265,9 +267,17 @@ class TransactionResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListTransactions::route('/'),
+            'index' => Pages\TransactionBoard::route('/'),
+            'list' => Pages\ListTransactions::route('/list'),
             'create' => Pages\CreateTransaction::route('/create'),
             'edit' => Pages\EditTransaction::route('/{record}/edit'),
+        ];
+    }
+
+    public static function getWidgets(): array
+    {
+        return [
+            Widgets\TransactionSummaryWidget::class,
         ];
     }
 }

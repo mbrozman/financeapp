@@ -13,6 +13,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class RecurringTransactionResource extends Resource
@@ -63,49 +64,7 @@ class RecurringTransactionResource extends Resource
                             ->searchable()
                             ->preload(),
 
-                        Forms\Components\Select::make('parent_category_id')
-                            ->label('Hlavná skupina')
-                            ->options(fn(Forms\Get $get) => Category::whereNull('parent_id')
-                                ->where('type', match($get('type')) {
-                                    'income' => 'income',
-                                    default => 'expense',
-                                })
-                                ->whereDoesntHave('planItem', fn($q) => $q->whereHas('goal', fn($g) => $g->where('is_reserve', true)))
-                                ->pluck('name', 'id')
-                            )
-                            ->live()
-                            ->dehydrated(false)
-                            ->searchable()
-                            ->placeholder('Vyberte hlavnú skupinu...')
-                            ->afterStateHydrated(function (Forms\Components\Select $component, $state, ?RecurringTransaction $record) {
-                                if ($record?->category?->parent_id) {
-                                    $component->state($record->category->parent_id);
-                                }
-                            }),
-
-                        Forms\Components\Select::make('category_id')
-                            ->label('Podkategória / Detail')
-                            ->placeholder(fn (Forms\Get $get) => $get('parent_category_id') ? 'Vyberte detail...' : 'Vyberte zo zoznamu')
-                            ->options(function (Forms\Get $get) {
-                                $parentId = $get('parent_category_id');
-                                $type = $get('type') === 'income' ? 'income' : 'expense';
-                                
-                                $query = Category::whereNotNull('parent_id')
-                                    ->where('type', $type);
-                                    
-                                if ($parentId) {
-                                    $query->where('parent_id', $parentId);
-                                }
-                                
-                                return $query->with('parent')
-                                    ->get()
-                                    ->groupBy('parent.name')
-                                    ->map(fn($categories) => $categories->pluck('name', 'id'))
-                                    ->toArray();
-                            })
-                            ->required(fn (Forms\Get $get) => in_array($get('type'), ['income', 'expense']))
-                            ->searchable()
-                            ->preload(),
+                        ...static::getCategoryFields(),
 
                         Forms\Components\Select::make('to_account_id')
                             ->label('Cieľový účet')
@@ -218,7 +177,22 @@ class RecurringTransactionResource extends Resource
                 Tables\Columns\TextColumn::make('next_date')
                     ->label('Najbližší termín')
                     ->date()
-                    ->sortable(),
+                    ->sortable()
+                    ->description(function ($record) {
+                        if (!$record->next_date) return null;
+                        $diff = now()->startOfDay()->diffInDays($record->next_date, false);
+                        return match(true) {
+                            $diff < 0 => 'Zmeškané',
+                            $diff === 0 => 'Dnes',
+                            $diff === 1 => 'Zajtra',
+                            default => "o {$diff} dní",
+                        };
+                    })
+                    ->color(function ($record) {
+                        if (!$record->next_date) return null;
+                        $diff = now()->startOfDay()->diffInDays($record->next_date, false);
+                        return $diff <= 0 ? 'danger' : 'gray';
+                    }),
 
                 // Rýchly prepínač aktivity priamo zo zoznamu
                 Tables\Columns\ToggleColumn::make('is_active')
@@ -246,6 +220,55 @@ class RecurringTransactionResource extends Resource
             'index' => Pages\ListRecurringTransactions::route('/'),
             'create' => Pages\CreateRecurringTransaction::route('/create'),
             'edit' => Pages\EditRecurringTransaction::route('/{record}/edit'),
+        ];
+    }
+
+    public static function getCategoryFields(): array
+    {
+        return [
+            Forms\Components\Select::make('parent_category_id')
+                ->label('Hlavná skupina')
+                ->options(fn(Forms\Get $get) => Category::whereNull('parent_id')
+                    ->where('type', match($get('type')) {
+                        'income' => 'income',
+                        default => 'expense',
+                    })
+                    ->whereDoesntHave('planItem', fn($q) => $q->whereHas('goal', fn($g) => $g->where('is_reserve', true)))
+                    ->pluck('name', 'id')
+                )
+                ->live()
+                ->dehydrated(false)
+                ->searchable()
+                ->placeholder('Vyberte hlavnú skupinu...')
+                ->afterStateHydrated(function (Forms\Components\Select $component, $state, ?Model $record) {
+                    if ($record?->category?->parent_id) {
+                        $component->state($record->category->parent_id);
+                    }
+                }),
+
+            Forms\Components\Select::make('category_id')
+                ->label('Podkategória / Detail')
+                ->placeholder(fn (Forms\Get $get) => $get('parent_category_id') ? 'Vyberte detail...' : 'Vyberte zo zoznamu')
+                ->options(function (Forms\Get $get) {
+                    $parentId = $get('parent_category_id');
+                    $type = $get('type') === 'income' ? 'income' : 'expense';
+                    
+                    $query = Category::whereNotNull('parent_id')
+                        ->where('type', $type);
+                        
+                    if ($parentId) {
+                        $query->where('parent_id', $parentId);
+                    }
+                    
+                    return $query->with('parent')
+                        ->get()
+                        ->groupBy('parent.name')
+                        ->map(fn($categories) => $categories->pluck('name', 'id'))
+                        ->toArray();
+                })
+                ->required()
+                ->searchable()
+                ->preload(),
         ];
     }
 }

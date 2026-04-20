@@ -50,14 +50,17 @@
                     $remaining = max(0, $alloc - $spent);
                     $pct       = $alloc > 0 ? round(min(100, ($spent / $alloc) * 100)) : 0;
                     
+                    $isOver    = (!$isSaving && $spent > $alloc);
+                    $isSuccess = ($isSaving && $spent >= $alloc);
+
                     // Logic for colors: Use pillar color as base, change only for status feedback
                     if ($isSaving) {
-                        $isSuccess = $spent >= $alloc;
                         $arcColor  = $isSuccess ? '#228b22' : ($pillar['color'] ?? '#87ceeb');
                     } else {
-                        $isOver    = $spent > $alloc;
                         $arcColor  = $isOver ? '#ff0000' : ($pillar['color'] ?? '#ff0000');
                     }
+
+                    $spentColor = $isOver ? 'text-danger-600' : ($isSuccess ? 'text-success-600' : 'text-gray-700 dark:text-gray-200');
                     
                     $chartId   = 'pchart-' . $i . '-' . md5($this->period);
                 @endphp
@@ -136,7 +139,7 @@
                     <div class="w-full border-t border-gray-100 dark:border-gray-800 pt-3 space-y-1.5">
                         <div class="flex justify-between items-center">
                             <span class="text-[10px] text-gray-400">Minuté</span>
-                            <span class="text-xs font-bold {{ $isOver ? 'text-danger-600' : 'text-gray-700 dark:text-gray-200' }}">
+                            <span class="text-xs font-bold {{ $spentColor }}">
                                 {{ number_format($spent, 0, ',', ' ') }} €
                             </span>
                         </div>

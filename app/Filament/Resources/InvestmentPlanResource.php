@@ -296,7 +296,22 @@ class InvestmentPlanResource extends Resource
                 Tables\Columns\TextColumn::make('next_run_date')
                     ->label('Nasledujúci nákup')
                     ->date('d.m.Y')
-                    ->sortable(),
+                    ->sortable()
+                    ->description(function ($record) {
+                        if (!$record->next_run_date) return null;
+                        $diff = now()->startOfDay()->diffInDays($record->next_run_date, false);
+                        return match(true) {
+                            $diff < 0 => 'Zmeškané',
+                            $diff === 0 => 'Dnes',
+                            $diff === 1 => 'Zajtra',
+                            default => "o {$diff} dní",
+                        };
+                    })
+                    ->color(function ($record) {
+                        if (!$record->next_run_date) return null;
+                        $diff = now()->startOfDay()->diffInDays($record->next_run_date, false);
+                        return $diff <= 0 ? 'danger' : 'gray';
+                    }),
                 Tables\Columns\IconColumn::make('is_active')
                     ->label('Aktívny')
                     ->boolean(),

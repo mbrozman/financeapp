@@ -28,6 +28,7 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->login()
             ->brandName('Vault')
+            ->sidebarCollapsibleOnDesktop()
             ->globalSearch(false)
             ->brandLogo(asset('images/logo.svg'))
             ->brandLogoHeight('52px')
@@ -53,6 +54,22 @@ class AdminPanelProvider extends PanelProvider
                 \Filament\View\PanelsRenderHook::HEAD_END,
                 fn (): string => \Illuminate\Support\Facades\Blade::render('
                     <style>
+                        /* Presun šípky na spodok */
+                        .fi-sidebar-collapse-button {
+                            position: absolute;
+                            bottom: 10px;
+                            left: 50%;
+                            transform: translateX(-50%);
+                            z-index: 50;
+                        }
+                        
+                        /* Logo neschovávať v collapsed režime */
+                        .fi-sidebar-header {
+                            display: flex !important;
+                            justify-content: center;
+                            padding-top: 15px !important;
+                        }
+
                         .fi-sidebar-header a::after {
                             content: "Vault";
                             font-weight: 700;
@@ -61,11 +78,24 @@ class AdminPanelProvider extends PanelProvider
                             color: #1a3e10;
                             display: inline-block;
                             vertical-align: middle;
+                            transition: all 0.2s;
                         }
+
+                        /* Schovať text Vault v collapsed režime, ale nechať logo */
+                        .fi-main-sidebar-open-desktop .fi-sidebar-header a::after,
+                        aside:not(.fi-sidebar-open-desktop) .fi-sidebar-header a::after {
+                            display: none;
+                        }
+
                         .fi-sidebar-header a {
                             display: flex;
                             align-items: center;
                             text-decoration: none;
+                        }
+                        
+                        /* Odstrániť pôvodné umiestnenie tlačidla v headeri */
+                        .fi-sidebar-header .fi-sidebar-collapse-button {
+                            position: absolute !important;
                         }
                     </style>
                 '),

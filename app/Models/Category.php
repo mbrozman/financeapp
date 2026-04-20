@@ -20,6 +20,7 @@ class Category extends Model
     public function parent(): BelongsTo { return $this->belongsTo(Category::class, 'parent_id'); }
     public function children(): HasMany { return $this->hasMany(Category::class, 'parent_id'); }
     public function planItem(): BelongsTo { return $this->belongsTo(FinancialPlanItem::class, 'financial_plan_item_id'); }
+    public function transactions(): HasMany { return $this->hasMany(Transaction::class); }
 
     public static function getPremiumPalette(): array
     {

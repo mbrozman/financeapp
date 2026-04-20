@@ -32,13 +32,13 @@ class RecurringTransaction extends Model
     // Vzťah k účtu
     public function account(): BelongsTo
     {
-        return $this->belongsTo(Account::class);
+        return $this->belongsTo(Account::class)->withTrashed();
     }
 
     // Vzťah k cieľovému účtu (pre prevody)
     public function toAccount(): BelongsTo
     {
-        return $this->belongsTo(Account::class, 'to_account_id');
+        return $this->belongsTo(Account::class, 'to_account_id')->withTrashed();
     }
 
     // Vzťah ku kategórii

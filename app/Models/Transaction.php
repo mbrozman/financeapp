@@ -39,7 +39,7 @@ class Transaction extends Model
 
     public function account(): BelongsTo
     {
-        return $this->belongsTo(Account::class);
+        return $this->belongsTo(Account::class)->withTrashed();
     }
 
     public function category(): BelongsTo
@@ -65,19 +65,28 @@ class Transaction extends Model
     {
         return Attribute::make(
             set: function ($value, $attributes) {
-                // Pozrieme sa, aký typ sme vybrali vo formulári
-                // Ak v poli type nič nie je, predpokladáme 'expense' (výdavok)
-                $type = $attributes['type'] ?? $this->type ?? 'expense';
+                // $attributes['type'] môže byť enum objekt alebo string (závisí od poradia fill())
+                // Preto extrahujeme vždy čistý string
+                $rawType = $attributes['type'] ?? null;
 
-                if ($type === 'income') {
-                    return abs($value); // Vždy kladné pre príjem
+                if ($rawType instanceof \App\Enums\TransactionType) {
+                    $typeStr = $rawType->value;
+                } elseif ($rawType instanceof \UnitEnum) {
+                    $typeStr = $rawType->value ?? (string) $rawType->name;
+                } else {
+                    $typeStr = (string) ($rawType ?? $this->getRawOriginal('type') ?? 'expense');
                 }
 
-                if ($type === 'expense') {
-                    return -abs($value); // Vždy záporné pre výdavok
+                if ($typeStr === 'income') {
+                    return abs((float) $value);
                 }
 
-                return $value; // Pre prevody (transfer) necháme tak
+                if ($typeStr === 'expense') {
+                    return -abs((float) $value);
+                }
+
+                // Pre transfer, buy, sell, dividend, deposit, withdrawal – nechaj tak
+                return $value;
             },
         );
     }
@@ -94,6 +103,17 @@ class Transaction extends Model
         static::deleted(function (Transaction $transaction) {
             $transaction->account->decrement('balance', $transaction->amount);
             $transaction->clearDashboardCache();
+        });
+
+        static::updating(function (Transaction $transaction) {
+            // Ak sa zmenil účet, musíme opraviť zostatky na OBOCH účtoch
+            if ($transaction->isDirty('account_id')) {
+                $oldAccount = Account::find($transaction->getOriginal('account_id'));
+                $oldAmount  = (float) $transaction->getOriginal('amount');
+                // Odčítame starú sumu zo starého účtu
+                $oldAccount?->decrement('balance', $oldAmount);
+                // Pôvodná changed() logika v 'updated' potom pridá novú sumu na nový účet
+            }
         });
 
         static::updated(function (Transaction $transaction) {

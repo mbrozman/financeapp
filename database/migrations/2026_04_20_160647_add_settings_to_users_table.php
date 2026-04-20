@@ -11,8 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('investment_plans', function (Blueprint $table) {
-            $table->foreignId('category_id')->nullable()->after('currency_id')->constrained('categories')->onDelete('set null');
+        Schema::table('users', function (Blueprint $table) {
+            $table->json('settings')->nullable()->after('is_active');
         });
     }
 
@@ -21,9 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('investment_plans', function (Blueprint $table) {
-            $table->dropForeign(['category_id']);
-            $table->dropColumn('category_id');
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropColumn('settings');
         });
     }
 };

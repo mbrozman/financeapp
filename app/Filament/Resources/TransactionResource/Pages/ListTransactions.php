@@ -10,14 +10,53 @@ use Filament\Actions;
 use Filament\Forms;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Builder;
+use Livewire\Attributes\Url;
+use Livewire\Attributes\On;
+
 
 class ListTransactions extends ListRecords
 {
     protected static string $resource = TransactionResource::class;
 
+    #[Url(as: 'month')]
+    public ?string $month = null;
+
+    #[On('filterUpdated')]
+    public function handleFilterUpdate($month): void
+    {
+        $this->month = $month;
+    }
+
+    public function mount(): void
+    {
+        parent::mount();
+        
+        if (!$this->month) {
+            $this->month = now()->format('Y-m');
+        }
+    }
+
+    protected function modifyQueryUsing(Builder $query): Builder
+    {
+        if ($this->month) {
+            $date = \Carbon\Carbon::parse($this->month . '-01');
+            $query->whereMonth('transaction_date', $date->month)
+                  ->whereYear('transaction_date', $date->year);
+        }
+
+        return $query;
+    }
+
     protected function getHeaderActions(): array
     {
         return [
+            Actions\Action::make('board_view')
+                ->label('Zobraziť Board')
+                ->color('gray')
+                ->icon('heroicon-m-squares-2x2')
+                ->url(static::$resource::getUrl('index')),
+
             Actions\CreateAction::make(),
 
             // NAŠE VYLEPŠENÉ TLAČIDLO PRE PREVOD
@@ -111,5 +150,18 @@ class ListTransactions extends ListRecords
                 })
                 ->successNotificationTitle('Prevod úspešne prebehol'),
         ];
+    }
+
+    protected function getHeaderWidgets(): array
+    {
+        return [
+            TransactionResource\Widgets\TransactionMonthFilter::class,
+            TransactionResource\Widgets\TransactionSummaryWidget::class,
+        ];
+    }
+
+    public function getHeaderWidgetsColumns(): int | array
+    {
+        return 12;
     }
 }

@@ -31,6 +31,7 @@ class User extends Authenticatable implements FilamentUser
         'is_admin',
         'is_superadmin',
         'is_active',
+        'settings',
     ];
 
     /**
@@ -57,6 +58,7 @@ class User extends Authenticatable implements FilamentUser
             'is_admin' => 'boolean',
             'is_superadmin' => 'boolean',
             'is_active' => 'boolean',
+            'settings' => 'array',
         ];
     }
     public function canAccessPanel(Panel $panel): bool

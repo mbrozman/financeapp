@@ -69,6 +69,9 @@ class ExecuteInvestmentPlans extends Command
                     throw new \Exception("Plán nemá žiadne priradené aktíva (položky).");
                 }
 
+                // Akumulátor skutočne minutých nákladov cez všetky aktíva plánu
+                $totalActualCost = BigDecimal::zero();
+
                 foreach ($items as $item) {
                     $investment = $item->investment;
                     $weight = (string) $item->weight;
@@ -78,7 +81,7 @@ class ExecuteInvestmentPlans extends Command
                         ->multipliedBy($weight)
                         ->dividedBy(100, 4, RoundingMode::HALF_UP);
 
-                    $this->info("  -> Nákup {$investment->ticker} (Podiel {$weight}%, Suma: {$itemAmountString})");
+                    $this->info("  -> Nákup {$investment->ticker} (Podiel {$weight}%, Plánovaná suma: {$itemAmountString})");
 
                     // 1. ZÍSKANIE CENY
                     $quote = $apiService->getLiveQuote($investment->ticker);
@@ -96,7 +99,7 @@ class ExecuteInvestmentPlans extends Command
                         $investment->currency_id
                     );
 
-                    // 3. VÝPOČET KUSOV
+                    // 3. VÝPOČET KUSOV (DOWN = nikdy nekúpime viac, než máme)
                     $quantity = BigDecimal::of($investedAmountInNativeString)
                         ->dividedBy($currentPrice, 8, RoundingMode::DOWN);
 
@@ -105,37 +108,50 @@ class ExecuteInvestmentPlans extends Command
                         continue;
                     }
 
-                    // 4. VYTVORENIE TRANSAKCIE
+                    // 4. SKUTOČNÉ NÁKLADY = quantity × cena (v mene investície → konvertujeme do meny plánu)
+                    $actualCostInNative = $quantity->multipliedBy($currentPrice);
+                    $actualCostInPlanCurrency = CurrencyService::convert(
+                        (string) $actualCostInNative,
+                        $investment->currency_id,
+                        $plan->currency_id
+                    );
+                    $totalActualCost = $totalActualCost->plus($actualCostInPlanCurrency);
+
+                    $this->info("    ✅ Nakúpené: {$quantity} ks @ {$currentPrice} = {$actualCostInNative} (plánovaných: {$itemAmountString})");
+
+                    // 5. ULOŽENIE INVESTIČNEJ TRANSAKCIE
                     InvestmentTransaction::create([
-                        'user_id' => $plan->user_id,
-                        'investment_id' => $investment->id,
-                        'type' => TransactionType::BUY,
-                        'quantity' => (string) $quantity,
-                        'price_per_unit' => (string) $currentPrice,
-                        'commission' => '0',
-                        'currency_id' => $investment->currency_id,
-                        'exchange_rate' => CurrencyService::getLiveRateById($investment->currency_id),
+                        'user_id'          => $plan->user_id,
+                        'investment_id'    => $investment->id,
+                        'type'             => TransactionType::BUY,
+                        'quantity'         => (string) $quantity,
+                        'price_per_unit'   => (string) $currentPrice,
+                        'commission'       => '0',
+                        'currency_id'      => $investment->currency_id,
+                        'exchange_rate'    => CurrencyService::getLiveRateById($investment->currency_id),
                         'transaction_date' => now(),
                         'investment_plan_id' => $plan->id,
-                        'notes' => "Automatický nákup ({$weight}%)",
+                        'notes'            => "Automatický nákup ({$weight}%) – skutočná cena: {$actualCostInNative}",
                     ]);
-
-                    $this->info("    ✅ Nakúpené: {$quantity} ks");
                 }
 
-                // 5. VYTVORENIE CASH TRANSAKCIE (Deduction from Account)
-                if ($plan->account_id) {
+                // 6. CASH TRANSAKCIA – odpočítame len SKUTOČNE minuté peniaze
+                // (nie pevnú sumu plánu, pretože DOWN zaokrúhlenie spôsobuje rozdiel)
+                if ($plan->account_id && $totalActualCost->isGreaterThan(0)) {
+                    $actualDeduction = (string) $totalActualCost->toScale(4, RoundingMode::HALF_UP);
                     \App\Models\Transaction::create([
-                        'user_id' => $plan->user_id,
-                        'account_id' => $plan->account_id,
-                        'amount' => -abs($plan->amount),
-                        'currency_id' => $plan->currency_id,
+                        'user_id'          => $plan->user_id,
+                        'type'             => 'transfer',
+                        'account_id'       => $plan->account_id,
+                        'amount'           => -abs((float) $actualDeduction),
+                        'currency_id'      => $plan->currency_id,
                         'transaction_date' => now(),
-                        'type' => 'transfer', // Používame 'transfer' pre čistý Cashflow, ale so započítaním do Budgetu
-                        'description' => "Investičný nákup: {$plan->name}",
-                        'category_id' => $plan->category_id,
+                        'description'      => "Investičný nákup: {$plan->name} (skutočná suma: {$actualDeduction} / plánovaných: {$plan->amount})",
+                        'category_id'      => $plan->category_id,
                     ]);
-                    $this->info("  -> Hotovosť odpočítaná z účtu: {$plan->account->name}");
+                    $this->info("  -> Hotovosť odpočítaná: {$actualDeduction} (plánovaných {$plan->amount})");
+                } elseif ($plan->account_id && $totalActualCost->isZero()) {
+                    $this->warn("  ⚠️ Žiadne aktívum sa nepodarilo nakúpiť – hotovosť nebola odpočítaná.");
                 }
 
                 // 6. UPDATE PLÁNU (Next Run Date)

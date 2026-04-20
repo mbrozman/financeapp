@@ -19,21 +19,25 @@ class DashboardFinanceService
 
     public function getTotalNetWorth($userId): float
     {
-        // 1. Likvidita (Účty)
+        // 1. Likvidita (Účty) – BigDecimal pre presnú aritmetiku
         $accounts = Account::where('user_id', $userId)->get();
-        $totalAccounts = 0;
+        $totalAccountsBD = BigDecimal::zero();
         foreach ($accounts as $account) {
-            $totalAccounts += (float) CurrencyService::convertToEur((string) $account->balance, $account->currency_id);
+            $totalAccountsBD = $totalAccountsBD->plus(
+                CurrencyService::convertToEur((string) $account->balance, $account->currency_id)
+            );
         }
 
-        // 2. Investície (Trhová hodnota)
+        // 2. Investície (Trhová hodnota) – BigDecimal
         $investments = \App\Models\Investment::where('user_id', $userId)->get();
-        $totalInvestments = 0;
+        $totalInvestmentsBD = BigDecimal::zero();
         foreach ($investments as $investment) {
-            $totalInvestments += (float) $investment->current_market_value_eur;
+            $totalInvestmentsBD = $totalInvestmentsBD->plus(
+                (string) ($investment->current_market_value_eur ?? '0')
+            );
         }
 
-        return round($totalAccounts + $totalInvestments, 2);
+        return round($totalAccountsBD->plus($totalInvestmentsBD)->toFloat(), 2);
     }
 
     public function getLiquidityStats($userId): array
