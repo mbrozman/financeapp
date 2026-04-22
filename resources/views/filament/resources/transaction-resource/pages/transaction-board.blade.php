@@ -71,6 +71,34 @@
             display: flex;
             flex-direction: column;
             gap: 8px;
+            max-height: 480px; /* Maximálna výška zoznamu */
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(0,0,0,0.1) transparent;
+        }
+        .dark .cards-container {
+            scrollbar-color: rgba(255,255,255,0.1) transparent;
+        }
+
+        /* Štýlový scrollbar */
+        .cards-container::-webkit-scrollbar {
+            width: 4px;
+        }
+        .cards-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .cards-container::-webkit-scrollbar-thumb {
+            background: rgba(0,0,0,0.08);
+            border-radius: 20px;
+        }
+        .dark .cards-container::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.08);
+        }
+        .cards-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(0,0,0,0.15);
+        }
+        .dark .cards-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.15);
         }
 
         .group-bubble {
